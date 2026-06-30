@@ -2,6 +2,14 @@
 dist/
 # generated types
 .astro/
+#AI
+.claude/
+CLAUDE.md
+#vs_code
+.vscode/
+
+#details
+projectbrief.md
 
 # dependencies
 node_modules/
