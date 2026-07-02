@@ -15,7 +15,7 @@ export default function PoolCard({ pool, onClick, hasPosition, index = 0 }: Pool
       className="group relative rounded-2xl p-6 cursor-pointer transition-all duration-200 hover:scale-[1.01] animate-fade-up"
       style={{
         backgroundColor: 'var(--c-surface)',
-        border: '1px solid var(--c-border)',
+        border: '1px solid var(--c-card-border)',
         boxShadow: 'var(--c-card-shadow)',
         animationDelay: `${index * 0.07}s`,
       }}

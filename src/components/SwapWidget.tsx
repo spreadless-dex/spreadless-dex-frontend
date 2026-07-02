@@ -113,7 +113,7 @@ export default function SwapWidget() {
 
   return (
     <div
-      className="w-[460px] rounded-2xl p-7 animate-bounce-in"
+      className="w-full max-w-[460px] rounded-2xl p-7 animate-bounce-in"
       style={{
         backgroundColor: 'var(--c-surface)',
         border: '1px solid var(--c-border)',
