@@ -59,15 +59,36 @@ export default function PoolsPage() {
     <div className="min-h-screen pt-16">
       {/* Stats bar */}
       <div style={{ borderBottom: '1px solid var(--c-border)' }}>
-        <div className="max-w-7xl mx-auto px-6 py-5 flex items-center gap-0">
+        {/* Mobile: 2×2 grid */}
+        <div className="grid grid-cols-2 md:hidden max-w-7xl mx-auto">
+          {statsConfig.map(({ key, Icon, line1, line2 }, i) => (
+            <div
+              key={key}
+              className="flex items-center gap-3 px-5 py-4"
+              style={{
+                borderRight: i % 2 === 0 ? '1px solid var(--c-border)' : 'none',
+                borderBottom: i < 2 ? '1px solid var(--c-border)' : 'none',
+              }}
+            >
+              <Icon size={16} strokeWidth={1.6} style={{ color: 'var(--c-text)', flexShrink: 0 }} />
+              <div>
+                <p className="text-[11px] leading-snug" style={{ color: 'var(--c-text-muted)' }}>
+                  {line1}
+                </p>
+                <p className="text-[12px] font-semibold leading-snug" style={{ color: 'var(--c-text)' }}>
+                  {line2(statValues[i])}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop: single horizontal row */}
+        <div className="hidden md:flex items-center max-w-7xl mx-auto px-6 py-5">
           {statsConfig.map(({ key, Icon, line1, line2 }, i) => (
             <div key={key} className="flex items-center">
               <div className="flex items-center gap-3 px-6 first:pl-0">
-                <Icon
-                  size={18}
-                  strokeWidth={1.6}
-                  style={{ color: 'var(--c-text)', flexShrink: 0 }}
-                />
+                <Icon size={18} strokeWidth={1.6} style={{ color: 'var(--c-text)', flexShrink: 0 }} />
                 <div>
                   <p className="text-[13px] leading-snug" style={{ color: 'var(--c-text-muted)' }}>
                     {line1}
