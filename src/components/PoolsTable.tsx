@@ -10,10 +10,21 @@ export default function PoolsTable({ pools, onSelectPool }: PoolsTableProps) {
   const { walletConnected } = useAppStore()
 
   return (
-    <div className="border border-white/[0.06] rounded-2xl overflow-hidden">
+    <div
+      className="rounded-2xl overflow-hidden"
+      style={{
+        border: '1px solid var(--c-border)',
+        boxShadow: 'var(--c-card-shadow)',
+        backgroundColor: 'var(--c-surface)',
+      }}
+    >
       <div
-        className="grid px-6 py-3 border-b border-white/[0.06] text-[11px] uppercase tracking-widest text-white/30"
-        style={{ gridTemplateColumns: '1.6fr 90px 120px 130px 100px 100px 110px' }}
+        className="grid px-6 py-3 text-[11px] uppercase tracking-widest"
+        style={{
+          gridTemplateColumns: '1.6fr 90px 120px 130px 100px 100px 110px',
+          borderBottom: '1px solid var(--c-border)',
+          color: 'var(--c-text-faint)',
+        }}
       >
         <span>Pool</span>
         <span>APY</span>
@@ -28,46 +39,77 @@ export default function PoolsTable({ pools, onSelectPool }: PoolsTableProps) {
         <div
           key={pool.id}
           onClick={() => onSelectPool(pool)}
-          className={`grid px-6 py-4 items-center cursor-pointer transition-colors duration-150 hover:bg-white/[0.02] ${
-            i < pools.length - 1 ? 'border-b border-white/[0.04]' : ''
-          }`}
-          style={{ gridTemplateColumns: '1.6fr 90px 120px 130px 100px 100px 110px' }}
+          className="grid px-6 py-4 items-center cursor-pointer transition-colors duration-150"
+          style={{
+            gridTemplateColumns: '1.6fr 90px 120px 130px 100px 100px 110px',
+            borderBottom: i < pools.length - 1 ? '1px solid var(--c-border)' : 'none',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--c-surface-2)')}
+          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
         >
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center text-xs font-bold text-white/60">
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+              style={{
+                backgroundColor: 'var(--c-surface-2)',
+                border: '1px solid var(--c-border)',
+                color: 'var(--c-text-muted)',
+              }}
+            >
               {pool.symbol.charAt(0)}
             </div>
             <div>
-              <p className="text-white text-sm font-medium">{pool.symbol}</p>
-              <p className="text-white/30 text-xs">{pool.token}</p>
+              <p className="text-sm font-medium" style={{ color: 'var(--c-text)' }}>
+                {pool.symbol}
+              </p>
+              <p className="text-xs" style={{ color: 'var(--c-text-faint)' }}>
+                {pool.token}
+              </p>
             </div>
           </div>
 
-          <span className="text-white text-sm font-semibold">{pool.apy.toFixed(2)}%</span>
+          <span className="text-sm font-semibold" style={{ color: 'var(--c-text)' }}>
+            {pool.apy.toFixed(2)}%
+          </span>
 
-          <span className="text-white/65 text-sm">{formatCurrency(pool.tvl)}</span>
+          <span className="text-sm" style={{ color: 'var(--c-text-muted)' }}>
+            {formatCurrency(pool.tvl)}
+          </span>
 
-          <span className="text-white/65 text-sm">{formatCurrency(pool.volume24h)}</span>
+          <span className="text-sm" style={{ color: 'var(--c-text-muted)' }}>
+            {formatCurrency(pool.volume24h)}
+          </span>
 
           <div className="flex items-center gap-2.5 pr-4">
-            <div className="flex-1 h-1 bg-white/[0.06] rounded-full overflow-hidden">
+            <div
+              className="flex-1 h-1 rounded-full overflow-hidden"
+              style={{ backgroundColor: 'var(--c-border)' }}
+            >
               <div
-                className="h-full bg-white/25 rounded-full"
-                style={{ width: `${pool.utilization}%` }}
+                className="h-full rounded-full"
+                style={{
+                  width: `${pool.utilization}%`,
+                  backgroundColor: 'var(--c-text-muted)',
+                }}
               />
             </div>
-            <span className="text-white/40 text-xs w-8 text-right shrink-0">{pool.utilization}%</span>
+            <span className="text-xs w-8 text-right shrink-0" style={{ color: 'var(--c-text-faint)' }}>
+              {pool.utilization}%
+            </span>
           </div>
 
-          <span className="text-white/50 text-sm">
+          <span className="text-sm" style={{ color: 'var(--c-text-muted)' }}>
             {walletConnected && pool.myDeposit > 0
               ? `$${pool.myDeposit.toLocaleString()}`
               : '—'}
           </span>
 
           <button
-            className="px-3 py-1.5 text-xs text-white/45 border border-white/[0.08] rounded-lg
-                       hover:border-white/[0.18] hover:text-white/75 transition-all duration-150 w-fit"
+            className="px-3 py-1.5 text-xs rounded-lg transition-all duration-150 w-fit"
+            style={{
+              color: 'var(--c-text-muted)',
+              border: '1px solid var(--c-border)',
+            }}
             onClick={(e) => {
               e.stopPropagation()
               onSelectPool(pool)

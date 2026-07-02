@@ -24,6 +24,8 @@ interface AppState {
   walletAddress: string | null
   connectWallet: () => void
   disconnectWallet: () => void
+  theme: 'light' | 'dark'
+  toggleTheme: () => void
 }
 
 const MOCK_POOLS: Pool[] = [
@@ -94,6 +96,11 @@ const MOCK_POOLS: Pool[] = [
   },
 ]
 
+const storedTheme =
+  typeof localStorage !== 'undefined'
+    ? (localStorage.getItem('spreadless-theme') as 'light' | 'dark' | null)
+    : null
+
 export const useAppStore = create<AppState>((set) => ({
   pools: MOCK_POOLS,
   viewMode: 'card',
@@ -108,4 +115,11 @@ export const useAppStore = create<AppState>((set) => ({
       walletAddress: 'GDRXE2BQUC3AZNPVFSCEZ76NJ3WWL25FYFK6RGZGZKEGFK5F7',
     }),
   disconnectWallet: () => set({ walletConnected: false, walletAddress: null }),
+  theme: storedTheme ?? 'light',
+  toggleTheme: () =>
+    set((s) => {
+      const next = s.theme === 'light' ? 'dark' : 'light'
+      localStorage.setItem('spreadless-theme', next)
+      return { theme: next }
+    }),
 }))

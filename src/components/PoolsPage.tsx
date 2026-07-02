@@ -4,6 +4,34 @@ import PoolsGrid from './PoolsGrid'
 import PoolsTable from './PoolsTable'
 import ViewToggle from './ViewToggle'
 import PoolDetailModal from './PoolDetailModal'
+import { TrendingUp, Activity, Layers, Percent } from 'lucide-react'
+
+const statsConfig = [
+  {
+    key: 'tvl',
+    Icon: TrendingUp,
+    line1: 'Total value locked',
+    line2: (v: string) => `across ${v}`,
+  },
+  {
+    key: 'volume',
+    Icon: Activity,
+    line1: 'Trading volume',
+    line2: (v: string) => `${v} in 24 hours`,
+  },
+  {
+    key: 'pools',
+    Icon: Layers,
+    line1: 'Liquidity pools',
+    line2: (v: string) => `${v} active on Stellar`,
+  },
+  {
+    key: 'apy',
+    Icon: Percent,
+    line1: 'Average yield',
+    line2: (v: string) => `up to ${v} APY`,
+  },
+]
 
 export default function PoolsPage() {
   const { pools, viewMode, selectedPool, setSelectedPool, walletConnected } = useAppStore()
@@ -20,32 +48,51 @@ export default function PoolsPage() {
   const totalVolume = pools.reduce((sum, p) => sum + p.volume24h, 0)
   const avgAPY = pools.reduce((sum, p) => sum + p.apy, 0) / pools.length
 
+  const statValues = [
+    formatCurrency(totalTVL),
+    formatCurrency(totalVolume),
+    String(pools.length),
+    `${avgAPY.toFixed(2)}%`,
+  ]
+
   return (
     <div className="min-h-screen pt-16">
-      <div className="border-b border-white/[0.05]">
-        <div className="max-w-7xl mx-auto px-6 py-3.5 flex items-center gap-2">
-          {[
-            { label: 'TVL', value: formatCurrency(totalTVL) },
-            { label: '24h Volume', value: formatCurrency(totalVolume) },
-            { label: 'Pools', value: String(pools.length) },
-            { label: 'Avg APY', value: `${avgAPY.toFixed(2)}%` },
-          ].map(({ label, value }, i, arr) => (
-            <div key={label} className="flex items-center gap-2">
-              <div className="px-4 py-1">
-                <p className="text-[11px] text-white/30 uppercase tracking-widest mb-0.5">{label}</p>
-                <p className="text-white text-sm font-semibold">{value}</p>
+      {/* Stats bar */}
+      <div style={{ borderBottom: '1px solid var(--c-border)' }}>
+        <div className="max-w-7xl mx-auto px-6 py-5 flex items-center gap-0">
+          {statsConfig.map(({ key, Icon, line1, line2 }, i) => (
+            <div key={key} className="flex items-center">
+              <div className="flex items-center gap-3 px-6 first:pl-0">
+                <Icon
+                  size={18}
+                  strokeWidth={1.6}
+                  style={{ color: 'var(--c-text)', flexShrink: 0 }}
+                />
+                <div>
+                  <p className="text-[13px] leading-snug" style={{ color: 'var(--c-text-muted)' }}>
+                    {line1}
+                  </p>
+                  <p className="text-[13px] font-semibold leading-snug" style={{ color: 'var(--c-text)' }}>
+                    {line2(statValues[i])}
+                  </p>
+                </div>
               </div>
-              {i < arr.length - 1 && <div className="w-px h-7 bg-white/[0.06]" />}
+              {i < statsConfig.length - 1 && (
+                <div className="w-px h-8 shrink-0" style={{ backgroundColor: 'var(--c-border)' }} />
+              )}
             </div>
           ))}
         </div>
       </div>
 
+      {/* Main */}
       <div className="max-w-7xl mx-auto px-6 py-10">
         <div className="flex items-start justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-white mb-1">Earn</h1>
-            <p className="text-white/40 text-sm">
+            <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--c-text)' }}>
+              Earn
+            </h1>
+            <p className="text-sm" style={{ color: 'var(--c-text-muted)' }}>
               Single-sided liquidity. Deposit one stablecoin and earn.
             </p>
           </div>
