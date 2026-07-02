@@ -97,11 +97,25 @@ html.dark {
   object-position: center;
 }
 
-#canvas-light { display: block; }
-#canvas-dark  { display: none; }
+/* Mobile (default): mobile images */
+#canvas-light-desktop { display: none; }
+#canvas-dark-desktop  { display: none; }
+#canvas-light-mobile  { display: block; }
+#canvas-dark-mobile   { display: none; }
 
-html.dark #canvas-light { display: none; }
-html.dark #canvas-dark  { display: block; }
+html.dark #canvas-light-mobile { display: none; }
+html.dark #canvas-dark-mobile  { display: block; }
+
+/* Desktop: swap to desktop images */
+@media (min-width: 768px) {
+  #canvas-light-mobile  { display: none; }
+  #canvas-dark-mobile   { display: none; }
+  #canvas-light-desktop { display: block; }
+  #canvas-dark-desktop  { display: none; }
+
+  html.dark #canvas-light-desktop { display: none; }
+  html.dark #canvas-dark-desktop  { display: block; }
+}
 
 /* Scrim — sits between canvas and content, tones down the artwork */
 #scrim {
