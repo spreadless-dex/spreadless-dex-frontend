@@ -1,22 +1,19 @@
-import { useAppStore, type Pool } from '../store/useAppStore'
+import type { PoolToken } from '../store/useAppStore'
 import PoolCard from './PoolCard'
 
 interface PoolsGridProps {
-  pools: Pool[]
-  onSelectPool: (pool: Pool) => void
+  tokens: PoolToken[]
+  onSelectToken: (token: PoolToken) => void
 }
 
-export default function PoolsGrid({ pools, onSelectPool }: PoolsGridProps) {
-  const { walletConnected } = useAppStore()
-
+export default function PoolsGrid({ tokens, onSelectToken }: PoolsGridProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {pools.map((pool, index) => (
+      {tokens.map((token, index) => (
         <PoolCard
-          key={pool.id}
-          pool={pool}
-          onClick={() => onSelectPool(pool)}
-          hasPosition={walletConnected && pool.myDeposit > 0}
+          key={token.address}
+          token={token}
+          onClick={() => onSelectToken(token)}
           index={index}
         />
       ))}

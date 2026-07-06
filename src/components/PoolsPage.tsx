@@ -1,58 +1,53 @@
+import { useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { formatCurrency } from '../lib/utils'
 import PoolsGrid from './PoolsGrid'
-import PoolsTable from './PoolsTable'
-import ViewToggle from './ViewToggle'
 import PoolDetailModal from './PoolDetailModal'
-import { TrendingUp, Activity, Layers, Percent } from 'lucide-react'
-
-const statsConfig = [
-  {
-    key: 'tvl',
-    Icon: TrendingUp,
-    line1: 'Total value locked',
-    line2: (v: string) => `across ${v}`,
-  },
-  {
-    key: 'volume',
-    Icon: Activity,
-    line1: 'Trading volume',
-    line2: (v: string) => `${v} in 24 hours`,
-  },
-  {
-    key: 'pools',
-    Icon: Layers,
-    line1: 'Liquidity pools',
-    line2: (v: string) => `${v} active on Stellar`,
-  },
-  {
-    key: 'apy',
-    Icon: Percent,
-    line1: 'Average yield',
-    line2: (v: string) => `up to ${v} APY`,
-  },
-]
+import { TrendingUp, Gauge, Layers, Activity } from 'lucide-react'
 
 export default function PoolsPage() {
-  const { pools, viewMode, selectedPool, setSelectedPool, walletConnected } = useAppStore()
+  const {
+    poolState,
+    poolStatus,
+    poolError,
+    loadPoolState,
+    selectedToken,
+    setSelectedToken,
+  } = useAppStore()
 
-  const sortedPools = [...pools].sort((a, b) => {
-    if (walletConnected) {
-      if (a.myDeposit > 0 && b.myDeposit === 0) return -1
-      if (b.myDeposit > 0 && a.myDeposit === 0) return 1
-    }
-    return b.apy - a.apy
-  })
+  useEffect(() => {
+    loadPoolState()
+  }, [loadPoolState])
 
-  const totalTVL = pools.reduce((sum, p) => sum + p.tvl, 0)
-  const totalVolume = pools.reduce((sum, p) => sum + p.volume24h, 0)
-  const avgAPY = pools.reduce((sum, p) => sum + p.apy, 0) / pools.length
-
-  const statValues = [
-    formatCurrency(totalTVL),
-    formatCurrency(totalVolume),
-    String(pools.length),
-    `${avgAPY.toFixed(2)}%`,
+  const stats = [
+    {
+      key: 'tvl',
+      Icon: TrendingUp,
+      line1: 'Total value locked',
+      line2: poolState ? `across ${poolState.tokens.length} assets` : '—',
+      value: poolState ? formatCurrency(poolState.totalTvl) : '—',
+    },
+    {
+      key: 'amp',
+      Icon: Gauge,
+      line1: 'Amplification',
+      line2: 'StableSwap coefficient',
+      value: poolState ? `A = ${poolState.amp}` : '—',
+    },
+    {
+      key: 'assets',
+      Icon: Layers,
+      line1: 'Pooled assets',
+      line2: 'in one StableSwap pool',
+      value: poolState ? String(poolState.tokens.length) : '—',
+    },
+    {
+      key: 'status',
+      Icon: Activity,
+      line1: 'Pool status',
+      line2: 'on Stellar testnet',
+      value: poolState ? (poolState.paused ? 'Paused' : 'Active') : '—',
+    },
   ]
 
   return (
@@ -61,7 +56,7 @@ export default function PoolsPage() {
       <div style={{ borderBottom: '1px solid var(--c-border)' }}>
         {/* Mobile: 2×2 grid */}
         <div className="grid grid-cols-2 md:hidden max-w-7xl mx-auto">
-          {statsConfig.map(({ key, Icon, line1, line2 }, i) => (
+          {stats.map(({ key, Icon, line1, value }, i) => (
             <div
               key={key}
               className="flex items-center gap-3 px-5 py-4"
@@ -76,7 +71,7 @@ export default function PoolsPage() {
                   {line1}
                 </p>
                 <p className="text-[12px] font-semibold leading-snug" style={{ color: 'var(--c-text)' }}>
-                  {line2(statValues[i])}
+                  {value}
                 </p>
               </div>
             </div>
@@ -85,7 +80,7 @@ export default function PoolsPage() {
 
         {/* Desktop: single horizontal row */}
         <div className="hidden md:flex items-center max-w-7xl mx-auto px-6 py-5">
-          {statsConfig.map(({ key, Icon, line1, line2 }, i) => (
+          {stats.map(({ key, Icon, line1, line2, value }, i) => (
             <div key={key} className="flex items-center">
               <div className="flex items-center gap-3 px-6 first:pl-0">
                 <Icon size={18} strokeWidth={1.6} style={{ color: 'var(--c-text)', flexShrink: 0 }} />
@@ -94,11 +89,11 @@ export default function PoolsPage() {
                     {line1}
                   </p>
                   <p className="text-[13px] font-semibold leading-snug" style={{ color: 'var(--c-text)' }}>
-                    {line2(statValues[i])}
+                    {value} · {line2}
                   </p>
                 </div>
               </div>
-              {i < statsConfig.length - 1 && (
+              {i < stats.length - 1 && (
                 <div className="w-px h-8 shrink-0" style={{ backgroundColor: 'var(--c-border)' }} />
               )}
             </div>
@@ -108,28 +103,63 @@ export default function PoolsPage() {
 
       {/* Main */}
       <div className="max-w-7xl mx-auto px-6 py-10">
-        <div className="flex items-start justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--c-text)' }}>
-              Earn
-            </h1>
-            <p className="text-sm" style={{ color: 'var(--c-text-muted)' }}>
-              Single-sided liquidity. Deposit one stablecoin and earn.
-            </p>
-          </div>
-          <ViewToggle />
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--c-text)' }}>
+            Earn
+          </h1>
+          <p className="text-sm" style={{ color: 'var(--c-text-muted)' }}>
+            Single-sided liquidity. Deposit one stablecoin and earn.
+          </p>
         </div>
 
-        {viewMode === 'card' ? (
-          <PoolsGrid pools={sortedPools} onSelectPool={setSelectedPool} />
+        {poolStatus === 'error' ? (
+          <div
+            className="p-8 rounded-2xl text-center"
+            style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)' }}
+          >
+            <p className="text-sm mb-4" style={{ color: 'var(--c-text-muted)' }}>
+              Couldn't reach the pool contract.
+            </p>
+            <p className="text-xs mb-5 break-words" style={{ color: 'var(--c-text-faint)' }}>
+              {poolError}
+            </p>
+            <button
+              onClick={loadPoolState}
+              className="px-5 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-[0.99]"
+              style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
+            >
+              Retry
+            </button>
+          </div>
+        ) : poolStatus === 'ready' && poolState ? (
+          <PoolsGrid tokens={poolState.tokens} onSelectToken={setSelectedToken} />
         ) : (
-          <PoolsTable pools={sortedPools} onSelectPool={setSelectedPool} />
+          <PoolsSkeleton />
         )}
       </div>
 
-      {selectedPool && (
-        <PoolDetailModal pool={selectedPool} onClose={() => setSelectedPool(null)} />
+      {selectedToken && (
+        <PoolDetailModal token={selectedToken} onClose={() => setSelectedToken(null)} />
       )}
+    </div>
+  )
+}
+
+function PoolsSkeleton() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-2xl p-6 animate-shimmer"
+          style={{
+            backgroundColor: 'var(--c-surface)',
+            border: '1px solid var(--c-card-border)',
+            height: 220,
+            animationDelay: `${i * 0.15}s`,
+          }}
+        />
+      ))}
     </div>
   )
 }

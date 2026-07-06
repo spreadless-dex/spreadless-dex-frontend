@@ -1,0 +1,12 @@
+---
+import Layout from '../layouts/Layout.astro'
+import Header from '../components/Header'
+import Faucet from '../components/Faucet'
+---
+
+<Layout title="Faucet — Spreadless">
+  <Header client:load currentPage="faucet" />
+  <main class="min-h-screen flex items-start justify-center px-6 pt-28 pb-16">
+    <Faucet client:load />
+  </main>
+</Layout>

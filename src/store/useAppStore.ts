@@ -1,125 +1,140 @@
-import { create } from 'zustand'
+import { create } from "zustand";
+import { readPoolState } from "../lib/stellar/pool";
+import type { PoolState, PoolToken } from "../lib/stellar/pool";
+import { StellarWalletsKit } from "@creit-tech/stellar-wallets-kit";
 
-export interface Pool {
-  id: string
-  token: string
-  symbol: string
-  apy: number
-  tvl: number
-  volume24h: number
-  myDeposit: number
-  fees: number
-  reserves: number
-  utilization: number
-  depositors: number
-}
+export type { PoolState, PoolToken } from "../lib/stellar/pool";
+
+type PoolStatus = "idle" | "loading" | "ready" | "error";
 
 interface AppState {
-  pools: Pool[]
-  viewMode: 'card' | 'table'
-  setViewMode: (mode: 'card' | 'table') => void
-  selectedPool: Pool | null
-  setSelectedPool: (pool: Pool | null) => void
-  walletConnected: boolean
-  walletAddress: string | null
-  connectWallet: () => void
-  disconnectWallet: () => void
-  theme: 'light' | 'dark'
-  toggleTheme: () => void
+  poolState: PoolState | null;
+  poolStatus: PoolStatus;
+  poolError: string | null;
+  loadPoolState: () => Promise<void>;
+  selectedToken: PoolToken | null;
+  setSelectedToken: (token: PoolToken | null) => void;
+  walletConnected: boolean;
+  walletAddress: string | null;
+  connectWallet: () => Promise<void>;
+  disconnectWallet: () => Promise<void>;
+  theme: "light" | "dark";
+  toggleTheme: () => void;
 }
 
-const MOCK_POOLS: Pool[] = [
-  {
-    id: 'usdc',
-    token: 'USD Coin',
-    symbol: 'USDC',
-    apy: 8.42,
-    tvl: 12_500_000,
-    volume24h: 2_100_000,
-    myDeposit: 1_000,
-    fees: 0.01,
-    reserves: 12_500_000,
-    utilization: 72,
-    depositors: 1847,
-  },
-  {
-    id: 'usdt',
-    token: 'Tether USD',
-    symbol: 'USDT',
-    apy: 7.83,
-    tvl: 9_800_000,
-    volume24h: 1_800_000,
-    myDeposit: 500,
-    fees: 0.01,
-    reserves: 9_800_000,
-    utilization: 68,
-    depositors: 1243,
-  },
-  {
-    id: 'dai',
-    token: 'Dai',
-    symbol: 'DAI',
-    apy: 6.21,
-    tvl: 4_200_000,
-    volume24h: 890_000,
-    myDeposit: 0,
-    fees: 0.01,
-    reserves: 4_200_000,
-    utilization: 54,
-    depositors: 687,
-  },
-  {
-    id: 'eurc',
-    token: 'Euro Coin',
-    symbol: 'EURC',
-    apy: 5.94,
-    tvl: 3_100_000,
-    volume24h: 620_000,
-    myDeposit: 0,
-    fees: 0.01,
-    reserves: 3_100_000,
-    utilization: 45,
-    depositors: 421,
-  },
-  {
-    id: 'pyusd',
-    token: 'PayPal USD',
-    symbol: 'PYUSD',
-    apy: 5.17,
-    tvl: 1_900_000,
-    volume24h: 380_000,
-    myDeposit: 0,
-    fees: 0.01,
-    reserves: 1_900_000,
-    utilization: 39,
-    depositors: 289,
-  },
-]
-
 const storedTheme =
-  typeof localStorage !== 'undefined'
-    ? (localStorage.getItem('spreadless-theme') as 'light' | 'dark' | null)
-    : null
+  typeof localStorage !== "undefined"
+    ? (localStorage.getItem("spreadless-theme") as "light" | "dark" | null)
+    : null;
 
-export const useAppStore = create<AppState>((set) => ({
-  pools: MOCK_POOLS,
-  viewMode: 'card',
-  setViewMode: (mode) => set({ viewMode: mode }),
-  selectedPool: null,
-  setSelectedPool: (pool) => set({ selectedPool: pool }),
+export const useAppStore = create<AppState>((set, get) => ({
+  poolState: null,
+  poolStatus: "idle",
+  poolError: null,
+  loadPoolState: async () => {
+    if (get().poolStatus === "loading") return;
+    set({ poolStatus: "loading", poolError: null });
+    try {
+      const state = await readPoolState();
+      set({ poolState: state, poolStatus: "ready" });
+    } catch (err) {
+      console.error("Failed to load pool state:", err);
+      set({
+        poolStatus: "error",
+        poolError:
+          err instanceof Error ? err.message : "Failed to load pool state.",
+      });
+    }
+  },
+  selectedToken: null,
+  setSelectedToken: (token) => set({ selectedToken: token }),
   walletConnected: false,
   walletAddress: null,
-  connectWallet: () =>
-    set({
-      walletConnected: true,
-      walletAddress: 'GDRXE2BQUC3AZNPVFSCEZ76NJ3WWL25FYFK6RGZGZKEGFK5F7',
-    }),
-  disconnectWallet: () => set({ walletConnected: false, walletAddress: null }),
-  theme: storedTheme ?? 'light',
+  connectWallet: async () => {
+    const { kit, darkTheme, lightTheme } = await loadWalletKit();
+    // Match the modal's theme to the app's current theme.
+    const { theme } = useAppStore.getState();
+    kit.setTheme(theme === "dark" ? darkTheme : lightTheme);
+    try {
+      // Opens the wallet picker and requests the address. State is applied
+      // by the STATE_UPDATED listener registered in loadWalletKit().
+      await kit.authModal();
+    } catch {
+      // User dismissed the modal or picked no wallet — nothing to do.
+    }
+  },
+  disconnectWallet: async () => {
+    const { kit } = await loadWalletKit();
+    await kit.disconnect();
+    set({ walletConnected: false, walletAddress: null });
+  },
+  theme: storedTheme ?? "light",
   toggleTheme: () =>
     set((s) => {
-      const next = s.theme === 'light' ? 'dark' : 'light'
-      localStorage.setItem('spreadless-theme', next)
-      return { theme: next }
+      const next = s.theme === "light" ? "dark" : "light";
+      localStorage.setItem("spreadless-theme", next);
+      return { theme: next };
     }),
-}))
+}));
+
+// ─── Stellar Wallets Kit ────────────────────────────────
+// The kit pulls in wallet SDKs (e.g. @stellar/freighter-api) that are
+// CommonJS and break Astro's Node SSR when statically imported. Loading it
+// dynamically keeps it entirely browser-side. The promise is memoized so
+// init + event wiring happen exactly once.
+let walletKitPromise: ReturnType<typeof bootWalletKit> | null = null;
+
+async function bootWalletKit() {
+  const {} = await import("@creit-tech/stellar-wallets-kit/sdk");
+  const { defaultModules } =
+    await import("@creit-tech/stellar-wallets-kit/modules/utils");
+  const { KitEventType, Networks, SwkAppDarkTheme, SwkAppLightTheme } =
+    await import("@creit-tech/stellar-wallets-kit/types");
+
+  StellarWalletsKit.init({
+    // Switch to Networks.PUBLIC when going to mainnet.
+    network: Networks.TESTNET,
+    modules: defaultModules(),
+    theme: SwkAppDarkTheme,
+  });
+
+  // Fires on connect, account switch, and once at launch (restores a prior
+  // session from storage). address is undefined when no wallet is active.
+  StellarWalletsKit.on(KitEventType.STATE_UPDATED, (event) => {
+    const address = event.payload.address;
+    useAppStore.setState({
+      walletConnected: Boolean(address),
+      walletAddress: address ?? null,
+    });
+  });
+
+  StellarWalletsKit.on(KitEventType.DISCONNECT, () => {
+    useAppStore.setState({ walletConnected: false, walletAddress: null });
+  });
+
+  return {
+    kit: StellarWalletsKit,
+    darkTheme: SwkAppDarkTheme,
+    lightTheme: SwkAppLightTheme,
+  };
+}
+
+function loadWalletKit() {
+  if (!walletKitPromise) walletKitPromise = bootWalletKit();
+  return walletKitPromise;
+}
+
+// Boot on load in the browser so a previously connected session is restored.
+if (typeof window !== "undefined") void loadWalletKit();
+
+// Bridges the connected wallet to the Spreadless/Stellar SDK. The kit's
+// signTransaction/signAuthEntry already match the SDK's expected signatures
+// exactly, so any SDK Client can sign through the browser wallet by spreading
+// this into its constructor options alongside `publicKey`.
+export async function getWalletSigner() {
+  const { kit } = await loadWalletKit();
+  return {
+    signTransaction: kit.signTransaction.bind(kit),
+    signAuthEntry: kit.signAuthEntry.bind(kit),
+  };
+}
