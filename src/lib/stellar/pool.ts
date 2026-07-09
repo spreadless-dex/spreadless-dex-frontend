@@ -6,6 +6,7 @@ import {
   TOKENS,
 } from "./config";
 import { fromRawUnits } from "./units";
+import type { TxResult } from "./types";
 
 // The LP share token (SLP) uses 9 decimals per the contract docs.
 export const LP_DECIMALS = 9;
@@ -152,7 +153,7 @@ export async function depositSingleSided({
   tokenIndex,
   amount,
   toleranceBps = 100n,
-}: DepositArgs): Promise<bigint> {
+}: DepositArgs): Promise<TxResult<bigint>> {
   const pool = await writeClient(to);
 
   // amounts_in is indexed by canonical token order; single-sided means our
@@ -168,7 +169,7 @@ export async function depositSingleSided({
 
   const tx = await pool.deposit({ to, amounts_in, min_lp_out: minLpOut });
   const sent = await tx.signAndSend();
-  return sent.result;
+  return { result: sent.result, hash: sent.sendTransactionResponse?.hash ?? "" };
 }
 
 interface SwapArgs {
@@ -210,7 +211,7 @@ export async function swapExactIn({
   tokenOut,
   amountIn,
   toleranceBps = 100n,
-}: SwapArgs): Promise<bigint> {
+}: SwapArgs): Promise<TxResult<bigint>> {
   const pool = await writeClient(to);
 
   // Same two-phase pattern as depositSingleSided: simulate for the quote,
@@ -233,7 +234,7 @@ export async function swapExactIn({
     min_out: minOut,
   });
   const sent = await tx.signAndSend();
-  return sent.result;
+  return { result: sent.result, hash: sent.sendTransactionResponse?.hash ?? "" };
 }
 
 interface WithdrawArgs {
@@ -270,7 +271,7 @@ export async function withdrawOneToken({
   tokenOut,
   lpAmount,
   toleranceBps = 100n,
-}: WithdrawArgs): Promise<bigint> {
+}: WithdrawArgs): Promise<TxResult<bigint>> {
   const pool = await writeClient(to);
 
   // Same two-phase pattern as deposit/swap: simulate for the quote, then
@@ -291,5 +292,5 @@ export async function withdrawOneToken({
     min_amount_out: minAmountOut,
   });
   const sent = await tx.signAndSend();
-  return sent.result;
+  return { result: sent.result, hash: sent.sendTransactionResponse?.hash ?? "" };
 }

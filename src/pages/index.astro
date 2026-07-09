@@ -51,11 +51,11 @@ import SwapWidget from '../components/SwapWidget'
             </svg>
           </a>
           <a
-            href="#how-it-works"
+            href="/swap"
             class="inline-flex items-center px-5 py-3 text-sm font-medium transition-all"
             style="color: var(--c-text-muted);"
           >
-            How it works →
+            Exchange Currencies →
           </a>
         </div>
 
@@ -128,6 +128,65 @@ import SwapWidget from '../components/SwapWidget'
     </div>
   </section>
 
+  <!-- Understanding the curve -->
+  <section class="px-6 py-28" style="border-top: 1px solid var(--c-border);">
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+      <div>
+        <p class="text-[11px] uppercase tracking-[0.2em] mb-4" style="color: var(--c-text-faint);">The math, briefly</p>
+        <h2 class="text-4xl md:text-5xl font-bold mb-6 leading-tight" style="color: var(--c-text);">
+          Understanding<br />the curve.
+        </h2>
+        <p class="text-base leading-relaxed mb-8 max-w-lg" style="color: var(--c-text-muted);">
+          Spreadless prices trades with the StableSwap invariant, a curve designed
+          for assets that are expected to trade near the same value — like
+          stablecoins. Instead of the constant-product curve regular AMMs use
+          (which gets expensive fast as trade size grows), StableSwap stays flat
+          near the 1:1 price and only curves sharply once a pool's balance gets
+          skewed.
+        </p>
+        <a
+          href="#"
+          aria-disabled="true"
+          class="inline-flex items-center gap-2 px-5 py-3 text-sm font-medium rounded-xl select-none cursor-not-allowed"
+          style="border: 1px solid var(--c-border); color: var(--c-text-faint);"
+          onclick="return false"
+        >
+          Read the Docs
+          <span class="text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider" style="border: 1px solid var(--c-border-2);">Soon</span>
+        </a>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {[
+          {
+            title: 'Amplification factor (A)',
+            body: 'A tunable coefficient that controls how "flat" the curve is. A higher A means trades near the peg move the price less — tighter, more efficient pricing for correlated assets.',
+          },
+          {
+            title: 'Why it lowers slippage',
+            body: 'Because the curve stays flat near 1:1, swapping one stablecoin for another moves the effective price only slightly, even for larger orders — as long as the pool stays reasonably balanced.',
+          },
+          {
+            title: 'What happens off-peg',
+            body: 'If a pool tilts heavily toward one asset, the curve steepens and slippage increases — the same mechanism that protects LPs also discourages draining an imbalanced pool.',
+          },
+          {
+            title: 'Single-sided by design',
+            body: "Because the invariant already assumes correlated assets, you can deposit just one token — the pool handles balancing across all the others.",
+          },
+        ].map(({ title, body }) => (
+          <div
+            class="p-5 rounded-2xl"
+            style="background-color: var(--c-surface); border: 1px solid var(--c-border); box-shadow: var(--c-card-shadow);"
+          >
+            <h3 class="font-semibold mb-2 text-sm" style="color: var(--c-text);">{title}</h3>
+            <p class="text-xs leading-relaxed" style="color: var(--c-text-muted);">{body}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
   <!-- Final CTA -->
   <section class="px-6 py-32 text-center" style="border-top: 1px solid var(--c-border);">
     <div class="max-w-2xl mx-auto">
@@ -156,7 +215,7 @@ import SwapWidget from '../components/SwapWidget'
       <div class="flex items-center gap-4 text-xs" style="color: var(--c-text-faint);">
         <span>Built on Stellar</span>
         <span>·</span>
-        <span>© 2025</span>
+        <span>© 2026</span>
       </div>
     </div>
   </footer>

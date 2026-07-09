@@ -57,3 +57,8 @@ export const TOKENS: TokenInfo[] = [
 
 /** Tokens the faucet can mint (open-mint test tokens only). */
 export const FAUCET_TOKENS = TOKENS.filter((t) => t.openMint);
+
+/** Stellar Expert link for a submitted transaction, on whichever network this app targets. */
+export function explorerTxUrl(hash: string): string {
+  return `https://stellar.expert/explorer/testnet/tx/${hash}`;
+}

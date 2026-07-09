@@ -1,9 +1,12 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { formatCurrency } from '../lib/utils'
 import PoolsGrid from './PoolsGrid'
 import PoolDetailModal from './PoolDetailModal'
-import { TrendingUp, Gauge, Layers, Activity } from 'lucide-react'
+import MyLiquidity from './MyLiquidity'
+import { TrendingUp, Gauge, Layers, Activity, Search } from 'lucide-react'
+
+type Tab = 'pools' | 'liquidity'
 
 export default function PoolsPage() {
   const {
@@ -14,6 +17,9 @@ export default function PoolsPage() {
     selectedToken,
     setSelectedToken,
   } = useAppStore()
+
+  const [tab, setTab] = useState<Tab>('pools')
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     loadPoolState()
@@ -103,16 +109,41 @@ export default function PoolsPage() {
 
       {/* Main */}
       <div className="max-w-7xl mx-auto px-6 py-10">
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--c-text)' }}>
             Earn
           </h1>
-          <p className="text-sm" style={{ color: 'var(--c-text-muted)' }}>
+          <p className="text-sm" style={{ color: 'var(--c-text)', opacity: 0.72 }}>
             Single-sided liquidity. Deposit one stablecoin and earn.
           </p>
         </div>
 
-        {poolStatus === 'error' ? (
+        <div
+          className="inline-grid grid-cols-2 gap-1 p-1 rounded-xl mb-6"
+          style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border)' }}
+        >
+          {([
+            { key: 'pools' as Tab, label: 'Pools' },
+            { key: 'liquidity' as Tab, label: 'My Liquidity' },
+          ]).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className="px-5 py-2 text-sm font-semibold rounded-lg transition-all"
+              style={{
+                backgroundColor: tab === key ? 'var(--c-surface)' : 'transparent',
+                color: tab === key ? 'var(--c-text)' : 'var(--c-text-faint)',
+                boxShadow: tab === key ? 'var(--c-widget-shadow)' : 'none',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'liquidity' ? (
+          <MyLiquidity />
+        ) : poolStatus === 'error' ? (
           <div
             className="p-8 rounded-2xl text-center"
             style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)' }}
@@ -132,7 +163,37 @@ export default function PoolsPage() {
             </button>
           </div>
         ) : poolStatus === 'ready' && poolState ? (
-          <PoolsGrid tokens={poolState.tokens} onSelectToken={setSelectedToken} />
+          <>
+            <div className="relative max-w-xs mb-6">
+              <Search size={15} strokeWidth={1.8} style={{ color: 'var(--c-text-faint)', position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search token"
+                className="w-full pl-9 pr-3 py-2.5 text-sm rounded-xl outline-none"
+                style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)', color: 'var(--c-text)' }}
+              />
+            </div>
+
+            {(() => {
+              const filtered = poolState.tokens.filter((t) =>
+                t.symbol.toLowerCase().includes(search.trim().toLowerCase()),
+              )
+              return filtered.length > 0 ? (
+                <PoolsGrid tokens={filtered} onSelectToken={setSelectedToken} />
+              ) : (
+                <div
+                  className="p-8 rounded-2xl text-center"
+                  style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)' }}
+                >
+                  <p className="text-sm" style={{ color: 'var(--c-text-muted)' }}>
+                    No tokens match "{search}".
+                  </p>
+                </div>
+              )
+            })()}
+          </>
         ) : (
           <PoolsSkeleton />
         )}

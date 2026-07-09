@@ -3,7 +3,9 @@ import { useAppStore, type PoolToken } from '../store/useAppStore'
 import { fromRawUnits, toRawUnits } from '../lib/stellar/units'
 import { quoteSwapExactIn, swapExactIn } from '../lib/stellar/pool'
 import { getTokenBalance } from '../lib/stellar/token'
+import { isTrustlineError, trustlineGuidance } from '../lib/stellar/errors'
 import RainButton from './RainButton'
+import ExplorerLink from './ExplorerLink'
 
 function TokenSelect({
   tokens,
@@ -76,12 +78,109 @@ function TokenSelect({
   )
 }
 
+type Slippage = 'auto' | '0.1' | '0.5' | '1' | 'custom'
+
+// Static for now — the panel is real UI, but selecting a value here doesn't
+// change the swap yet. The contract call is still hardcoded to 1% tolerance
+// (see pool.ts's toleranceBps default) until this is threaded through.
+function TransactionSettings() {
+  const [open, setOpen] = useState(false)
+  const [slippage, setSlippage] = useState<Slippage>('auto')
+  const [custom, setCustom] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const presets: { key: Slippage; label: string }[] = [
+    { key: 'auto', label: 'Auto' },
+    { key: '0.1', label: '0.1%' },
+    { key: '0.5', label: '0.5%' },
+    { key: '1', label: '1%' },
+  ]
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
+        style={{ color: open ? 'var(--c-text)' : 'var(--c-text-faint)', backgroundColor: open ? 'var(--c-surface-2)' : 'transparent' }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          className="absolute right-0 top-full mt-2 w-64 rounded-xl p-4 z-30"
+          style={{
+            backgroundColor: 'var(--c-surface)',
+            border: '1px solid var(--c-border-2)',
+            boxShadow: 'var(--c-widget-shadow)',
+          }}
+        >
+          <p className="text-xs font-semibold mb-3" style={{ color: 'var(--c-text)' }}>Transaction Settings</p>
+          <p className="text-[11px] uppercase tracking-wider mb-2" style={{ color: 'var(--c-text-faint)' }}>
+            Slippage tolerance
+          </p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {presets.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => setSlippage(p.key)}
+                className="px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors"
+                style={{
+                  backgroundColor: slippage === p.key ? 'var(--c-surface-2)' : 'transparent',
+                  color: slippage === p.key ? 'var(--c-text)' : 'var(--c-text-faint)',
+                  border: '1px solid var(--c-border)',
+                }}
+              >
+                {p.label}
+              </button>
+            ))}
+            <div
+              className="flex items-center rounded-lg overflow-hidden"
+              style={{
+                border: '1px solid var(--c-border)',
+                backgroundColor: slippage === 'custom' ? 'var(--c-surface-2)' : 'transparent',
+              }}
+            >
+              <input
+                type="number"
+                placeholder="Custom"
+                value={custom}
+                onChange={(e) => { setCustom(e.target.value); setSlippage('custom') }}
+                className="w-14 text-xs px-2 py-1.5 bg-transparent outline-none"
+                style={{ color: 'var(--c-text)' }}
+              />
+              <span className="pr-2 text-xs" style={{ color: 'var(--c-text-faint)' }}>%</span>
+            </div>
+          </div>
+          <p className="text-[11px] mt-3 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
+            Fixed at 1% under the hood for now — adjustable slippage is coming soon.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 type Status =
   | { kind: 'idle' }
-  | { kind: 'success'; amount: string; symbol: string }
+  | { kind: 'success'; amount: string; symbol: string; hash: string }
   | { kind: 'error'; message: string }
 
+type OrderMode = 'market' | 'limit'
+
 export default function SwapWidget() {
+  const [orderMode, setOrderMode] = useState<OrderMode>('market')
   const {
     walletConnected,
     walletAddress,
@@ -205,13 +304,13 @@ export default function SwapWidget() {
 
     setStatus({ kind: 'idle' })
     try {
-      const out = await swapExactIn({
+      const { result, hash } = await swapExactIn({
         to: walletAddress,
         tokenIn: fromToken.address,
         tokenOut: toToken.address,
         amountIn,
       })
-      setStatus({ kind: 'success', amount: fromRawUnits(out, toToken.decimals), symbol: toToken.symbol })
+      setStatus({ kind: 'success', amount: fromRawUnits(result, toToken.decimals), symbol: toToken.symbol, hash })
       setFromAmount('')
       setToAmount('')
       loadPoolState() // refresh reserves after the swap lands
@@ -221,7 +320,9 @@ export default function SwapWidget() {
       console.error('Swap failed:', err)
       setStatus({
         kind: 'error',
-        message: err instanceof Error ? err.message : 'Transaction failed. Try again.',
+        message: isTrustlineError(err)
+          ? trustlineGuidance(toToken.symbol)
+          : err instanceof Error ? err.message : 'Transaction failed. Try again.',
       })
     }
   }
@@ -270,18 +371,104 @@ export default function SwapWidget() {
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <h3 className="font-semibold text-base" style={{ color: 'var(--c-text)' }}>
-          Swap
+          Exchange
         </h3>
-        <button
-          className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
-          style={{ color: 'var(--c-text-faint)' }}
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
-          </svg>
-        </button>
+        <TransactionSettings />
       </div>
+
+      {/* Market / Limit tabs */}
+      <div
+        className="grid grid-cols-2 gap-1 p-1 rounded-xl mb-4"
+        style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border)' }}
+      >
+        {([
+          { key: 'market' as OrderMode, label: 'Market' },
+          { key: 'limit' as OrderMode, label: 'Limit' },
+        ]).map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setOrderMode(key)}
+            className="py-2 text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5"
+            style={{
+              backgroundColor: orderMode === key ? 'var(--c-surface)' : 'transparent',
+              color: orderMode === key ? 'var(--c-text)' : 'var(--c-text-faint)',
+              boxShadow: orderMode === key ? 'var(--c-widget-shadow)' : 'none',
+            }}
+          >
+            {label}
+            {key === 'limit' && (
+              <span
+                className="text-[9px] px-1.5 py-0.5 rounded uppercase tracking-wider"
+                style={{ border: '1px solid var(--c-border-2)', color: 'var(--c-text-faint)' }}
+              >
+                Soon
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {orderMode === 'limit' ? (
+        <div>
+          <div
+            className="p-4 rounded-xl mb-1"
+            style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border)' }}
+          >
+            <span className="text-[11px] uppercase tracking-wider" style={{ color: 'var(--c-text-faint)' }}>
+              You pay
+            </span>
+            <div className="flex items-center gap-3 mt-3">
+              <input
+                type="number"
+                placeholder="0.00"
+                disabled
+                className="flex-1 min-w-0 bg-transparent text-[1.6rem] font-semibold outline-none cursor-not-allowed"
+                style={{ color: 'var(--c-text-faint)' }}
+              />
+              <span
+                className="text-sm font-semibold px-3 py-1.5 rounded-lg"
+                style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)', color: 'var(--c-text-faint)' }}
+              >
+                {fromToken.symbol}
+              </span>
+            </div>
+          </div>
+          <div
+            className="p-4 rounded-xl mb-4"
+            style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border)' }}
+          >
+            <span className="text-[11px] uppercase tracking-wider" style={{ color: 'var(--c-text-faint)' }}>
+              When 1 {fromToken.symbol} is worth
+            </span>
+            <div className="flex items-center gap-3 mt-3">
+              <input
+                type="number"
+                placeholder="0.00"
+                disabled
+                className="flex-1 min-w-0 bg-transparent text-[1.6rem] font-semibold outline-none cursor-not-allowed"
+                style={{ color: 'var(--c-text-faint)' }}
+              />
+              <span
+                className="text-sm font-semibold px-3 py-1.5 rounded-lg"
+                style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)', color: 'var(--c-text-faint)' }}
+              >
+                {toToken.symbol}
+              </span>
+            </div>
+          </div>
+          <button
+            disabled
+            className="w-full py-3.5 text-sm font-semibold rounded-xl opacity-50 cursor-not-allowed"
+            style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
+          >
+            Place Limit Order — Coming Soon
+          </button>
+          <p className="text-[11px] mt-3 leading-relaxed text-center" style={{ color: 'var(--c-text-faint)' }}>
+            Limit orders aren't live yet — this is a preview of what's coming.
+          </p>
+        </div>
+      ) : (
+      <>
 
       {/* From */}
       <div
@@ -385,18 +572,23 @@ export default function SwapWidget() {
           color: 'var(--c-cta-text)',
         }}
       >
-        {walletConnected ? `Swap ${fromToken.symbol} → ${toToken.symbol}` : 'Connect Wallet to Swap'}
+        {walletConnected ? `Exchange ${fromToken.symbol} → ${toToken.symbol}` : 'Connect Wallet to Exchange'}
       </RainButton>
 
       {status.kind === 'success' && (
-        <p className="text-xs mt-3 text-center" style={{ color: '#22c55e' }}>
-          Swapped ✓ Received {status.amount} {status.symbol}
-        </p>
+        <div className="mt-3 text-center" style={{ color: '#22c55e' }}>
+          <p className="text-xs">Exchanged ✓ Received {status.amount} {status.symbol}</p>
+          <div className="mt-1">
+            <ExplorerLink hash={status.hash} />
+          </div>
+        </div>
       )}
       {status.kind === 'error' && (
         <p className="text-xs mt-3 break-words" style={{ color: '#ef4444' }}>
           {status.message}
         </p>
+      )}
+      </>
       )}
     </div>
   )

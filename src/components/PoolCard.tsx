@@ -1,6 +1,7 @@
 import type { PoolToken } from '../store/useAppStore'
 import { formatCurrency } from '../lib/utils'
 import { fromRawUnits } from '../lib/stellar/units'
+import { getPoolPreviewStats } from '../lib/mockPoolStats'
 
 interface PoolCardProps {
   token: PoolToken
@@ -10,6 +11,7 @@ interface PoolCardProps {
 
 export default function PoolCard({ token, onClick, index = 0 }: PoolCardProps) {
   const reserve = fromRawUnits(token.reserve, token.decimals)
+  const preview = getPoolPreviewStats(token.symbol)
 
   return (
     <div
@@ -53,7 +55,7 @@ export default function PoolCard({ token, onClick, index = 0 }: PoolCardProps) {
       </div>
 
       <div
-        className="grid grid-cols-2 gap-3 mb-5 pt-5"
+        className="grid grid-cols-2 gap-3 mb-4 pt-5"
         style={{ borderTop: '1px solid var(--c-border)' }}
       >
         {[
@@ -65,6 +67,31 @@ export default function PoolCard({ token, onClick, index = 0 }: PoolCardProps) {
               {label}
             </p>
             <p className="text-sm font-medium truncate" style={{ color: 'var(--c-text)' }}>
+              {value}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div
+        className="grid grid-cols-3 gap-2 mb-5 p-3 rounded-lg"
+        style={{ backgroundColor: 'var(--c-surface-2)', border: '1px dashed var(--c-border-2)' }}
+      >
+        <div className="col-span-3 mb-0.5">
+          <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--c-text-faint)' }}>
+            Preview data
+          </span>
+        </div>
+        {[
+          { label: 'APY', value: `${preview.apy.toFixed(1)}%` },
+          { label: 'Holders', value: preview.holders.toLocaleString() },
+          { label: '24h Vol', value: formatCurrency(preview.volume24h) },
+        ].map(({ label, value }) => (
+          <div key={label}>
+            <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--c-text-faint)' }}>
+              {label}
+            </p>
+            <p className="text-xs font-medium truncate" style={{ color: 'var(--c-text-muted)' }}>
               {value}
             </p>
           </div>

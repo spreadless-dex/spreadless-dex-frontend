@@ -5,10 +5,11 @@ import { FAUCET_TOKENS, type TokenInfo } from "../lib/stellar/config";
 import { toRawUnits } from "../lib/stellar/units";
 import { mintToken } from "../lib/stellar/faucet";
 import RainButton from "./RainButton";
+import ExplorerLink from "./ExplorerLink";
 
 type Status =
   | { kind: "idle" }
-  | { kind: "success"; amount: string; symbol: string }
+  | { kind: "success"; amount: string; symbol: string; hash: string }
   | { kind: "error"; message: string };
 
 const DEFAULT_AMOUNT = "1000";
@@ -110,12 +111,12 @@ export default function Faucet() {
     if (!walletAddress || !amount || Number(amount) <= 0) return;
     setStatus({ kind: "idle" });
     try {
-      await mintToken({
+      const { hash } = await mintToken({
         tokenId: token.contractId,
         to: walletAddress,
         amount: toRawUnits(amount, token.decimals),
       });
-      setStatus({ kind: "success", amount, symbol: token.symbol });
+      setStatus({ kind: "success", amount, symbol: token.symbol, hash });
     } catch (err) {
       console.error(`Mint ${token.symbol} failed:`, err);
       const message =
@@ -212,9 +213,12 @@ export default function Faucet() {
           </RainButton>
 
           {status.kind === "success" && (
-            <p className="text-xs mt-3 text-center" style={{ color: "#22c55e" }}>
-              Minted {status.amount} {status.symbol} ✓
-            </p>
+            <div className="mt-3 text-center" style={{ color: "#22c55e" }}>
+              <p className="text-xs">Minted {status.amount} {status.symbol} ✓</p>
+              <div className="mt-1">
+                <ExplorerLink hash={status.hash} />
+              </div>
+            </div>
           )}
           {status.kind === "error" && (
             <p className="text-xs mt-3 break-words" style={{ color: "#ef4444" }}>

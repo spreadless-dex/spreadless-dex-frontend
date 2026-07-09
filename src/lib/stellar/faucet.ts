@@ -1,5 +1,6 @@
 import { getWalletSigner } from "../../store/useAppStore";
 import { NETWORK_PASSPHRASE, RPC_URL } from "./config";
+import type { TxResult } from "./types";
 
 // The @spreadless-dex/sdk pulls in @stellar/stellar-sdk, which is heavy and
 // meant for runtimes with a real fetch/BigInt. We import it dynamically so it
@@ -13,7 +14,7 @@ interface MintArgs {
   amount: bigint;
 }
 
-export async function mintToken({ tokenId, to, amount }: MintArgs): Promise<void> {
+export async function mintToken({ tokenId, to, amount }: MintArgs): Promise<TxResult<void>> {
   const sdk = await import("@spreadless-dex/sdk");
   const signer = await getWalletSigner();
 
@@ -32,5 +33,6 @@ export async function mintToken({ tokenId, to, amount }: MintArgs): Promise<void
   const tx = await (token as any).mint({ to, amount });
 
   // mint is a write call: simulation is done, now sign (via wallet) and submit.
-  await tx.signAndSend();
+  const sent = await tx.signAndSend();
+  return { result: sent.result, hash: sent.sendTransactionResponse?.hash ?? "" };
 }
