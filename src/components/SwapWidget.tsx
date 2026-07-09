@@ -80,13 +80,28 @@ function TokenSelect({
 
 type Slippage = 'auto' | '0.1' | '0.5' | '1' | 'custom'
 
-// Static for now — the panel is real UI, but selecting a value here doesn't
-// change the swap yet. The contract call is still hardcoded to 1% tolerance
-// (see pool.ts's toleranceBps default) until this is threaded through.
-function TransactionSettings() {
+// Converts the UI selection to basis points for swapExactIn's toleranceBps.
+// Clamped to a sane range so a fat-fingered custom value can't zero out
+// slippage protection (0 or negative) or wave through an absurd tolerance.
+function slippageToBps(slippage: Slippage, custom: string): bigint {
+  const pct = slippage === 'auto' ? 1 : slippage === 'custom' ? Number(custom) : Number(slippage)
+  if (!Number.isFinite(pct) || pct <= 0) return 100n // fall back to the safe 1% default
+  const bps = Math.round(pct * 100)
+  return BigInt(Math.min(Math.max(bps, 1), 5000)) // 0.01%–50%
+}
+
+function TransactionSettings({
+  slippage,
+  custom,
+  onSlippageChange,
+  onCustomChange,
+}: {
+  slippage: Slippage
+  custom: string
+  onSlippageChange: (s: Slippage) => void
+  onCustomChange: (c: string) => void
+}) {
   const [open, setOpen] = useState(false)
-  const [slippage, setSlippage] = useState<Slippage>('auto')
-  const [custom, setCustom] = useState('')
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -134,7 +149,7 @@ function TransactionSettings() {
             {presets.map((p) => (
               <button
                 key={p.key}
-                onClick={() => setSlippage(p.key)}
+                onClick={() => onSlippageChange(p.key)}
                 className="px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors"
                 style={{
                   backgroundColor: slippage === p.key ? 'var(--c-surface-2)' : 'transparent',
@@ -156,7 +171,7 @@ function TransactionSettings() {
                 type="number"
                 placeholder="Custom"
                 value={custom}
-                onChange={(e) => { setCustom(e.target.value); setSlippage('custom') }}
+                onChange={(e) => { onCustomChange(e.target.value); onSlippageChange('custom') }}
                 className="w-14 text-xs px-2 py-1.5 bg-transparent outline-none"
                 style={{ color: 'var(--c-text)' }}
               />
@@ -164,7 +179,7 @@ function TransactionSettings() {
             </div>
           </div>
           <p className="text-[11px] mt-3 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
-            Fixed at 1% under the hood for now — adjustable slippage is coming soon.
+            Applied on-chain as your minimum received — the trade reverts instead of settling below it.
           </p>
         </div>
       )}
@@ -181,6 +196,8 @@ type OrderMode = 'market' | 'limit'
 
 export default function SwapWidget() {
   const [orderMode, setOrderMode] = useState<OrderMode>('market')
+  const [slippage, setSlippage] = useState<Slippage>('auto')
+  const [customSlippage, setCustomSlippage] = useState('')
   const {
     walletConnected,
     walletAddress,
@@ -309,6 +326,7 @@ export default function SwapWidget() {
         tokenIn: fromToken.address,
         tokenOut: toToken.address,
         amountIn,
+        toleranceBps: slippageToBps(slippage, customSlippage),
       })
       setStatus({ kind: 'success', amount: fromRawUnits(result, toToken.decimals), symbol: toToken.symbol, hash })
       setFromAmount('')
@@ -373,7 +391,12 @@ export default function SwapWidget() {
         <h3 className="font-semibold text-base" style={{ color: 'var(--c-text)' }}>
           Exchange
         </h3>
-        <TransactionSettings />
+        <TransactionSettings
+          slippage={slippage}
+          custom={customSlippage}
+          onSlippageChange={setSlippage}
+          onCustomChange={setCustomSlippage}
+        />
       </div>
 
       {/* Market / Limit tabs */}
