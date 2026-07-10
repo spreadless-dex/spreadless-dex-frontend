@@ -20,6 +20,7 @@ export default function PoolsPage() {
 
   const [tab, setTab] = useState<Tab>('pools')
   const [search, setSearch] = useState('')
+  const [modalMode, setModalMode] = useState<'deposit' | 'withdraw'>('deposit')
 
   useEffect(() => {
     loadPoolState()
@@ -181,7 +182,13 @@ export default function PoolsPage() {
                 t.symbol.toLowerCase().includes(search.trim().toLowerCase()),
               )
               return filtered.length > 0 ? (
-                <PoolsGrid tokens={filtered} onSelectToken={setSelectedToken} />
+                <PoolsGrid
+                  tokens={filtered}
+                  onSelectToken={(token, mode) => {
+                    setModalMode(mode)
+                    setSelectedToken(token)
+                  }}
+                />
               ) : (
                 <div
                   className="p-8 rounded-2xl text-center"
@@ -200,7 +207,11 @@ export default function PoolsPage() {
       </div>
 
       {selectedToken && (
-        <PoolDetailModal token={selectedToken} onClose={() => setSelectedToken(null)} />
+        <PoolDetailModal
+          token={selectedToken}
+          defaultMode={modalMode}
+          onClose={() => setSelectedToken(null)}
+        />
       )}
     </div>
   )

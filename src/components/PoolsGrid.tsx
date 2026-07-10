@@ -3,7 +3,7 @@ import PoolCard from './PoolCard'
 
 interface PoolsGridProps {
   tokens: PoolToken[]
-  onSelectToken: (token: PoolToken) => void
+  onSelectToken: (token: PoolToken, mode: 'deposit' | 'withdraw') => void
 }
 
 export default function PoolsGrid({ tokens, onSelectToken }: PoolsGridProps) {
@@ -13,7 +13,7 @@ export default function PoolsGrid({ tokens, onSelectToken }: PoolsGridProps) {
         <PoolCard
           key={token.address}
           token={token}
-          onClick={() => onSelectToken(token)}
+          onAction={(mode) => onSelectToken(token, mode)}
           index={index}
         />
       ))}
