@@ -3,6 +3,7 @@ import { useAppStore, type PoolToken } from '../store/useAppStore'
 import { fromRawUnits, toRawUnits } from '../lib/stellar/units'
 import { quoteSwapExactIn, swapExactIn } from '../lib/stellar/pool'
 import { getTokenBalance } from '../lib/stellar/token'
+import { refetchUntilChanged } from '../lib/stellar/refetch'
 import { mapTxError } from '../lib/stellar/errors'
 import type { TxPhase } from '../lib/stellar/types'
 import RainButton from './RainButton'
@@ -334,8 +335,14 @@ export default function SwapWidget() {
       setFromAmount('')
       setToAmount('')
       loadPoolState() // refresh reserves after the swap lands
-      getTokenBalance(fromToken.address, walletAddress).then(setFromBalance).catch(() => {})
-      getTokenBalance(toToken.address, walletAddress).then(setToBalance).catch(() => {})
+      // Poll instead of a one-shot refetch — the RPC can briefly serve the
+      // pre-swap snapshot right after the tx confirms.
+      refetchUntilChanged(() => getTokenBalance(fromToken.address, walletAddress), fromBalance)
+        .then(setFromBalance)
+        .catch(() => {})
+      refetchUntilChanged(() => getTokenBalance(toToken.address, walletAddress), toBalance)
+        .then(setToBalance)
+        .catch(() => {})
     } catch (err) {
       console.error('Swap failed:', err)
       setStatus({ kind: 'error', ...mapTxError(err, { spend: fromToken.symbol, receive: toToken.symbol }) })

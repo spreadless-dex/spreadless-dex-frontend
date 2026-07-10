@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAppStore, type PoolToken } from '../store/useAppStore'
-import { formatCurrency, shortenAddress } from '../lib/utils'
+import { formatCurrency, shortenAddress, tokenAvatarLabel } from '../lib/utils'
+import { refetchUntilChanged } from '../lib/stellar/refetch'
 import { fromRawUnits, toRawUnits } from '../lib/stellar/units'
 import {
   depositSingleSided,
@@ -194,6 +195,11 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
       setStatus({ kind: 'success', message: `Deposited ✓ Received ${fromRawUnits(result, LP_DECIMALS)} LP shares`, hash })
       setAmount('')
       loadPoolState() // refresh reserves after the deposit lands
+      // Poll instead of a one-shot refetch — the RPC can briefly serve the
+      // pre-tx snapshot right after the tx confirms.
+      refetchUntilChanged(() => getLpBalance(walletAddress), lpBalance)
+        .then(setLpBalance)
+        .catch(() => {})
     } catch (err) {
       console.error('Deposit failed:', err)
       setStatus({ kind: 'error', ...mapTxError(err, { spend: token.symbol }) })
@@ -216,8 +222,9 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
       setLpAmount('')
       setWithdrawQuote('')
       loadPoolState() // refresh reserves after the withdrawal lands
-      const bal = await getLpBalance(walletAddress)
-      setLpBalance(bal)
+      refetchUntilChanged(() => getLpBalance(walletAddress), lpBalance)
+        .then(setLpBalance)
+        .catch(() => {})
     } catch (err) {
       console.error('Withdraw failed:', err)
       setStatus({ kind: 'error', ...mapTxError(err, { spend: 'LP shares', receive: token.symbol }) })
@@ -255,14 +262,14 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
 
         <div className="flex items-center gap-4 mb-6">
           <div
-            className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold"
+            className="w-12 h-12 rounded-full flex items-center justify-center text-xs font-bold"
             style={{
               backgroundColor: 'var(--c-surface-2)',
               border: '1px solid var(--c-border)',
               color: 'var(--c-text-muted)',
             }}
           >
-            {token.symbol.replace(/^s/i, '').slice(0, 2)}
+            {tokenAvatarLabel(token.symbol)}
           </div>
           <div>
             <h2 className="text-xl font-bold leading-tight" style={{ color: 'var(--c-text)' }}>
