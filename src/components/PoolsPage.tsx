@@ -4,6 +4,7 @@ import { formatCurrency } from '../lib/utils'
 import PoolsGrid from './PoolsGrid'
 import PoolDetailModal from './PoolDetailModal'
 import MyLiquidity from './MyLiquidity'
+import PositionSummary from './PositionSummary'
 import { TrendingUp, Gauge, Layers, Activity, Search } from 'lucide-react'
 
 type Tab = 'pools' | 'liquidity'
@@ -165,6 +166,8 @@ export default function PoolsPage() {
           </div>
         ) : poolStatus === 'ready' && poolState ? (
           <>
+            <PositionSummary onViewDetails={() => setTab('liquidity')} />
+
             <div className="relative max-w-xs mb-6">
               <Search size={15} strokeWidth={1.8} style={{ color: 'var(--c-text-faint)', position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
               <input

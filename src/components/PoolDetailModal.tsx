@@ -4,15 +4,17 @@ import { formatCurrency, shortenAddress } from '../lib/utils'
 import { fromRawUnits, toRawUnits } from '../lib/stellar/units'
 import {
   depositSingleSided,
+  quoteDepositSingleSided,
   withdrawOneToken,
   quoteWithdrawOneToken,
   getLpBalance,
   LP_DECIMALS,
 } from '../lib/stellar/pool'
 import { getPoolPreviewStats } from '../lib/mockPoolStats'
-import { isTrustlineError, trustlineGuidance } from '../lib/stellar/errors'
+import { mapTxError } from '../lib/stellar/errors'
+import type { TxPhase } from '../lib/stellar/types'
 import RainButton from './RainButton'
-import ExplorerLink from './ExplorerLink'
+import TxStatus, { type TxUiStatus } from './TxStatus'
 
 interface PoolDetailModalProps {
   token: PoolToken
@@ -21,11 +23,6 @@ interface PoolDetailModalProps {
 }
 
 type Mode = 'deposit' | 'withdraw' | 'sparplan'
-
-type Status =
-  | { kind: 'idle' }
-  | { kind: 'success'; message: string; hash: string }
-  | { kind: 'error'; message: string }
 
 export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit' }: PoolDetailModalProps) {
   const {
@@ -40,7 +37,10 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
   const [mounted, setMounted] = useState(false)
 
   const [amount, setAmount] = useState('')
-  const [status, setStatus] = useState<Status>({ kind: 'idle' })
+  const [status, setStatus] = useState<TxUiStatus>({ kind: 'idle' })
+  const [txPhase, setTxPhase] = useState<TxPhase | null>(null)
+  const [depositQuote, setDepositQuote] = useState('')
+  const [depositQuoting, setDepositQuoting] = useState(false)
 
   const [lpAmount, setLpAmount] = useState('')
   const [lpBalance, setLpBalance] = useState<bigint | null>(null)
@@ -75,6 +75,47 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
       cancelled = true
     }
   }, [walletAddress])
+
+  // Live deposit quote, debounced — "you'll receive ~X LP" before committing.
+  // Matters because single-sided deposits carry a bonus/malus depending on how
+  // they shift the pool's balance. Simulation runs against the connected
+  // account, so there's nothing to quote without a wallet.
+  useEffect(() => {
+    if (mode !== 'deposit' || !walletAddress || !amount) {
+      setDepositQuote('')
+      return
+    }
+    const amountRaw = toRawUnits(amount, token.decimals)
+    if (amountRaw <= 0n) {
+      setDepositQuote('')
+      return
+    }
+
+    let cancelled = false
+    setDepositQuoting(true)
+    const timer = setTimeout(async () => {
+      try {
+        const lp = await quoteDepositSingleSided({
+          to: walletAddress,
+          tokenIndex: token.index,
+          amount: amountRaw,
+        })
+        if (!cancelled) setDepositQuote(fromRawUnits(lp, LP_DECIMALS))
+      } catch (err) {
+        // Simulation fails e.g. when the wallet can't cover the amount —
+        // just show no quote rather than an error mid-typing.
+        console.error('Deposit quote failed:', err)
+        if (!cancelled) setDepositQuote('')
+      } finally {
+        if (!cancelled) setDepositQuoting(false)
+      }
+    }, 400)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [mode, walletAddress, amount, token.index, token.decimals])
 
   // Live withdraw quote, debounced.
   useEffect(() => {
@@ -148,18 +189,16 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
         to: walletAddress,
         tokenIndex: token.index,
         amount: toRawUnits(amount, token.decimals),
+        onPhase: setTxPhase,
       })
       setStatus({ kind: 'success', message: `Deposited ✓ Received ${fromRawUnits(result, LP_DECIMALS)} LP shares`, hash })
       setAmount('')
       loadPoolState() // refresh reserves after the deposit lands
     } catch (err) {
       console.error('Deposit failed:', err)
-      setStatus({
-        kind: 'error',
-        message: isTrustlineError(err)
-          ? trustlineGuidance(token.symbol)
-          : err instanceof Error ? err.message : 'Transaction failed. Try again.',
-      })
+      setStatus({ kind: 'error', ...mapTxError(err, { spend: token.symbol }) })
+    } finally {
+      setTxPhase(null)
     }
   }
 
@@ -171,6 +210,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
         to: walletAddress,
         tokenOut: token.address,
         lpAmount: toRawUnits(lpAmount, LP_DECIMALS),
+        onPhase: setTxPhase,
       })
       setStatus({ kind: 'success', message: `Withdrawn ✓ Received ${fromRawUnits(result, token.decimals)} ${token.symbol}`, hash })
       setLpAmount('')
@@ -180,12 +220,9 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
       setLpBalance(bal)
     } catch (err) {
       console.error('Withdraw failed:', err)
-      setStatus({
-        kind: 'error',
-        message: isTrustlineError(err)
-          ? trustlineGuidance(token.symbol)
-          : err instanceof Error ? err.message : 'Transaction failed. Try again.',
-      })
+      setStatus({ kind: 'error', ...mapTxError(err, { spend: 'LP shares', receive: token.symbol }) })
+    } finally {
+      setTxPhase(null)
     }
   }
 
@@ -410,6 +447,16 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
                 {token.symbol}
               </span>
             </div>
+            {walletConnected && amount && (
+              <div className="flex items-center justify-between mt-2 px-1">
+                <span className="text-[11px]" style={{ color: 'var(--c-text-faint)' }}>
+                  You receive
+                </span>
+                <span className="text-xs font-semibold" style={{ color: 'var(--c-text)' }}>
+                  {depositQuoting ? 'Fetching quote…' : depositQuote ? `≈ ${depositQuote} LP shares` : '—'}
+                </span>
+              </div>
+            )}
             <div
               className="flex items-center justify-between mt-2 px-1"
               title="Based on the preview APY — live metrics coming soon"
@@ -504,19 +551,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
           </button>
         )}
 
-        {status.kind === 'success' && (
-          <div className="mt-3 text-center" style={{ color: '#22c55e' }}>
-            <p className="text-xs">{status.message}</p>
-            <div className="mt-1">
-              <ExplorerLink hash={status.hash} />
-            </div>
-          </div>
-        )}
-        {status.kind === 'error' && (
-          <p className="text-xs mt-3 break-words" style={{ color: '#ef4444' }}>
-            {status.message}
-          </p>
-        )}
+        <TxStatus phase={txPhase} status={status} />
 
         <p
           className="text-[11px] mt-4 pt-3 text-center leading-relaxed"
