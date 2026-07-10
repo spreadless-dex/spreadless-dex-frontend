@@ -27,16 +27,16 @@ import SwapWidget from '../components/SwapWidget'
           class="text-[clamp(2.8rem,5vw,5rem)] leading-[1.02] tracking-tighter mb-6 max-w-xl animate-fade-up"
           style="font-weight: 900; color: var(--c-text); animation-delay: 0.08s;"
         >
-          Stablecoin swaps,<br />
-          <span style="color: var(--c-text-muted);">finally efficient.</span>
+          Global asset exchange,<br />
+          <span style="color: var(--c-text-muted);">built on Stellar.</span>
         </h1>
 
         <p
           class="text-base md:text-lg max-w-md mb-12 leading-relaxed animate-fade-up"
           style="color: var(--c-text-muted); animation-delay: 0.16s;"
         >
-          Near-zero slippage on stablecoin trades. Single-sided liquidity so you earn
-          without managing pairs.
+          Every trade has two prices: the quote you see and the amount you
+          receive. Trade clear, spread less.
         </p>
 
         <div class="flex items-center gap-4 mb-20 animate-fade-up" style="animation-delay: 0.24s;">
@@ -45,7 +45,7 @@ import SwapWidget from '../components/SwapWidget'
             class="inline-flex items-center gap-2 px-6 py-3 text-sm font-bold rounded-xl active:scale-[0.99] transition-all"
             style="background-color: var(--c-cta-bg); color: var(--c-cta-text);"
           >
-            Start Earning
+            Generate Yield
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
               <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
             </svg>
@@ -55,24 +55,32 @@ import SwapWidget from '../components/SwapWidget'
             class="inline-flex items-center px-5 py-3 text-sm font-medium transition-all"
             style="color: var(--c-text-muted);"
           >
-            Exchange Currencies →
+            Exchange Assets →
           </a>
         </div>
 
         <div
-          class="flex items-center gap-10 pt-8 animate-fade-up"
+          class="pt-8 animate-fade-up"
           style="border-top: 1px solid var(--c-border); animation-delay: 0.32s;"
         >
-          {[
-            { val: '$31.5M', label: 'Total Value Locked' },
-            { val: '$5.8M',  label: '24h Volume' },
-            { val: '8.42%', label: 'Top APY' },
-          ].map(({ val, label }) => (
-            <div>
-              <p class="text-2xl md:text-3xl font-black" style="color: var(--c-text);">{val}</p>
-              <p class="text-[11px] uppercase tracking-wider mt-1" style="color: var(--c-text-faint);">{label}</p>
-            </div>
-          ))}
+          <div class="flex flex-wrap items-center gap-x-8 gap-y-6">
+            {[
+              { val: '$238,838', label: 'TVL' },
+              { val: '$4.6M', label: '30d Volume' },
+              { val: '4', label: 'Stablecoins' },
+              { val: '4', label: 'Liquidity Pools' },
+              { val: '6.8%', label: 'Highest APY', accent: true },
+            ].map(({ val, label, accent }) => (
+              <div>
+                <p class="text-xl md:text-2xl font-black" style={`color: ${accent ? 'var(--c-accent)' : 'var(--c-text)'};`}>{val}</p>
+                <p class="text-[11px] uppercase tracking-wider mt-1" style="color: var(--c-text-faint);">{label}*</p>
+              </div>
+            ))}
+          </div>
+          <p class="text-[10px] mt-4" style="color: var(--c-text-faint);">
+            * Not live data — oriented on current 7-day stats of a comparable protocol on{' '}
+            <a href="https://stabble.org" target="_blank" rel="noopener noreferrer" class="underline hover:opacity-80">Solana</a>.
+          </p>
         </div>
       </div>
 
@@ -95,19 +103,19 @@ import SwapWidget from '../components/SwapWidget'
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
           {
+            title: 'Transparent Execution',
+            body: 'Each transaction includes a preview of the relevant trade parameters before execution. The protocol is designed to provide greater visibility into the economics of a trade before confirmation.',
+            icon: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+          },
+          {
             title: 'Minimal Slippage',
-            body: 'The StableSwap invariant — pioneered by Curve Finance — enables near 1:1 stablecoin trades with virtually zero price impact even on large orders.',
+            body: 'Spreadless applies StableSwap-style invariant logic for assets that are expected to remain closely aligned in value. Designed for stablecoins and other close-to-parity assets, these pools aim to support efficient swaps with reduced expected price impact.',
             icon: '<path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>',
           },
           {
-            title: 'Single-sided Liquidity',
-            body: 'Deposit one token, not a pair. No need to split your capital or manage multiple positions. Simpler entry, more capital efficient, less risk.',
-            icon: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="12" x2="15" y2="14"/>',
-          },
-          {
-            title: 'Built on Soroban',
-            body: "Stellar's smart contract platform delivers fast finality and near-zero transaction fees. Your yield isn't eaten by gas — it goes to you.",
-            icon: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+            title: 'Single-Asset Deposits',
+            body: 'Liquidity can be added with a single asset into pools containing multiple supported assets. No manual capital split across token pairs is required, reducing operational complexity.',
+            icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M8.5 9.5c0-1.4 1.6-2.5 3.5-2.5s3.5 1.1 3.5 2.5-1.6 2.5-3.5 2.5-3.5 1.1-3.5 2.5 1.6 2.5 3.5 2.5 3.5-1.1 3.5-2.5"/>',
           },
         ].map(({ title, body, icon }) => (
           <div
