@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useAppStore } from "../store/useAppStore";
-import { shortenAddress } from "../lib/utils";
+import { shortenAddress, tokenAvatarLabel } from "../lib/utils";
 import { FAUCET_TOKENS, type TokenInfo } from "../lib/stellar/config";
 import { toRawUnits } from "../lib/stellar/units";
 import { mintToken } from "../lib/stellar/faucet";
@@ -36,14 +36,14 @@ function TokenDropdown({
         className="w-full flex items-center gap-3 text-left"
       >
         <div
-          className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0"
           style={{
             backgroundColor: "var(--c-surface-2)",
             border: "1px solid var(--c-border)",
             color: "var(--c-text-muted)",
           }}
         >
-          {value.symbol.charAt(1)}
+          {tokenAvatarLabel(value.symbol)}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-base font-semibold leading-tight" style={{ color: "var(--c-text)" }}>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAppStore, type PoolToken } from '../store/useAppStore'
 import { getLpBalance, LP_DECIMALS } from '../lib/stellar/pool'
 import { fromRawUnits } from '../lib/stellar/units'
-import { formatCurrency } from '../lib/utils'
+import { formatCurrency, tokenAvatarLabel } from '../lib/utils'
 import { getPoolPreviewStats } from '../lib/mockPoolStats'
 import PoolDetailModal from './PoolDetailModal'
 
@@ -11,6 +11,9 @@ export default function MyLiquidity() {
   const [lpBalance, setLpBalance] = useState<bigint | null>(null)
   const [withdrawToken, setWithdrawToken] = useState<PoolToken | null>(null)
 
+  // poolState in the deps: the withdraw modal rendered below refreshes the
+  // pool state after a tx lands, and that's our cue to refetch the LP balance
+  // — otherwise the list keeps showing the pre-withdraw position.
   useEffect(() => {
     if (!walletAddress) {
       setLpBalance(null)
@@ -23,7 +26,7 @@ export default function MyLiquidity() {
     return () => {
       cancelled = true
     }
-  }, [walletAddress])
+  }, [walletAddress, poolState])
 
   if (!walletConnected) {
     return (
@@ -137,10 +140,10 @@ export default function MyLiquidity() {
             >
               <div className="flex items-center gap-3">
                 <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0"
                   style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border)', color: 'var(--c-text-muted)' }}
                 >
-                  {t.symbol.replace(/^s/i, '').slice(0, 2)}
+                  {tokenAvatarLabel(t.symbol)}
                 </div>
                 <div>
                   <p className="text-sm font-semibold" style={{ color: 'var(--c-text)' }}>{t.symbol}</p>
