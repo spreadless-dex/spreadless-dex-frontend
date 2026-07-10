@@ -14,6 +14,7 @@ import {
 import { getPoolPreviewStats } from '../lib/mockPoolStats'
 import { mapTxError } from '../lib/stellar/errors'
 import type { TxPhase } from '../lib/stellar/types'
+import { recordDeposit, recordWithdraw } from '../lib/activity/record'
 import RainButton from './RainButton'
 import TxStatus, { type TxUiStatus } from './TxStatus'
 
@@ -192,7 +193,16 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
         amount: toRawUnits(amount, token.decimals),
         onPhase: setTxPhase,
       })
-      setStatus({ kind: 'success', message: `Deposited ✓ Received ${fromRawUnits(result, LP_DECIMALS)} LP shares`, hash })
+      const lpReceived = fromRawUnits(result, LP_DECIMALS)
+      setStatus({ kind: 'success', message: `Deposited ✓ Received ${lpReceived} LP shares`, hash })
+      recordDeposit({
+        walletAddress,
+        status: 'completed',
+        symbol: token.symbol,
+        amount,
+        lpReceived,
+        txHash: hash,
+      }).catch((err) => console.error('Failed to record activity:', err))
       setAmount('')
       loadPoolState() // refresh reserves after the deposit lands
       // Poll instead of a one-shot refetch — the RPC can briefly serve the
@@ -202,7 +212,15 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
         .catch(() => {})
     } catch (err) {
       console.error('Deposit failed:', err)
-      setStatus({ kind: 'error', ...mapTxError(err, { spend: token.symbol }) })
+      const mapped = mapTxError(err, { spend: token.symbol })
+      setStatus({ kind: 'error', ...mapped })
+      recordDeposit({
+        walletAddress,
+        status: 'failed',
+        symbol: token.symbol,
+        amount,
+        detail: mapped.message,
+      }).catch((e) => console.error('Failed to record activity:', e))
     } finally {
       setTxPhase(null)
     }
@@ -218,7 +236,16 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
         lpAmount: toRawUnits(lpAmount, LP_DECIMALS),
         onPhase: setTxPhase,
       })
-      setStatus({ kind: 'success', message: `Withdrawn ✓ Received ${fromRawUnits(result, token.decimals)} ${token.symbol}`, hash })
+      const amountReceived = fromRawUnits(result, token.decimals)
+      setStatus({ kind: 'success', message: `Withdrawn ✓ Received ${amountReceived} ${token.symbol}`, hash })
+      recordWithdraw({
+        walletAddress,
+        status: 'completed',
+        symbol: token.symbol,
+        lpBurned: lpAmount,
+        amountReceived,
+        txHash: hash,
+      }).catch((err) => console.error('Failed to record activity:', err))
       setLpAmount('')
       setWithdrawQuote('')
       loadPoolState() // refresh reserves after the withdrawal lands
@@ -227,7 +254,15 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
         .catch(() => {})
     } catch (err) {
       console.error('Withdraw failed:', err)
-      setStatus({ kind: 'error', ...mapTxError(err, { spend: 'LP shares', receive: token.symbol }) })
+      const mapped = mapTxError(err, { spend: 'LP shares', receive: token.symbol })
+      setStatus({ kind: 'error', ...mapped })
+      recordWithdraw({
+        walletAddress,
+        status: 'failed',
+        symbol: token.symbol,
+        lpBurned: lpAmount,
+        detail: mapped.message,
+      }).catch((e) => console.error('Failed to record activity:', e))
     } finally {
       setTxPhase(null)
     }
