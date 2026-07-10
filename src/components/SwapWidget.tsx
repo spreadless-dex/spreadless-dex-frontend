@@ -209,6 +209,8 @@ export default function SwapWidget() {
   const [toToken, setToToken] = useState<PoolToken | null>(null)
   const [fromAmount, setFromAmount] = useState('')
   const [toAmount, setToAmount] = useState('')
+  const [networkFee, setNetworkFee] = useState<number | null>(null)
+  const [rateFlipped, setRateFlipped] = useState(false)
   const [quoting, setQuoting] = useState(false)
   const [status, setStatus] = useState<TxUiStatus>({ kind: 'idle' })
   const [txPhase, setTxPhase] = useState<TxPhase | null>(null)
@@ -231,11 +233,13 @@ export default function SwapWidget() {
   useEffect(() => {
     if (!walletAddress || !fromToken || !toToken || !fromAmount) {
       setToAmount('')
+      setNetworkFee(null)
       return
     }
     const amountIn = toRawUnits(fromAmount, fromToken.decimals)
     if (amountIn <= 0n) {
       setToAmount('')
+      setNetworkFee(null)
       return
     }
 
@@ -243,16 +247,22 @@ export default function SwapWidget() {
     setQuoting(true)
     const timer = setTimeout(async () => {
       try {
-        const out = await quoteSwapExactIn({
+        const { amountOut, networkFeeXlm } = await quoteSwapExactIn({
           to: walletAddress,
           tokenIn: fromToken.address,
           tokenOut: toToken.address,
           amountIn,
         })
-        if (!cancelled) setToAmount(fromRawUnits(out, toToken.decimals))
+        if (!cancelled) {
+          setToAmount(fromRawUnits(amountOut, toToken.decimals))
+          setNetworkFee(networkFeeXlm)
+        }
       } catch (err) {
         console.error('Quote failed:', err)
-        if (!cancelled) setToAmount('')
+        if (!cancelled) {
+          setToAmount('')
+          setNetworkFee(null)
+        }
       } finally {
         if (!cancelled) setQuoting(false)
       }
@@ -354,9 +364,25 @@ export default function SwapWidget() {
   const fromNum = parseFloat(fromAmount)
   const toNum = parseFloat(toAmount)
   const hasAmount = fromAmount !== '' && toAmount !== '' && !isNaN(fromNum) && !isNaN(toNum) && fromNum > 0
+  const amountEntered = fromAmount !== '' && !isNaN(fromNum) && fromNum > 0
   // All pool tokens are ~$1 stablecoins, so a 1:1 comparison is an honest
   // proxy for price impact — same peg assumption pool.ts uses for TVL.
   const priceImpact = hasAmount ? ((fromNum - toNum) / fromNum) * 100 : 0
+
+  const amountInRaw = fromToken && amountEntered ? toRawUnits(fromAmount, fromToken.decimals) : 0n
+  const insufficientBalance =
+    walletConnected && fromBalance !== null && amountInRaw > fromBalance
+  // The pool can't pay out more of a token than it holds — with all tokens
+  // pegged ~$1, selling more than the target's reserve can never fill.
+  const insufficientLiquidity =
+    walletConnected && !!toToken && amountEntered && fromNum >= toToken.reserveHuman
+
+  // Mirror of the on-chain floor swapExactIn submits with, so "Minimum
+  // received" shows exactly what the contract would enforce.
+  const toleranceBps = slippageToBps(slippage, customSlippage)
+  const quotedOutRaw = hasAmount && toToken ? toRawUnits(toAmount, toToken.decimals) : 0n
+  const minReceived = quotedOutRaw - (quotedOutRaw * toleranceBps) / 10_000n
+  const slippagePct = Number(toleranceBps) / 100
 
   const loadingPool = poolStatus === 'idle' || poolStatus === 'loading' || !fromToken || !toToken
 
@@ -526,6 +552,20 @@ export default function SwapWidget() {
           />
           <TokenSelect tokens={poolState!.tokens} value={fromToken} onChange={handleFromTokenChange} exclude={toToken.symbol} />
         </div>
+        {walletConnected && fromBalance !== null && fromBalance > 0n && (
+          <div className="flex items-center justify-end gap-1 mt-2">
+            {[25, 50, 75, 100].map((pct) => (
+              <button
+                key={pct}
+                onClick={() => setFromAmount(fromRawUnits((fromBalance * BigInt(pct)) / 100n, fromToken.decimals))}
+                className="px-1.5 py-0.5 text-[10px] font-semibold rounded transition-colors hover:opacity-80"
+                style={{ border: '1px solid var(--c-border)', color: 'var(--c-text-faint)' }}
+              >
+                {pct}%
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Flip */}
@@ -575,18 +615,70 @@ export default function SwapWidget() {
         </div>
       </div>
 
-      {/* Rate info */}
+      {/* Swap details — live values from the current quote */}
       {hasAmount && (
-        <div className="px-1 mb-4 space-y-2">
-          {[
-            { label: 'Rate', value: `1 ${fromToken.symbol} ≈ ${(toNum / fromNum).toFixed(4)} ${toToken.symbol}` },
-            { label: 'Price impact', value: `${priceImpact >= 0 ? '' : '+'}${(-priceImpact).toFixed(3)}%` },
-          ].map(({ label, value }) => (
-            <div key={label} className="flex items-center justify-between">
-              <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>{label}</span>
-              <span className="text-xs" style={{ color: 'var(--c-text-muted)' }}>{value}</span>
+        <div
+          className="rounded-xl p-4 mb-4 space-y-2"
+          style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border)' }}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>Route</span>
+            <span className="text-xs" style={{ color: 'var(--c-text-muted)' }}>
+              {fromToken.symbol} → {toToken.symbol}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>Exchange rate</span>
+            <button
+              onClick={() => setRateFlipped(!rateFlipped)}
+              className="flex items-center gap-1.5 text-xs transition-opacity hover:opacity-70"
+              style={{ color: 'var(--c-text-muted)' }}
+              title="Flip rate direction"
+            >
+              {rateFlipped
+                ? `1 ${toToken.symbol} = ${(fromNum / toNum).toFixed(6)} ${fromToken.symbol}`
+                : `1 ${fromToken.symbol} = ${(toNum / fromNum).toFixed(6)} ${toToken.symbol}`}
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                <polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
+              </svg>
+            </button>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>Price impact</span>
+            <span
+              className="text-xs"
+              style={{ color: priceImpact > 1 ? '#ef4444' : 'var(--c-text-muted)' }}
+            >
+              {Math.abs(priceImpact) < 0.01
+                ? '<0.01%'
+                : `${priceImpact > 0 ? '-' : '+'}${Math.abs(priceImpact).toFixed(2)}%`}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>Network fee</span>
+            <span className="text-xs" style={{ color: 'var(--c-text-muted)' }}>
+              {networkFee !== null ? `~${networkFee.toFixed(4)} XLM` : '—'}
+            </span>
+          </div>
+
+          <div className="pt-2 mt-1 space-y-2" style={{ borderTop: '1px solid var(--c-border)' }}>
+            <p className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--c-text-faint)' }}>
+              Execution protection
+            </p>
+            <div className="flex items-center justify-between">
+              <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>Slippage tolerance</span>
+              <span className="text-xs" style={{ color: 'var(--c-text-muted)' }}>
+                {slippagePct}%{slippage === 'auto' ? ' (auto)' : ''}
+              </span>
             </div>
-          ))}
+            <div className="flex items-center justify-between">
+              <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>Minimum received</span>
+              <span className="text-xs font-semibold" style={{ color: 'var(--c-text)' }}>
+                {fromRawUnits(minReceived, toToken.decimals)} {toToken.symbol}
+              </span>
+            </div>
+          </div>
         </div>
       )}
 
@@ -594,14 +686,22 @@ export default function SwapWidget() {
       <RainButton
         onClick={!walletConnected ? connectWallet : handleSwap}
         enableLoader={walletConnected}
-        disabled={walletConnected && (!hasAmount || quoting)}
+        disabled={walletConnected && (!hasAmount || quoting || insufficientBalance || insufficientLiquidity)}
         className="w-full py-3.5 text-sm font-semibold rounded-xl transition-all duration-150 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
         style={{
           backgroundColor: 'var(--c-cta-bg)',
           color: 'var(--c-cta-text)',
         }}
       >
-        {walletConnected ? `Exchange ${fromToken.symbol} → ${toToken.symbol}` : 'Connect Wallet to Exchange'}
+        {!walletConnected
+          ? 'Connect Wallet to Exchange'
+          : !amountEntered
+            ? 'Enter an amount'
+            : insufficientBalance
+              ? `Insufficient ${fromToken.symbol} balance`
+              : insufficientLiquidity
+                ? 'Insufficient liquidity'
+                : `Exchange ${fromToken.symbol} → ${toToken.symbol}`}
       </RainButton>
 
       <TxStatus phase={txPhase} status={status} />
