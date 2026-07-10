@@ -78,7 +78,7 @@ export default function MyLiquidity() {
         className="rounded-2xl p-6 mb-4"
         style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-card-border)', boxShadow: 'var(--c-card-shadow)' }}
       >
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div>
             <p className="text-[11px] uppercase tracking-wider mb-1" style={{ color: 'var(--c-text-faint)' }}>
               Your LP Balance
@@ -93,6 +93,14 @@ export default function MyLiquidity() {
             </p>
             <p className="text-xl font-bold" style={{ color: 'var(--c-text)' }}>
               {formatCurrency(estimatedValue)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-wider mb-1" style={{ color: 'var(--c-text-faint)' }}>
+              Pool Share
+            </p>
+            <p className="text-xl font-bold" style={{ color: 'var(--c-text)' }}>
+              {(shareOfSupply * 100).toFixed(2)}%
             </p>
           </div>
           <div>

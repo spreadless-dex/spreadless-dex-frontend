@@ -4,13 +4,10 @@ import { shortenAddress } from "../lib/utils";
 import { FAUCET_TOKENS, type TokenInfo } from "../lib/stellar/config";
 import { toRawUnits } from "../lib/stellar/units";
 import { mintToken } from "../lib/stellar/faucet";
+import { mapTxError } from "../lib/stellar/errors";
+import type { TxPhase } from "../lib/stellar/types";
 import RainButton from "./RainButton";
-import ExplorerLink from "./ExplorerLink";
-
-type Status =
-  | { kind: "idle" }
-  | { kind: "success"; amount: string; symbol: string; hash: string }
-  | { kind: "error"; message: string };
+import TxStatus, { type TxUiStatus } from "./TxStatus";
 
 const DEFAULT_AMOUNT = "1000";
 
@@ -105,7 +102,8 @@ export default function Faucet() {
 
   const [token, setToken] = useState<TokenInfo>(FAUCET_TOKENS[0]);
   const [amount, setAmount] = useState(DEFAULT_AMOUNT);
-  const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [status, setStatus] = useState<TxUiStatus>({ kind: "idle" });
+  const [txPhase, setTxPhase] = useState<TxPhase | null>(null);
 
   const handleMint = async () => {
     if (!walletAddress || !amount || Number(amount) <= 0) return;
@@ -115,13 +113,14 @@ export default function Faucet() {
         tokenId: token.contractId,
         to: walletAddress,
         amount: toRawUnits(amount, token.decimals),
+        onPhase: setTxPhase,
       });
-      setStatus({ kind: "success", amount, symbol: token.symbol, hash });
+      setStatus({ kind: "success", message: `Minted ${amount} ${token.symbol} ✓`, hash });
     } catch (err) {
       console.error(`Mint ${token.symbol} failed:`, err);
-      const message =
-        err instanceof Error ? err.message : "Transaction failed. Try again.";
-      setStatus({ kind: "error", message });
+      setStatus({ kind: "error", ...mapTxError(err, { receive: token.symbol }) });
+    } finally {
+      setTxPhase(null);
     }
   };
 
@@ -212,19 +211,7 @@ export default function Faucet() {
             Mint {token.symbol}
           </RainButton>
 
-          {status.kind === "success" && (
-            <div className="mt-3 text-center" style={{ color: "#22c55e" }}>
-              <p className="text-xs">Minted {status.amount} {status.symbol} ✓</p>
-              <div className="mt-1">
-                <ExplorerLink hash={status.hash} />
-              </div>
-            </div>
-          )}
-          {status.kind === "error" && (
-            <p className="text-xs mt-3 break-words" style={{ color: "#ef4444" }}>
-              {status.message}
-            </p>
-          )}
+          <TxStatus phase={txPhase} status={status} />
         </div>
       )}
     </div>

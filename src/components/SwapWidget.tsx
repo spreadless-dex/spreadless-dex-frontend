@@ -3,9 +3,10 @@ import { useAppStore, type PoolToken } from '../store/useAppStore'
 import { fromRawUnits, toRawUnits } from '../lib/stellar/units'
 import { quoteSwapExactIn, swapExactIn } from '../lib/stellar/pool'
 import { getTokenBalance } from '../lib/stellar/token'
-import { isTrustlineError, trustlineGuidance } from '../lib/stellar/errors'
+import { mapTxError } from '../lib/stellar/errors'
+import type { TxPhase } from '../lib/stellar/types'
 import RainButton from './RainButton'
-import ExplorerLink from './ExplorerLink'
+import TxStatus, { type TxUiStatus } from './TxStatus'
 
 function TokenSelect({
   tokens,
@@ -187,11 +188,6 @@ function TransactionSettings({
   )
 }
 
-type Status =
-  | { kind: 'idle' }
-  | { kind: 'success'; amount: string; symbol: string; hash: string }
-  | { kind: 'error'; message: string }
-
 type OrderMode = 'market' | 'limit'
 
 export default function SwapWidget() {
@@ -213,7 +209,8 @@ export default function SwapWidget() {
   const [fromAmount, setFromAmount] = useState('')
   const [toAmount, setToAmount] = useState('')
   const [quoting, setQuoting] = useState(false)
-  const [status, setStatus] = useState<Status>({ kind: 'idle' })
+  const [status, setStatus] = useState<TxUiStatus>({ kind: 'idle' })
+  const [txPhase, setTxPhase] = useState<TxPhase | null>(null)
   const [fromBalance, setFromBalance] = useState<bigint | null>(null)
   const [toBalance, setToBalance] = useState<bigint | null>(null)
 
@@ -327,8 +324,13 @@ export default function SwapWidget() {
         tokenOut: toToken.address,
         amountIn,
         toleranceBps: slippageToBps(slippage, customSlippage),
+        onPhase: setTxPhase,
       })
-      setStatus({ kind: 'success', amount: fromRawUnits(result, toToken.decimals), symbol: toToken.symbol, hash })
+      setStatus({
+        kind: 'success',
+        message: `Exchanged ✓ Received ${fromRawUnits(result, toToken.decimals)} ${toToken.symbol}`,
+        hash,
+      })
       setFromAmount('')
       setToAmount('')
       loadPoolState() // refresh reserves after the swap lands
@@ -336,12 +338,9 @@ export default function SwapWidget() {
       getTokenBalance(toToken.address, walletAddress).then(setToBalance).catch(() => {})
     } catch (err) {
       console.error('Swap failed:', err)
-      setStatus({
-        kind: 'error',
-        message: isTrustlineError(err)
-          ? trustlineGuidance(toToken.symbol)
-          : err instanceof Error ? err.message : 'Transaction failed. Try again.',
-      })
+      setStatus({ kind: 'error', ...mapTxError(err, { spend: fromToken.symbol, receive: toToken.symbol }) })
+    } finally {
+      setTxPhase(null)
     }
   }
 
@@ -598,19 +597,7 @@ export default function SwapWidget() {
         {walletConnected ? `Exchange ${fromToken.symbol} → ${toToken.symbol}` : 'Connect Wallet to Exchange'}
       </RainButton>
 
-      {status.kind === 'success' && (
-        <div className="mt-3 text-center" style={{ color: '#22c55e' }}>
-          <p className="text-xs">Exchanged ✓ Received {status.amount} {status.symbol}</p>
-          <div className="mt-1">
-            <ExplorerLink hash={status.hash} />
-          </div>
-        </div>
-      )}
-      {status.kind === 'error' && (
-        <p className="text-xs mt-3 break-words" style={{ color: '#ef4444' }}>
-          {status.message}
-        </p>
-      )}
+      <TxStatus phase={txPhase} status={status} />
       </>
       )}
     </div>

@@ -9,20 +9,21 @@ Ergebnis des UI/UX-Audits vom 08.07.2026. Jeder Punkt hat eine Checkbox und eine
 ## P1 — Kritisch: Vertrauen & Verständlichkeit
 
 ### 1. Transaktions-Lifecycle
-- [ ] **Status:** offen
+- [x] **Status:** erledigt (10.07.2026)
 - Betrifft: `SwapWidget.tsx`, `PoolDetailModal.tsx`, `Faucet.tsx`, `RainButton.tsx`
 - Aktuell: Button → Regen-Animation "loading" → kleine grüne Textzeile. Der Nutzer weiß nie, wo er gerade ist.
 - Soll:
-  - [ ] Stepper/Status-Phasen: „Confirm in wallet" → „Submitting" → „Confirmed"
-  - [ ] Hinweis, dass sich die Wallet zum Signieren öffnet
-  - [ ] Nach Erfolg: Tx-Hash anzeigen + Link zu stellar.expert
-  - [ ] Gilt für Swap, Deposit, Withdraw und Faucet gleichermaßen
+  - [x] Stepper/Status-Phasen: „Confirm in wallet" → „Submitting" → „Confirmed" — neue Shared-Komponente `TxStatus.tsx`; die Phasen kommen aus einem `onPhase`-Callback in `pool.ts`/`faucet.ts` (der Wallet-Signer ist gewrappt: `signTransaction`-Aufruf = Wallet offen, Resolve = Submit läuft)
+  - [x] Hinweis, dass sich die Wallet zum Signieren öffnet — Hinweiszeile unter dem Stepper je Phase („Your wallet is open — review and approve the transaction.")
+  - [x] Nach Erfolg: Tx-Hash anzeigen + Link zu stellar.expert — war schon da (ExplorerLink), jetzt in `TxStatus` konsolidiert inkl. komplett abgehaktem Stepper
+  - [x] Gilt für Swap, Deposit, Withdraw und Faucet gleichermaßen — alle vier Flows nutzen `TxStatus` + `onPhase`
 
 ### 2. Fehler-Mapping (rohe `err.message` ersetzen)
-- [ ] **Status:** offen
+- [x] **Status:** erledigt (10.07.2026)
 - Betrifft: `SwapWidget.tsx:224`, `PoolDetailModal.tsx`, `Faucet.tsx`
 - Aktuell: Soroban-Fehler wie `HostError: Error(Contract, #10)` landen ungefiltert im UI.
 - Soll: Mapping auf menschliche Sätze — „Slippage überschritten — Kurs hat sich bewegt", „Nicht genug Guthaben", „In der Wallet abgelehnt".
+- Umsetzungsnotiz: `mapTxError()` in `errors.ts` mappt Wallet-Ablehnung, Trustline, `#100 InsufficientBalance`, `#14 SlippageExceeded`, `#15 CapExceeded`, `#1000 EnforcedPause`, `#10/#11 InvalidAmount/ZeroDeposit`, XLM-Underfunded, Timeout und Netzwerkfehler (Codes aus dem SDK-Error-Enum). Unbekannte Fehler: generischer Satz + gekürzte Roh-Meldung als faint Detail-Zeile.
 
 ### 3. Fake-Zahlen auf der Landingpage entfernen/echt machen
 - [ ] **Status:** offen
@@ -48,16 +49,18 @@ Ergebnis des UI/UX-Audits vom 08.07.2026. Jeder Punkt hat eine Checkbox und eine
 ## P2 — Wichtig: Unfertige Flows
 
 ### 6. Positions-Ansicht („Your position") auf Earn
-- [ ] **Status:** offen
+- [x] **Status:** erledigt (10.07.2026)
 - Betrifft: `PoolsPage.tsx` (neu: Positions-Karte)
 - Aktuell: Nach Deposit gibt es keinen Ort für: meine LP-Shares, deren Wert, mein Pool-Anteil. LP-Balance nur versteckt im Withdraw-Tab.
 - Soll: „Your position"-Karte auf der Earn-Seite bei verbundener Wallet. Größter einzelner Hebel.
+- Umsetzungsnotiz: Neue `PositionSummary.tsx` — kompakte Leiste über dem Pools-Grid (Wert · LP-Shares · Pool-Anteil · „View details" → wechselt zum My-Liquidity-Tab). Rendert nur bei verbundener Wallet mit Position, refetcht bei jedem Pool-State-Refresh (bleibt nach Deposit/Withdraw synchron). „Pool Share" außerdem als vierte Kennzahl in der My-Liquidity-Übersichtskarte ergänzt.
 
 ### 7. Deposit-Vorab-Quote
-- [ ] **Status:** offen
+- [x] **Status:** erledigt (10.07.2026)
 - Betrifft: `PoolDetailModal.tsx`
 - Aktuell: Withdraw zeigt „≈ X Token" vor dem Klick, Deposit zeigt die LP-Shares erst nach der Transaktion.
 - Soll: „Du erhältst ~X LP" vor dem Deposit (wichtig wegen Bonus/Malus bei unbalancierten single-sided Deposits).
+- Umsetzungsnotiz: Neues `quoteDepositSingleSided()` in `pool.ts` (Simulation mit `min_lp_out: 0`), im Deposit-Tab als debounced Zeile „You receive ≈ X LP shares" über der Rendite-Projektion. Braucht wie die Swap-Quote eine verbundene Wallet (Simulation läuft gegen den Account); Quote-Fehler beim Tippen (z. B. zu wenig Guthaben) zeigen „—" statt einer Fehlermeldung.
 
 ### 8. Max-Button + Insufficient-Balance-Validierung
 - [ ] **Status:** offen
@@ -69,10 +72,10 @@ Ergebnis des UI/UX-Audits vom 08.07.2026. Jeder Punkt hat eine Checkbox und eine
   - [ ] Button-Label „Insufficient sDAI balance" + disabled bei zu wenig Guthaben
 
 ### 9. Slippage-Settings + Min received + Price-Impact-Warnung
-- [ ] **Status:** offen
-- Betrifft: `SwapWidget.tsx:275-283` (totes Zahnrad), `lib/stellar/pool.ts` (fix 1%)
+- [ ] **Status:** teilweise erledigt
+- Betrifft: `SwapWidget.tsx` (Zahnrad inzwischen funktional), `lib/stellar/pool.ts`
 - Soll:
-  - [ ] Zahnrad funktional machen: Slippage-Toleranz einstellbar
+  - [x] Zahnrad funktional machen: Slippage-Toleranz einstellbar — `TransactionSettings` mit Presets (Auto/0.1/0.5/1 %) + Custom, auf 0.01–50 % geclampt, fließt als `toleranceBps` in den On-Chain-`min_out`-Floor
   - [ ] „Minimum received"-Zeile in der Rate-Info
   - [ ] Farbwarnung bei Price Impact: >1 % gelb, >3 % rot + Bestätigungsdialog
 
@@ -239,3 +242,6 @@ Referenz: Perenas Earn-Card-View. Was ihre Cards besser machen und was wir über
 - 2026-07-09 — Card-Überarbeitung umgesetzt: #23, #24, #25 erledigt, #4 teilweise (Preview-APY sichtbar, Fee noch offen). Akzentfarbe `--c-accent` eingeführt. Verifiziert im Browser (Light + Dark, Withdraw-Button öffnet Modal im Withdraw-Tab).
 - 2026-07-09 — Akzentfarbe nach Feedback von Grün auf Lila umgestellt und strikt auf APY-Zahlen beschränkt; Deposit-Button zurück auf monochromes Schwarz/Weiß.
 - 2026-07-09 — #27 umgesetzt: „Est. returns per year" live im Deposit-Tab + Gebühren-Footer im Modal. Kapazitäts-Balken blockiert (kein Cap-Getter im Contract). Im Browser verifiziert (1500 sDAI × 6.8% → ≈ $102.00).
+- 2026-07-10 — #1 + #2 umgesetzt: Transaktions-Lifecycle-Stepper (`TxStatus.tsx`, gespeist aus `onPhase`-Callbacks in `pool.ts`/`faucet.ts`) in Swap, Deposit, Withdraw und Faucet; Fehler-Mapping `mapTxError()` ersetzt rohe `err.message` überall. Stepper-, Erfolgs- und Fehler-Zustand im Browser verifiziert (u. a. `Error(Contract, #14)` → Slippage-Klartext).
+- 2026-07-10 — #6 + #7 umgesetzt: „Your position"-Leiste über dem Pools-Grid (`PositionSummary.tsx`) + Pool-Share-Kennzahl in My Liquidity; Deposit-Vorab-Quote „You receive ≈ X LP shares" via `quoteDepositSingleSided()`. Beides im Browser verifiziert (Layout mit Temp-Daten, danach zurückgebaut).
+- 2026-07-10 — Alle Flows end-to-end auf Testnet verifiziert (frischer Friendbot-Account, echte Transaktionen): Faucet-Mint, Swap (250 sDAI → 249.953 sUSDT), Deposit (Quote 499.993859157 LP == tatsächlich erhaltene LP), Position-Leiste/My Liquidity mit echten Werten, Withdraw (Quote == Ergebnis), Fehler-Mapping („Not enough sDAI in your wallet for this amount."). Dabei gefundener Bug gefixt: Bei fehlgeschlagener Simulation liefert das SDK ein `Err`-Objekt statt zu werfen — Quote-Zeilen zeigten „[object Object]". Fix: `unwrapResult()` in `pool.ts` an allen `.result`-Stellen; `mapTxError` erkennt zusätzlich die dekodierte InsufficientBalance-Docstring-Meldung. Bekannte Kleinigkeit (vorbestehend): Balance-Refresh direkt nach Tx-Erfolg kann dem Ledger einen Moment hinterherhinken.

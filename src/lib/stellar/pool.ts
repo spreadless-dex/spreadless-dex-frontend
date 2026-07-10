@@ -6,7 +6,7 @@ import {
   TOKENS,
 } from "./config";
 import { fromRawUnits } from "./units";
-import type { TxResult } from "./types";
+import type { OnPhase, TxResult } from "./types";
 
 // The LP share token (SLP) uses 9 decimals per the contract docs.
 export const LP_DECIMALS = 9;
@@ -54,8 +54,11 @@ async function readClient() {
 }
 
 // Write client: needs a connected wallet, since it's both the simulation's
-// source account and, for the real submit, the signer.
-async function writeClient(to: string) {
+// source account and, for the real submit, the signer. The signer is wrapped
+// so callers can surface the tx lifecycle: signTransaction being invoked is
+// the moment the wallet pops up ("signing"); it resolving means the signed tx
+// is on its way to the network ("submitting").
+async function writeClient(to: string, onPhase?: OnPhase) {
   const sdk = await loadSdk();
   const signer = await getWalletSigner();
   return new sdk.Client({
@@ -63,8 +66,32 @@ async function writeClient(to: string) {
     rpcUrl: RPC_URL,
     networkPassphrase: NETWORK_PASSPHRASE,
     publicKey: to,
-    ...signer,
+    signAuthEntry: signer.signAuthEntry,
+    signTransaction: async (...args: Parameters<typeof signer.signTransaction>) => {
+      onPhase?.("signing");
+      const res = await signer.signTransaction(...args);
+      onPhase?.("submitting");
+      return res;
+    },
   });
+}
+
+// Simulated calls are typed as AssembledTransaction<i128>, but when the
+// simulation hits a contract failure (e.g. quoting a deposit above the
+// wallet's balance) the SDK hands back a Rust-style Err object instead of
+// throwing — String(it) is "[object Object]" and it would flow straight into
+// the UI. Normalize: unwrap Result-likes so callers get a real value or a
+// real throw.
+function unwrapResult<T>(value: T | { unwrap(): T }): T {
+  if (
+    value !== null &&
+    typeof value === "object" &&
+    "unwrap" in value &&
+    typeof (value as { unwrap?: unknown }).unwrap === "function"
+  ) {
+    return (value as { unwrap(): T }).unwrap();
+  }
+  return value as T;
 }
 
 // The pool contract IS the LP token (SLP, 9 decimals) — it implements the
@@ -73,7 +100,7 @@ async function writeClient(to: string) {
 export async function getLpBalance(address: string): Promise<bigint> {
   const pool = await readClient();
   const { result } = await pool.balance({ account: address });
-  return result;
+  return unwrapResult(result);
 }
 
 // Map an on-chain token address to display metadata. Falls back gracefully if
@@ -145,6 +172,22 @@ interface DepositArgs {
   amount: bigint;
   /** Slippage tolerance in basis points (100 = 1%). */
   toleranceBps?: bigint;
+  /** Called as the tx moves through its lifecycle (preparing → signing → submitting). */
+  onPhase?: OnPhase;
+}
+
+/** Simulate-only: how many LP shares this single-sided deposit would mint right now. */
+export async function quoteDepositSingleSided({
+  to,
+  tokenIndex,
+  amount,
+}: Omit<DepositArgs, "toleranceBps" | "onPhase">): Promise<bigint> {
+  if (amount <= 0n) return 0n;
+  const pool = await writeClient(to);
+  const tokens = (await pool.get_tokens()).result;
+  const amounts_in = tokens.map((_, i) => (i === tokenIndex ? amount : 0n));
+  const quote = await pool.deposit({ to, amounts_in, min_lp_out: 0n });
+  return unwrapResult(quote.result);
 }
 
 /** Single-sided deposit: fund one token, receive LP shares. Returns LP minted. */
@@ -153,8 +196,10 @@ export async function depositSingleSided({
   tokenIndex,
   amount,
   toleranceBps = 100n,
+  onPhase,
 }: DepositArgs): Promise<TxResult<bigint>> {
-  const pool = await writeClient(to);
+  onPhase?.("preparing");
+  const pool = await writeClient(to, onPhase);
 
   // amounts_in is indexed by canonical token order; single-sided means our
   // amount at this token's slot and 0 everywhere else.
@@ -164,12 +209,12 @@ export async function depositSingleSided({
   // Simulate once with no floor to read the quoted LP, then submit with
   // min_lp_out set from that quote minus tolerance — on-chain slippage guard.
   const quote = await pool.deposit({ to, amounts_in, min_lp_out: 0n });
-  const quotedLp = quote.result;
+  const quotedLp = unwrapResult(quote.result);
   const minLpOut = quotedLp - (quotedLp * toleranceBps) / 10_000n;
 
   const tx = await pool.deposit({ to, amounts_in, min_lp_out: minLpOut });
   const sent = await tx.signAndSend();
-  return { result: sent.result, hash: sent.sendTransactionResponse?.hash ?? "" };
+  return { result: unwrapResult(sent.result), hash: sent.sendTransactionResponse?.hash ?? "" };
 }
 
 interface SwapArgs {
@@ -183,6 +228,8 @@ interface SwapArgs {
   amountIn: bigint;
   /** Slippage tolerance in basis points (100 = 1%). */
   toleranceBps?: bigint;
+  /** Called as the tx moves through its lifecycle (preparing → signing → submitting). */
+  onPhase?: OnPhase;
 }
 
 /** Simulate-only: how much tokenOut this swap would yield right now. */
@@ -191,7 +238,7 @@ export async function quoteSwapExactIn({
   tokenIn,
   tokenOut,
   amountIn,
-}: Omit<SwapArgs, "toleranceBps">): Promise<bigint> {
+}: Omit<SwapArgs, "toleranceBps" | "onPhase">): Promise<bigint> {
   if (amountIn <= 0n) return 0n;
   const pool = await writeClient(to);
   const quote = await pool.swap_exact_in({
@@ -201,7 +248,7 @@ export async function quoteSwapExactIn({
     amount_in: amountIn,
     min_out: 0n,
   });
-  return quote.result;
+  return unwrapResult(quote.result);
 }
 
 /** Swap an exact amount of tokenIn for tokenOut. Returns the tokenOut received. */
@@ -211,8 +258,10 @@ export async function swapExactIn({
   tokenOut,
   amountIn,
   toleranceBps = 100n,
+  onPhase,
 }: SwapArgs): Promise<TxResult<bigint>> {
-  const pool = await writeClient(to);
+  onPhase?.("preparing");
+  const pool = await writeClient(to, onPhase);
 
   // Same two-phase pattern as depositSingleSided: simulate for the quote,
   // then submit for real with an on-chain slippage floor.
@@ -223,7 +272,7 @@ export async function swapExactIn({
     amount_in: amountIn,
     min_out: 0n,
   });
-  const quotedOut = quote.result;
+  const quotedOut = unwrapResult(quote.result);
   const minOut = quotedOut - (quotedOut * toleranceBps) / 10_000n;
 
   const tx = await pool.swap_exact_in({
@@ -234,7 +283,7 @@ export async function swapExactIn({
     min_out: minOut,
   });
   const sent = await tx.signAndSend();
-  return { result: sent.result, hash: sent.sendTransactionResponse?.hash ?? "" };
+  return { result: unwrapResult(sent.result), hash: sent.sendTransactionResponse?.hash ?? "" };
 }
 
 interface WithdrawArgs {
@@ -246,6 +295,8 @@ interface WithdrawArgs {
   lpAmount: bigint;
   /** Slippage tolerance in basis points (100 = 1%). */
   toleranceBps?: bigint;
+  /** Called as the tx moves through its lifecycle (preparing → signing → submitting). */
+  onPhase?: OnPhase;
 }
 
 /** Simulate-only: how much of tokenOut burning lpAmount shares would pay out. */
@@ -253,7 +304,7 @@ export async function quoteWithdrawOneToken({
   to,
   tokenOut,
   lpAmount,
-}: Omit<WithdrawArgs, "toleranceBps">): Promise<bigint> {
+}: Omit<WithdrawArgs, "toleranceBps" | "onPhase">): Promise<bigint> {
   if (lpAmount <= 0n) return 0n;
   const pool = await writeClient(to);
   const quote = await pool.withdraw_one_token({
@@ -262,7 +313,7 @@ export async function quoteWithdrawOneToken({
     token_out: tokenOut,
     min_amount_out: 0n,
   });
-  return quote.result;
+  return unwrapResult(quote.result);
 }
 
 /** Burn lpAmount LP shares and exit entirely into tokenOut. Returns the amount received. */
@@ -271,8 +322,10 @@ export async function withdrawOneToken({
   tokenOut,
   lpAmount,
   toleranceBps = 100n,
+  onPhase,
 }: WithdrawArgs): Promise<TxResult<bigint>> {
-  const pool = await writeClient(to);
+  onPhase?.("preparing");
+  const pool = await writeClient(to, onPhase);
 
   // Same two-phase pattern as deposit/swap: simulate for the quote, then
   // submit for real with an on-chain slippage floor.
@@ -282,7 +335,7 @@ export async function withdrawOneToken({
     token_out: tokenOut,
     min_amount_out: 0n,
   });
-  const quotedOut = quote.result;
+  const quotedOut = unwrapResult(quote.result);
   const minAmountOut = quotedOut - (quotedOut * toleranceBps) / 10_000n;
 
   const tx = await pool.withdraw_one_token({
@@ -292,5 +345,5 @@ export async function withdrawOneToken({
     min_amount_out: minAmountOut,
   });
   const sent = await tx.signAndSend();
-  return { result: sent.result, hash: sent.sendTransactionResponse?.hash ?? "" };
+  return { result: unwrapResult(sent.result), hash: sent.sendTransactionResponse?.hash ?? "" };
 }
