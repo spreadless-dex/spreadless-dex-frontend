@@ -123,6 +123,10 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
 
   const preview = getPoolPreviewStats(token.symbol)
 
+  // Projected yearly yield from the entered amount × preview APY. Stablecoin
+  // amounts are treated as ≈ USD, same assumption formatCurrency makes elsewhere.
+  const estYearly = Number(amount) > 0 ? (Number(amount) * preview.apy) / 100 : 0
+
   // Real, not preview: your proportional slice of this token's reserve,
   // derived from your actual LP balance vs. total LP supply — same math
   // MyLiquidity uses for its per-token breakdown.
@@ -282,15 +286,18 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
             </span>
           </div>
           {[
-            { label: 'APY', value: `${preview.apy.toFixed(1)}%` },
+            { label: 'APY', value: `${preview.apy.toFixed(1)}%`, accent: true },
             { label: 'Holders', value: preview.holders.toLocaleString() },
             { label: '24h Vol', value: formatCurrency(preview.volume24h) },
-          ].map(({ label, value }) => (
+          ].map(({ label, value, accent }) => (
             <div key={label}>
               <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--c-text-faint)' }}>
                 {label}
               </p>
-              <p className="text-xs font-medium truncate" style={{ color: 'var(--c-text-muted)' }}>
+              <p
+                className="text-xs font-medium truncate"
+                style={{ color: accent ? 'var(--c-accent)' : 'var(--c-text-muted)' }}
+              >
                 {value}
               </p>
             </div>
@@ -403,6 +410,20 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
                 {token.symbol}
               </span>
             </div>
+            <div
+              className="flex items-center justify-between mt-2 px-1"
+              title="Based on the preview APY — live metrics coming soon"
+            >
+              <span className="text-[11px]" style={{ color: 'var(--c-text-faint)' }}>
+                Est. returns per year* · {preview.apy.toFixed(1)}% APY
+              </span>
+              <span
+                className="text-xs font-semibold"
+                style={{ color: estYearly > 0 ? 'var(--c-accent)' : 'var(--c-text-faint)' }}
+              >
+                {estYearly > 0 ? `≈ ${formatCurrency(estYearly)}` : '—'}
+              </span>
+            </div>
           </div>
         ) : (
           <div className="mb-3">
@@ -496,6 +517,15 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
             {status.message}
           </p>
         )}
+
+        <p
+          className="text-[11px] mt-4 pt-3 text-center leading-relaxed"
+          style={{ borderTop: '1px solid var(--c-border)', color: 'var(--c-text-faint)' }}
+        >
+          No lockup — deposits and withdrawals are instant. Single-sided amounts
+          can shift slightly with pool balance (1% slippage guard). Stellar
+          network fees apply.
+        </p>
       </div>
     </div>
   )

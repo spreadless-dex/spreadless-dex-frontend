@@ -58,6 +58,9 @@
   --c-border-2:      rgba(0,0,0,0.14);
   --c-cta-bg:        #030303;
   --c-cta-text:      #ffffff;
+  /* The one accent in an otherwise monochrome design — reserved for yield
+     figures (APY) only. Buttons and everything else stay black/white. */
+  --c-accent:        #6D28D9;
   --c-card-border:   rgba(0,0,0,0.08);
   --c-skeleton-glow: rgba(0,0,0,0.05);
   --c-card-shadow:
@@ -85,6 +88,7 @@ html.dark {
   --c-border-2:      rgba(255,255,255,0.13);
   --c-cta-bg:        #ffffff;
   --c-cta-text:      #000000;
+  --c-accent:        #A78BFA;
   --c-card-border:   rgba(254,254,254,0.13);
   --c-skeleton-glow: rgba(255,255,255,0.06);
   --c-card-shadow:   none;
