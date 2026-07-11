@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useAppStore } from "../store/useAppStore";
-import { shortenAddress, tokenAvatarLabel } from "../lib/utils";
+import { shortenAddress } from "../lib/utils";
 import { FAUCET_TOKENS, type TokenInfo } from "../lib/stellar/config";
 import { toRawUnits } from "../lib/stellar/units";
 import { mintToken } from "../lib/stellar/faucet";
@@ -8,6 +8,7 @@ import { mapTxError } from "../lib/stellar/errors";
 import type { TxPhase } from "../lib/stellar/types";
 import RainButton from "./RainButton";
 import TxStatus, { type TxUiStatus } from "./TxStatus";
+import TokenIcon from "./TokenIcon";
 
 const DEFAULT_AMOUNT = "1000";
 
@@ -35,16 +36,7 @@ function TokenDropdown({
         onClick={() => setOpen(!open)}
         className="w-full flex items-center gap-3 text-left"
       >
-        <div
-          className="w-9 h-9 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0"
-          style={{
-            backgroundColor: "var(--c-surface-2)",
-            border: "1px solid var(--c-border)",
-            color: "var(--c-text-muted)",
-          }}
-        >
-          {tokenAvatarLabel(value.symbol)}
-        </div>
+        <TokenIcon symbol={value.symbol} size={36} />
         <div className="flex-1 min-w-0">
           <p className="text-base font-semibold leading-tight" style={{ color: "var(--c-text)" }}>
             {value.symbol}
@@ -85,6 +77,7 @@ function TokenDropdown({
                 backgroundColor: t.symbol === value.symbol ? "var(--c-surface-2)" : "transparent",
               }}
             >
+              <TokenIcon symbol={t.symbol} size={20} />
               <span className="font-semibold">{t.symbol}</span>
               <span className="text-[11px]" style={{ color: "var(--c-text-faint)" }}>
                 {t.decimals} decimals

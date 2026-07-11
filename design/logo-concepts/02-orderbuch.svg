@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Spreadless — Konzept 02 "Orderbuch": Depth-Chart ohne Lücke, Bid- und Ask-Wand berühren sich -->
+  <path d="M7 12 C13 34 22 42 32 46 L32 52 L7 52 Z" fill="#A855F7"/>
+  <path d="M57 12 C51 34 42 42 32 46 L32 52 L57 52 Z" fill="#0A0A0A"/>
+</svg>

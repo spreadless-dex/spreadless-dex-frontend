@@ -6,8 +6,12 @@ import { getTokenBalance } from '../lib/stellar/token'
 import { refetchUntilChanged } from '../lib/stellar/refetch'
 import { mapTxError } from '../lib/stellar/errors'
 import type { TxPhase } from '../lib/stellar/types'
+import { recordSwap } from '../lib/activity/record'
+import type { ActivityRecord } from '../lib/activity/db'
 import RainButton from './RainButton'
 import TxStatus, { type TxUiStatus } from './TxStatus'
+import TxDetailDrawer from './TxDetailDrawer'
+import TokenIcon from './TokenIcon'
 
 function TokenSelect({
   tokens,
@@ -35,13 +39,14 @@ function TokenSelect({
     <div ref={ref} className="relative shrink-0">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg transition-colors"
+        className="flex items-center gap-2 text-sm font-semibold pl-1.5 pr-3 py-1.5 rounded-lg transition-colors"
         style={{
           backgroundColor: 'var(--c-surface-2)',
           border: '1px solid var(--c-border)',
           color: 'var(--c-text)',
         }}
       >
+        <TokenIcon symbol={value.symbol} size={22} />
         {value.symbol}
         <svg
           width="11" height="11" viewBox="0 0 24 24" fill="none"
@@ -54,7 +59,7 @@ function TokenSelect({
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-2 rounded-xl overflow-hidden z-30 min-w-[110px]"
+          className="absolute right-0 top-full mt-2 rounded-xl overflow-hidden z-30 min-w-[140px]"
           style={{
             backgroundColor: 'var(--c-surface)',
             border: '1px solid var(--c-border-2)',
@@ -65,12 +70,13 @@ function TokenSelect({
             <button
               key={t.symbol}
               onClick={() => { onChange(t); setOpen(false) }}
-              className="w-full text-left px-4 py-2.5 text-sm transition-colors"
+              className="w-full flex items-center gap-2 text-left px-4 py-2.5 text-sm transition-colors"
               style={{
                 color: t.symbol === value.symbol ? 'var(--c-text)' : 'var(--c-text-muted)',
                 backgroundColor: t.symbol === value.symbol ? 'var(--c-surface-2)' : 'transparent',
               }}
             >
+              <TokenIcon symbol={t.symbol} size={20} />
               {t.symbol}
             </button>
           ))}
@@ -90,6 +96,13 @@ function slippageToBps(slippage: Slippage, custom: string): bigint {
   if (!Number.isFinite(pct) || pct <= 0) return 100n // fall back to the safe 1% default
   const bps = Math.round(pct * 100)
   return BigInt(Math.min(Math.max(bps, 1), 5000)) // 0.01%–50%
+}
+
+// What the pill button itself displays — the live selected value, not just an icon.
+function slippageLabel(slippage: Slippage, custom: string): string {
+  if (slippage === 'auto') return 'Auto'
+  if (slippage === 'custom') return custom ? `${custom}%` : 'Custom'
+  return `${slippage}%`
 }
 
 function TransactionSettings({
@@ -125,13 +138,19 @@ function TransactionSettings({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="w-8 h-8 flex items-center justify-center rounded-lg transition-all"
-        style={{ color: open ? 'var(--c-text)' : 'var(--c-text-faint)', backgroundColor: open ? 'var(--c-surface-2)' : 'transparent' }}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-colors"
+        style={{
+          backgroundColor: 'var(--c-surface-2)',
+          color: open ? 'var(--c-text)' : 'var(--c-text-faint)',
+        }}
       >
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <line x1="4" y1="8" x2="20" y2="8" />
+          <circle cx="9" cy="8" r="2" fill="currentColor" stroke="none" />
+          <line x1="4" y1="16" x2="20" y2="16" />
+          <circle cx="15" cy="16" r="2" fill="currentColor" stroke="none" />
         </svg>
+        {slippageLabel(slippage, custom)}
       </button>
 
       {open && (
@@ -211,6 +230,10 @@ export default function SwapWidget() {
   const [toAmount, setToAmount] = useState('')
   const [networkFee, setNetworkFee] = useState<number | null>(null)
   const [rateFlipped, setRateFlipped] = useState(false)
+  // Set right after a swap confirms — while non-null, the success takeover
+  // screen replaces the swap form entirely (cleared to go back to swapping).
+  const [confirmedSwap, setConfirmedSwap] = useState<ActivityRecord | null>(null)
+  const [detailActivity, setDetailActivity] = useState<ActivityRecord | null>(null)
   const [quoting, setQuoting] = useState(false)
   const [status, setStatus] = useState<TxUiStatus>({ kind: 'idle' })
   const [txPhase, setTxPhase] = useState<TxPhase | null>(null)
@@ -327,6 +350,9 @@ export default function SwapWidget() {
     const amountIn = toRawUnits(fromAmount, fromToken.decimals)
     if (amountIn <= 0n) return
 
+    const toleranceBps = slippageToBps(slippage, customSlippage)
+    const slippagePct = `${(Number(toleranceBps) / 100).toFixed(2)}%`
+
     setStatus({ kind: 'idle' })
     try {
       const { result, hash } = await swapExactIn({
@@ -334,14 +360,28 @@ export default function SwapWidget() {
         tokenIn: fromToken.address,
         tokenOut: toToken.address,
         amountIn,
-        toleranceBps: slippageToBps(slippage, customSlippage),
+        toleranceBps,
         onPhase: setTxPhase,
       })
+      const receivedAmount = fromRawUnits(result, toToken.decimals)
       setStatus({
         kind: 'success',
-        message: `Exchanged ✓ Received ${fromRawUnits(result, toToken.decimals)} ${toToken.symbol}`,
+        message: `Exchanged ✓ Received ${receivedAmount} ${toToken.symbol}`,
         hash,
       })
+      recordSwap({
+        walletAddress,
+        status: 'completed',
+        fromSymbol: fromToken.symbol,
+        toSymbol: toToken.symbol,
+        sentAmount: fromAmount,
+        receivedAmount,
+        effectiveRate: Number(receivedAmount) / Number(fromAmount),
+        slippage: slippagePct,
+        txHash: hash,
+      })
+        .then(setConfirmedSwap)
+        .catch((err) => console.error('Failed to record activity:', err))
       setFromAmount('')
       setToAmount('')
       loadPoolState() // refresh reserves after the swap lands
@@ -355,7 +395,17 @@ export default function SwapWidget() {
         .catch(() => {})
     } catch (err) {
       console.error('Swap failed:', err)
-      setStatus({ kind: 'error', ...mapTxError(err, { spend: fromToken.symbol, receive: toToken.symbol }) })
+      const mapped = mapTxError(err, { spend: fromToken.symbol, receive: toToken.symbol })
+      setStatus({ kind: 'error', ...mapped })
+      recordSwap({
+        walletAddress,
+        status: 'failed',
+        fromSymbol: fromToken.symbol,
+        toSymbol: toToken.symbol,
+        sentAmount: fromAmount,
+        slippage: slippagePct,
+        detail: mapped.message,
+      }).catch((e) => console.error('Failed to record activity:', e))
     } finally {
       setTxPhase(null)
     }
@@ -408,6 +458,56 @@ export default function SwapWidget() {
   // Resolves quickly enough that a loading placeholder would just flash —
   // render nothing until the pool state (and default token pair) is ready.
   if (loadingPool) return null
+
+  if (confirmedSwap) {
+    return (
+      <>
+        <div
+          className="w-full max-w-[460px] rounded-2xl p-7 text-center animate-bounce-in"
+          style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)', boxShadow: 'var(--c-widget-shadow)' }}
+        >
+          <div className="flex justify-center mb-5">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+              <circle cx="32" cy="32" r="30" stroke="#22c55e" strokeWidth="3" className="animate-draw-circle" />
+              <path d="M20 33 L28 41 L44 23" stroke="#22c55e" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none" className="animate-draw-check" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--c-text)' }}>
+            Exchange Confirmed!
+          </h3>
+          <p className="text-sm mb-8 leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
+            The conversion of {fromToken.symbol} to {toToken.symbol} was completed successfully.
+          </p>
+
+          <div className="space-y-2">
+            <button
+              onClick={() => setDetailActivity(confirmedSwap)}
+              className="w-full py-3 text-sm font-semibold rounded-xl transition-all active:scale-[0.99]"
+              style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
+            >
+              View Details
+            </button>
+            <a
+              href="/pools"
+              className="block w-full text-center py-3 text-sm font-semibold rounded-xl transition-all active:scale-[0.99]"
+              style={{ border: '1px solid var(--c-border-2)', color: 'var(--c-text)' }}
+            >
+              Generate Yield
+            </a>
+            <button
+              onClick={() => { setConfirmedSwap(null); setStatus({ kind: 'idle' }) }}
+              className="w-full py-2 text-xs font-medium transition-opacity hover:opacity-70"
+              style={{ color: 'var(--c-text-faint)' }}
+            >
+              Make another exchange
+            </button>
+          </div>
+        </div>
+
+        <TxDetailDrawer activity={detailActivity} onClose={() => setDetailActivity(null)} />
+      </>
+    )
+  }
 
   return (
     <div
@@ -552,16 +652,21 @@ export default function SwapWidget() {
           />
           <TokenSelect tokens={poolState!.tokens} value={fromToken} onChange={handleFromTokenChange} exclude={toToken.symbol} />
         </div>
+
         {walletConnected && fromBalance !== null && fromBalance > 0n && (
-          <div className="flex items-center justify-end gap-1 mt-2">
+          <div className="flex items-center gap-1.5 mt-3">
             {[25, 50, 75, 100].map((pct) => (
               <button
                 key={pct}
                 onClick={() => setFromAmount(fromRawUnits((fromBalance * BigInt(pct)) / 100n, fromToken.decimals))}
-                className="px-1.5 py-0.5 text-[10px] font-semibold rounded transition-colors hover:opacity-80"
-                style={{ border: '1px solid var(--c-border)', color: 'var(--c-text-faint)' }}
+                className="flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150 hover:opacity-70 active:scale-[0.96]"
+                style={{
+                  backgroundColor: 'var(--c-surface)',
+                  border: '1px solid var(--c-border)',
+                  color: 'var(--c-text-muted)',
+                }}
               >
-                {pct}%
+                {pct === 100 ? 'Max' : `${pct}%`}
               </button>
             ))}
           </div>

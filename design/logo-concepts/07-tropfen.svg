@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Spreadless — Konzept 07 "Der Tropfen": Liquiditaet als Negativraum, bewusst rein monochrom -->
+  <path fill-rule="evenodd" clip-rule="evenodd" fill="#0A0A0A"
+        d="M32 6 C12 6 6 12 6 32 C6 52 12 58 32 58 C52 58 58 52 58 32 C58 12 52 6 32 6 Z
+           M32 16 C32 25 21.5 30.5 21.5 39 A10.5 10.5 0 0 0 42.5 39 C42.5 30.5 32 25 32 16 Z"/>
+</svg>

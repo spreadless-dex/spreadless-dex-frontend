@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { useAppStore, type PoolToken } from '../store/useAppStore'
 import { getLpBalance, LP_DECIMALS } from '../lib/stellar/pool'
 import { fromRawUnits } from '../lib/stellar/units'
-import { formatCurrency, tokenAvatarLabel } from '../lib/utils'
+import { formatCurrency } from '../lib/utils'
 import { getPoolPreviewStats } from '../lib/mockPoolStats'
 import PoolDetailModal from './PoolDetailModal'
+import TokenIcon from './TokenIcon'
 
 export default function MyLiquidity() {
   const { poolState, walletConnected, walletAddress, connectWallet } = useAppStore()
@@ -139,12 +140,7 @@ export default function MyLiquidity() {
               style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)' }}
             >
               <div className="flex items-center gap-3">
-                <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0"
-                  style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border)', color: 'var(--c-text-muted)' }}
-                >
-                  {tokenAvatarLabel(t.symbol)}
-                </div>
+                <TokenIcon symbol={t.symbol} size={36} />
                 <div>
                   <p className="text-sm font-semibold" style={{ color: 'var(--c-text)' }}>{t.symbol}</p>
                   <p className="text-xs" style={{ color: 'var(--c-text-faint)' }}>
