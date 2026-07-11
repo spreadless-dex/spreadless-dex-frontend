@@ -1,6 +1,7 @@
 import type { PoolToken } from '../store/useAppStore'
-import { formatCurrency, tokenAvatarLabel } from '../lib/utils'
+import { formatCurrency } from '../lib/utils'
 import { getPoolPreviewStats } from '../lib/mockPoolStats'
+import TokenIcon from './TokenIcon'
 
 type CardMode = 'deposit' | 'withdraw'
 
@@ -69,16 +70,7 @@ export default function PoolCard({ token, onAction, index = 0 }: PoolCardProps) 
       </div>
 
       <div className="flex items-center gap-3 mb-3">
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-          style={{
-            backgroundColor: 'var(--c-surface-2)',
-            border: '1px solid var(--c-border)',
-            color: 'var(--c-text-muted)',
-          }}
-        >
-          {tokenAvatarLabel(token.symbol)}
-        </div>
+        <TokenIcon symbol={token.symbol} size={40} />
         <div>
           <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: 'var(--c-text-faint)' }}>
             {copy.eyebrow}

@@ -11,6 +11,7 @@ import type { ActivityRecord } from '../lib/activity/db'
 import RainButton from './RainButton'
 import TxStatus, { type TxUiStatus } from './TxStatus'
 import TxDetailDrawer from './TxDetailDrawer'
+import TokenIcon from './TokenIcon'
 
 function TokenSelect({
   tokens,
@@ -38,13 +39,14 @@ function TokenSelect({
     <div ref={ref} className="relative shrink-0">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-lg transition-colors"
+        className="flex items-center gap-2 text-sm font-semibold pl-1.5 pr-3 py-1.5 rounded-lg transition-colors"
         style={{
           backgroundColor: 'var(--c-surface-2)',
           border: '1px solid var(--c-border)',
           color: 'var(--c-text)',
         }}
       >
+        <TokenIcon symbol={value.symbol} size={22} />
         {value.symbol}
         <svg
           width="11" height="11" viewBox="0 0 24 24" fill="none"
@@ -57,7 +59,7 @@ function TokenSelect({
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-2 rounded-xl overflow-hidden z-30 min-w-[110px]"
+          className="absolute right-0 top-full mt-2 rounded-xl overflow-hidden z-30 min-w-[140px]"
           style={{
             backgroundColor: 'var(--c-surface)',
             border: '1px solid var(--c-border-2)',
@@ -68,12 +70,13 @@ function TokenSelect({
             <button
               key={t.symbol}
               onClick={() => { onChange(t); setOpen(false) }}
-              className="w-full text-left px-4 py-2.5 text-sm transition-colors"
+              className="w-full flex items-center gap-2 text-left px-4 py-2.5 text-sm transition-colors"
               style={{
                 color: t.symbol === value.symbol ? 'var(--c-text)' : 'var(--c-text-muted)',
                 backgroundColor: t.symbol === value.symbol ? 'var(--c-surface-2)' : 'transparent',
               }}
             >
+              <TokenIcon symbol={t.symbol} size={20} />
               {t.symbol}
             </button>
           ))}
@@ -623,6 +626,25 @@ export default function SwapWidget() {
           />
           <TokenSelect tokens={poolState!.tokens} value={fromToken} onChange={handleFromTokenChange} exclude={toToken.symbol} />
         </div>
+
+        {walletConnected && fromBalance !== null && fromBalance > 0n && (
+          <div className="flex items-center gap-1.5 mt-3">
+            {[25, 50, 75, 100].map((pct) => (
+              <button
+                key={pct}
+                onClick={() => setFromAmount(fromRawUnits((fromBalance * BigInt(pct)) / 100n, fromToken.decimals))}
+                className="flex-1 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-150 hover:opacity-70 active:scale-[0.96]"
+                style={{
+                  backgroundColor: 'var(--c-surface)',
+                  border: '1px solid var(--c-border)',
+                  color: 'var(--c-text-muted)',
+                }}
+              >
+                {pct === 100 ? 'Max' : `${pct}%`}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Flip */}
@@ -678,6 +700,11 @@ export default function SwapWidget() {
           {[
             { label: 'Rate', value: `1 ${fromToken.symbol} ≈ ${(toNum / fromNum).toFixed(4)} ${toToken.symbol}` },
             { label: 'Price impact', value: `${priceImpact >= 0 ? '' : '+'}${(-priceImpact).toFixed(3)}%` },
+            { label: 'Route', value: `${fromToken.symbol} → ${toToken.symbol}` },
+            { label: 'Estimated slippage', value: `${(Number(slippageToBps(slippage, customSlippage)) / 100).toFixed(2)}%` },
+            // Stellar's protocol base fee (100 stroops/op) — the real floor, though
+            // Soroban resource fees can add more depending on the transaction.
+            { label: 'Network fee', value: '~0.00001 XLM' },
           ].map(({ label, value }) => (
             <div key={label} className="flex items-center justify-between">
               <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>{label}</span>
