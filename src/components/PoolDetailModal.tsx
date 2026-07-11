@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAppStore, type PoolToken } from '../store/useAppStore'
-import { formatCurrency, shortenAddress, tokenAvatarLabel } from '../lib/utils'
+import { formatCurrency, shortenAddress } from '../lib/utils'
 import { refetchUntilChanged } from '../lib/stellar/refetch'
 import { fromRawUnits, toRawUnits } from '../lib/stellar/units'
 import {
@@ -17,6 +17,7 @@ import type { TxPhase } from '../lib/stellar/types'
 import { recordDeposit, recordWithdraw } from '../lib/activity/record'
 import RainButton from './RainButton'
 import TxStatus, { type TxUiStatus } from './TxStatus'
+import TokenIcon from './TokenIcon'
 
 interface PoolDetailModalProps {
   token: PoolToken
@@ -296,16 +297,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
         </button>
 
         <div className="flex items-center gap-4 mb-6">
-          <div
-            className="w-12 h-12 rounded-full flex items-center justify-center text-xs font-bold"
-            style={{
-              backgroundColor: 'var(--c-surface-2)',
-              border: '1px solid var(--c-border)',
-              color: 'var(--c-text-muted)',
-            }}
-          >
-            {tokenAvatarLabel(token.symbol)}
-          </div>
+          <TokenIcon symbol={token.symbol} size={48} />
           <div>
             <h2 className="text-xl font-bold leading-tight" style={{ color: 'var(--c-text)' }}>
               {token.symbol}
