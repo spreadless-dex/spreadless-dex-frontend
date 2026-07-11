@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAppStore, type PoolToken } from '../store/useAppStore'
-import { formatCurrency, shortenAddress, tokenAvatarLabel } from '../lib/utils'
+import { formatCurrency, shortenAddress } from '../lib/utils'
 import { refetchUntilChanged } from '../lib/stellar/refetch'
 import { fromRawUnits, toRawUnits } from '../lib/stellar/units'
 import {
@@ -14,8 +14,10 @@ import {
 import { getPoolPreviewStats } from '../lib/mockPoolStats'
 import { mapTxError } from '../lib/stellar/errors'
 import type { TxPhase } from '../lib/stellar/types'
+import { recordDeposit, recordWithdraw } from '../lib/activity/record'
 import RainButton from './RainButton'
 import TxStatus, { type TxUiStatus } from './TxStatus'
+import TokenIcon from './TokenIcon'
 
 interface PoolDetailModalProps {
   token: PoolToken
@@ -192,7 +194,16 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
         amount: toRawUnits(amount, token.decimals),
         onPhase: setTxPhase,
       })
-      setStatus({ kind: 'success', message: `Deposited ✓ Received ${fromRawUnits(result, LP_DECIMALS)} LP shares`, hash })
+      const lpReceived = fromRawUnits(result, LP_DECIMALS)
+      setStatus({ kind: 'success', message: `Deposited ✓ Received ${lpReceived} LP shares`, hash })
+      recordDeposit({
+        walletAddress,
+        status: 'completed',
+        symbol: token.symbol,
+        amount,
+        lpReceived,
+        txHash: hash,
+      }).catch((err) => console.error('Failed to record activity:', err))
       setAmount('')
       loadPoolState() // refresh reserves after the deposit lands
       // Poll instead of a one-shot refetch — the RPC can briefly serve the
@@ -202,7 +213,15 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
         .catch(() => {})
     } catch (err) {
       console.error('Deposit failed:', err)
-      setStatus({ kind: 'error', ...mapTxError(err, { spend: token.symbol }) })
+      const mapped = mapTxError(err, { spend: token.symbol })
+      setStatus({ kind: 'error', ...mapped })
+      recordDeposit({
+        walletAddress,
+        status: 'failed',
+        symbol: token.symbol,
+        amount,
+        detail: mapped.message,
+      }).catch((e) => console.error('Failed to record activity:', e))
     } finally {
       setTxPhase(null)
     }
@@ -218,7 +237,16 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
         lpAmount: toRawUnits(lpAmount, LP_DECIMALS),
         onPhase: setTxPhase,
       })
-      setStatus({ kind: 'success', message: `Withdrawn ✓ Received ${fromRawUnits(result, token.decimals)} ${token.symbol}`, hash })
+      const amountReceived = fromRawUnits(result, token.decimals)
+      setStatus({ kind: 'success', message: `Withdrawn ✓ Received ${amountReceived} ${token.symbol}`, hash })
+      recordWithdraw({
+        walletAddress,
+        status: 'completed',
+        symbol: token.symbol,
+        lpBurned: lpAmount,
+        amountReceived,
+        txHash: hash,
+      }).catch((err) => console.error('Failed to record activity:', err))
       setLpAmount('')
       setWithdrawQuote('')
       loadPoolState() // refresh reserves after the withdrawal lands
@@ -227,7 +255,15 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
         .catch(() => {})
     } catch (err) {
       console.error('Withdraw failed:', err)
-      setStatus({ kind: 'error', ...mapTxError(err, { spend: 'LP shares', receive: token.symbol }) })
+      const mapped = mapTxError(err, { spend: 'LP shares', receive: token.symbol })
+      setStatus({ kind: 'error', ...mapped })
+      recordWithdraw({
+        walletAddress,
+        status: 'failed',
+        symbol: token.symbol,
+        lpBurned: lpAmount,
+        detail: mapped.message,
+      }).catch((e) => console.error('Failed to record activity:', e))
     } finally {
       setTxPhase(null)
     }
@@ -261,16 +297,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
         </button>
 
         <div className="flex items-center gap-4 mb-6">
-          <div
-            className="w-12 h-12 rounded-full flex items-center justify-center text-xs font-bold"
-            style={{
-              backgroundColor: 'var(--c-surface-2)',
-              border: '1px solid var(--c-border)',
-              color: 'var(--c-text-muted)',
-            }}
-          >
-            {tokenAvatarLabel(token.symbol)}
-          </div>
+          <TokenIcon symbol={token.symbol} size={48} />
           <div>
             <h2 className="text-xl font-bold leading-tight" style={{ color: 'var(--c-text)' }}>
               {token.symbol}

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Spreadless — Konzept 06 "Gleich": das Gleichheitszeichen kollabiert in eine Linie, Kauf = Verkauf -->
+  <path d="M8 22 H24 C36 22 40 30 49 31.2" stroke="#0A0A0A" stroke-width="6" stroke-linecap="round"/>
+  <path d="M8 42 H24 C36 42 40 34 49 32.8" stroke="#0A0A0A" stroke-width="6" stroke-linecap="round"/>
+  <path d="M49 32 H57" stroke="#A855F7" stroke-width="6" stroke-linecap="round"/>
+</svg>
