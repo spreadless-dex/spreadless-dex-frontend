@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Spreadless — Konzept 10 "Endlose Liquiditaet": liegende Acht, zwei Schleifen beruehren sich in der Mitte -->
+  <path d="M32 32 C28 21 14 21 14 32 C14 43 28 43 32 32" stroke="#0A0A0A" stroke-width="6" stroke-linecap="round"/>
+  <path d="M32 32 C36 21 50 21 50 32 C50 43 36 43 32 32" stroke="#A855F7" stroke-width="6" stroke-linecap="round"/>
+</svg>

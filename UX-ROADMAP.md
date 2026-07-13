@@ -63,21 +63,21 @@ Ergebnis des UI/UX-Audits vom 08.07.2026. Jeder Punkt hat eine Checkbox und eine
 - Umsetzungsnotiz: Neues `quoteDepositSingleSided()` in `pool.ts` (Simulation mit `min_lp_out: 0`), im Deposit-Tab als debounced Zeile „You receive ≈ X LP shares" über der Rendite-Projektion. Braucht wie die Swap-Quote eine verbundene Wallet (Simulation läuft gegen den Account); Quote-Fehler beim Tippen (z. B. zu wenig Guthaben) zeigen „—" statt einer Fehlermeldung.
 
 ### 8. Max-Button + Insufficient-Balance-Validierung
-- [ ] **Status:** offen
+- [ ] **Status:** teilweise erledigt (10.07.2026, Swap-Teil via GitHub-Issue #5)
 - Betrifft: `SwapWidget.tsx`, `PoolDetailModal.tsx` (Deposit-Tab)
 - Aktuell: Balance sichtbar, aber nicht klickbar; kein Max im Swap; Deposit-Modal zeigt Token-Balance gar nicht; Fehler kommt erst on-chain.
 - Soll:
-  - [ ] Klickbare Balance / Max-Button überall
-  - [ ] Token-Balance im Deposit-Modal anzeigen
-  - [ ] Button-Label „Insufficient sDAI balance" + disabled bei zu wenig Guthaben
+  - [x] 25/50/75/100 %-Buttons im Swap („You pay"-Panel, nur bei verbundener Wallet mit Guthaben)
+  - [ ] Token-Balance im Deposit-Modal anzeigen (+ Prozent-Buttons dort)
+  - [x] Button-Label „Insufficient sDAI balance" + disabled bei zu wenig Guthaben (Swap; zusätzlich „Insufficient liquidity" wenn der Verkaufsbetrag die Reserve des Zieltokens übersteigt, und „Enter an amount" ohne Eingabe)
 
 ### 9. Slippage-Settings + Min received + Price-Impact-Warnung
 - [ ] **Status:** teilweise erledigt
 - Betrifft: `SwapWidget.tsx` (Zahnrad inzwischen funktional), `lib/stellar/pool.ts`
 - Soll:
   - [x] Zahnrad funktional machen: Slippage-Toleranz einstellbar — `TransactionSettings` mit Presets (Auto/0.1/0.5/1 %) + Custom, auf 0.01–50 % geclampt, fließt als `toleranceBps` in den On-Chain-`min_out`-Floor
-  - [ ] „Minimum received"-Zeile in der Rate-Info
-  - [ ] Farbwarnung bei Price Impact: >1 % gelb, >3 % rot + Bestätigungsdialog
+  - [x] „Minimum received"-Zeile — Teil der neuen Swap-Detail-Box (GitHub-Issue #5, 10.07.2026): exakt derselbe BigInt-Floor, den `swapExactIn` on-chain submitted; daneben Route, Exchange Rate (per Klick invertierbar), Price Impact und Network Fee (echt, aus `minResourceFee` der Quote-Simulation)
+  - [~] Farbwarnung bei Price Impact: >1 % rot umgesetzt; gelbe Zwischenstufe + Bestätigungsdialog bei >3 % noch offen
 
 ### 10. Onboarding-Pfad / Zero-Balance-State
 - [ ] **Status:** offen
@@ -246,3 +246,5 @@ Referenz: Perenas Earn-Card-View. Was ihre Cards besser machen und was wir über
 - 2026-07-10 — #6 + #7 umgesetzt: „Your position"-Leiste über dem Pools-Grid (`PositionSummary.tsx`) + Pool-Share-Kennzahl in My Liquidity; Deposit-Vorab-Quote „You receive ≈ X LP shares" via `quoteDepositSingleSided()`. Beides im Browser verifiziert (Layout mit Temp-Daten, danach zurückgebaut).
 - 2026-07-10 — Alle Flows end-to-end auf Testnet verifiziert (frischer Friendbot-Account, echte Transaktionen): Faucet-Mint, Swap (250 sDAI → 249.953 sUSDT), Deposit (Quote 499.993859157 LP == tatsächlich erhaltene LP), Position-Leiste/My Liquidity mit echten Werten, Withdraw (Quote == Ergebnis), Fehler-Mapping („Not enough sDAI in your wallet for this amount."). Dabei gefundener Bug gefixt: Bei fehlgeschlagener Simulation liefert das SDK ein `Err`-Objekt statt zu werfen — Quote-Zeilen zeigten „[object Object]". Fix: `unwrapResult()` in `pool.ts` an allen `.result`-Stellen; `mapTxError` erkennt zusätzlich die dekodierte InsufficientBalance-Docstring-Meldung. Bekannte Kleinigkeit (vorbestehend): Balance-Refresh direkt nach Tx-Erfolg kann dem Ledger einen Moment hinterherhinken.
 - 2026-07-10 — Verifikations-Findings gefixt und erneut auf Testnet verifiziert: (1) Balance-Refresh nach Tx-Erfolg pollt jetzt bis sich der Wert ändert (`refetch.ts`, in Swap-Balances und LP-Balance nach Deposit/Withdraw; My Liquidity refetcht bei Pool-State-Refresh) — Swap 50 sDAI: beide Balances aktualisierten sich ohne Reload exakt. (2) Token-Avatare zeigten „US" für sUSDT/SUSD/sUSDC (`slice(0,2)`) — jetzt `tokenAvatarLabel()` (nur s-Präfix strippen): DAI · USDT · SUSD · USDC, überall (Cards, Modal, My Liquidity, Faucet).
+- 2026-07-10 — GitHub-Issues #11 + #20 (Quick Wins, PR #21 gemerged): Landing-Hero neu getextet („Global asset exchange, built on Stellar" / „Trade clear, spread less"), CTAs „Generate Yield" + „Exchange Assets", Stats-Reihe auf die vorgegebenen Werte inkl. „Not live data"-Disclaimer mit stabble.org-Link, How-it-works-Karten mit neuer Copy (Transparent Execution / Minimal Slippage / Single-Asset Deposits). Issue #18 als Duplikat von #16 geschlossen.
+- 2026-07-10 — GitHub-Issue #5 umgesetzt (deckt Roadmap #8-Swap-Teil und #9-Rest mit ab): 25/50/75/100 %-Buttons im „You pay"-Panel; Swap-Detail-Box mit Route, invertierbarer Exchange Rate, Price Impact (`<0.01%`-Format, rot ab >1 %), Network Fee aus der Quote-Simulation (`quoteSwapExactIn` gibt jetzt `{amountOut, networkFeeXlm}` zurück) sowie „Execution protection" (Slippage-Toleranz + Minimum received, exakt der On-Chain-Floor); CTA-States „Enter an amount" / „Insufficient X balance" / „Insufficient liquidity". Pool-Fee-Zeile bewusst weggelassen (kein Fee-Getter im Contract, Roadmap #4). End-to-end auf Testnet verifiziert: 25 %-Button → Swap 74.9969135 sDAI → erhalten exakt die gequotete Menge 74.9765754 sUSDT, Min received 74.2268097 == Quote × 0.99, Balances in-place aktualisiert.
