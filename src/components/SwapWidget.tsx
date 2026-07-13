@@ -11,80 +11,7 @@ import type { ActivityRecord } from '../lib/activity/db'
 import RainButton from './RainButton'
 import TxStatus, { type TxUiStatus } from './TxStatus'
 import TxDetailDrawer from './TxDetailDrawer'
-import TokenIcon from './TokenIcon'
-
-function TokenSelect({
-  tokens,
-  value,
-  onChange,
-  exclude,
-}: {
-  tokens: PoolToken[]
-  value: PoolToken
-  onChange: (t: PoolToken) => void
-  exclude: string
-}) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
-  return (
-    <div ref={ref} className="relative shrink-0">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 text-sm font-semibold pl-1.5 pr-3 py-1.5 rounded-lg transition-colors"
-        style={{
-          backgroundColor: 'var(--c-surface-2)',
-          border: '1px solid var(--c-border)',
-          color: 'var(--c-text)',
-        }}
-      >
-        <TokenIcon symbol={value.symbol} size={22} />
-        {value.symbol}
-        <svg
-          width="11" height="11" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
-          className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </button>
-
-      {open && (
-        <div
-          className="absolute right-0 top-full mt-2 rounded-xl overflow-hidden z-30 min-w-[140px]"
-          style={{
-            backgroundColor: 'var(--c-surface)',
-            border: '1px solid var(--c-border-2)',
-            boxShadow: 'var(--c-widget-shadow)',
-          }}
-        >
-          {tokens.filter((t) => t.symbol !== exclude).map((t) => (
-            <button
-              key={t.symbol}
-              onClick={() => { onChange(t); setOpen(false) }}
-              className="w-full flex items-center gap-2 text-left px-4 py-2.5 text-sm transition-colors"
-              style={{
-                color: t.symbol === value.symbol ? 'var(--c-text)' : 'var(--c-text-muted)',
-                backgroundColor: t.symbol === value.symbol ? 'var(--c-surface-2)' : 'transparent',
-              }}
-            >
-              <TokenIcon symbol={t.symbol} size={20} />
-              {t.symbol}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
+import TokenSelectModal from './TokenSelectModal'
 
 type Slippage = 'auto' | '0.1' | '0.5' | '1' | 'custom'
 
@@ -650,7 +577,7 @@ export default function SwapWidget() {
             className="flex-1 min-w-0 bg-transparent text-[1.6rem] font-semibold outline-none"
             style={{ color: 'var(--c-text)' }}
           />
-          <TokenSelect tokens={poolState!.tokens} value={fromToken} onChange={handleFromTokenChange} exclude={toToken.symbol} />
+          <TokenSelectModal tokens={poolState!.tokens} value={fromToken} onChange={handleFromTokenChange} exclude={toToken.symbol} walletAddress={walletAddress} />
         </div>
 
         {walletConnected && fromBalance !== null && fromBalance > 0n && (
@@ -716,7 +643,7 @@ export default function SwapWidget() {
             className="flex-1 min-w-0 bg-transparent text-[1.6rem] font-semibold outline-none cursor-default"
             style={{ color: 'var(--c-text-muted)' }}
           />
-          <TokenSelect tokens={poolState!.tokens} value={toToken} onChange={handleToTokenChange} exclude={fromToken.symbol} />
+          <TokenSelectModal tokens={poolState!.tokens} value={toToken} onChange={handleToTokenChange} exclude={fromToken.symbol} walletAddress={walletAddress} />
         </div>
       </div>
 

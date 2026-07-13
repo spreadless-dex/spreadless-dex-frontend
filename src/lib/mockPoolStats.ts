@@ -10,8 +10,8 @@ export interface PoolPreviewStats {
 }
 
 const STATS: Record<string, PoolPreviewStats> = {
-  sDAI: { apy: 6.8, holders: 412, volume24h: 184_500 },
-  sUSDT: { apy: 5.4, holders: 587, volume24h: 231_200 },
+  EURC: { apy: 6.8, holders: 412, volume24h: 184_500 },
+  PYUSD: { apy: 5.4, holders: 587, volume24h: 231_200 },
   SUSD: { apy: 8.1, holders: 96, volume24h: 42_300 },
   sUSDC: { apy: 4.9, holders: 673, volume24h: 268_900 },
 };
