@@ -415,7 +415,7 @@ export default function SwapWidget() {
               View Details
             </button>
             <a
-              href="/pools"
+              href="/earn"
               className="block w-full text-center py-3 text-sm font-semibold rounded-xl transition-all active:scale-[0.99]"
               style={{ border: '1px solid var(--c-border-2)', color: 'var(--c-text)' }}
             >

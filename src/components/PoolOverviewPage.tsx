@@ -25,7 +25,7 @@ export default function PoolOverviewPage() {
       style={{ color: 'var(--c-text-muted)' }}
     >
       <ArrowLeft size={16} strokeWidth={1.8} />
-      Back to Earn
+      All pools
     </a>
   )
 
@@ -130,7 +130,7 @@ export default function PoolOverviewPage() {
 
         <div className="flex gap-2 sm:flex-col sm:w-40 shrink-0">
           <a
-            href="/pools"
+            href="/earn"
             className="flex-1 text-center py-2.5 text-sm font-semibold rounded-xl transition-all duration-150 hover:opacity-90 active:scale-[0.99]"
             style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
           >
