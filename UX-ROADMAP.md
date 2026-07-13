@@ -224,11 +224,24 @@ Referenz: Perenas Earn-Card-View. Was ihre Cards besser machen und was wir über
 - Perena-Modal (Screenshots 13.07.): eine einzige Entscheidung — „Wie viel?". Deposit = Hero (APY + Est. returns) → Amount-Feld mit Token-Pill + Balance + Max → ein CTA → Fee-Footer. Withdraw noch schlanker (nur Betrag + Max, keine Hero-Zeile). **Keine** Reserve/TVL/Share/Amp/Decimals/Type/Holders/Vol im Handlungs-Flow.
 - Wir vorher: Amount-Input war unter „Your Liquidity"-Callout, 6-Zellen-Statraster und Preview-Block vergraben (`max-h-[85vh]` mit Scroll); dazu ein dritter „Sparplan"-Tab.
 - Soll:
-  - [x] Statraster (Reserve/TVL/Share/Amp/Decimals/Type) + Preview-Daten (Holders/Vol) + „Your Liquidity" in ein **einklappbares „Pool details"** unter dem CTA verschoben (default zu) — Handlungs-Flow bleibt sauber, Details einen Klick entfernt. (Perena legt diese Interna in ihr Transparency-Dashboard; wir bündeln sie hier bis wir einen eigenen Expert-View haben.)
+  - [x] Statraster (Reserve/TVL/Share/Amp/Decimals/Type) + Preview-Daten (Holders/Vol) + „Your Liquidity" aus dem Modal entfernt. Zunächst in ein einklappbares „Pool details" verschoben, dann (siehe #31) durch einen „View full pool details →"-Link auf die dedizierte Pool-Seite ersetzt — Modal ist jetzt reiner Handlungs-Flow.
   - [x] Deposit: Hero-Zeile APY (Lila) + Est. returns/Jahr; Amount-Karte im Perena-Stil (großes Feld, Token-Pill rechts, Balance + 25/50/Max) — schließt zugleich #8
   - [x] Withdraw: keine Hero, nur LP-Betrag + Max + Live-Quote
   - [x] Sparplan als dritter Tab entfernt, als dezenter „Recurring · Soon"-Toggle in den Deposit-Flow gefaltet (analog Perenas „Amplify"-Toggle); Frequenz-Chips + Coming-soon-Hinweis beim Aufklappen
   - [x] In Light + Dark verifiziert, keine Konsolenfehler, `tsc` clean
+
+### 31. Pool-Detail-/Transparency-Seite pro Pool (GitHub-Issue #24)
+- [x] **Status:** erledigt (13.07.2026)
+- Betrifft: `PoolDetailPage.tsx` (neu), `src/pages/pools/[token].astro` (neu, SSG via `getStaticPaths`), `PoolDetailModal.tsx`, `PoolCard.tsx`, `config.ts`
+- Perena legt Reserven/Amp/Fees/Holder-Stats in ein eigenes Transparency-Dashboard statt in den Aktionsdialog. Wir haben das Gegenstück gebaut, damit die Tiefe sauber lebt und das Modal (siehe #30) reiner Handlungs-Flow bleibt.
+- Umgesetzt:
+  - [x] Eigene Route `/pools/[token]` (Slug = kleingeschriebenes Symbol), 4 statische Seiten; Live-Daten client-seitig aus dem Store
+  - [x] Sektionen: Key-Metrics-Band (APY*/TVL/Share/Vol*), **Pool-Zusammensetzung** (Stacked-Share-Bar + alle 4 Token mit Reserve/Share/Rohbetrag, aktiver Token in Akzent), **Parameter & Health** (A, Pool-Typ, Status, LP-Supply, Decimals, Holders*), **Your position** (Wallet-gated), **How this pool works** (StableSwap-/Amplification-Erklärung — knüpft an #8/Lucas), **Contracts & network** (Pool- + Token-Contract mit Explorer-Links — schließt #15 für Pools)
+  - [x] Erreichbar von Card („Pool details →") und Modal („View full pool details →"); `hideDetailsLink`-Prop unterdrückt den Link, wenn das Modal von der Detail-Seite selbst geöffnet wird
+  - [x] `explorerContractUrl()` in `config.ts` ergänzt (Contract- statt Tx-Link)
+  - [x] Preview-Daten weiterhin klar mit `*` markiert; Live vs. Preview im Footer erklärt
+  - [x] Light + Dark verifiziert, keine Konsolenfehler, `tsc` clean, `astro build` erzeugt alle 4 Seiten
+  - **Offen (blockiert, wie gehabt):** echte APY/Fees/Volumen/Holder + Cap-Auslastung — warten auf Contract-Getter bzw. Oracle (ROADMAP #4/#27)
 
 ### Bewusst NICHT übernehmen
 - Search + Filter-Chips (Lockup/Strategy) — lohnt erst ab ~10+ Pools, wir haben 4.

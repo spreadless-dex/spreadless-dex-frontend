@@ -24,13 +24,14 @@ interface PoolDetailModalProps {
   token: PoolToken
   onClose: () => void
   defaultMode?: Mode
+  /** Hide the "View full pool details" link — e.g. when already on that page. */
+  hideDetailsLink?: boolean
 }
 
 type Mode = 'deposit' | 'withdraw'
 
-export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit' }: PoolDetailModalProps) {
+export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit', hideDetailsLink = false }: PoolDetailModalProps) {
   const {
-    poolState,
     walletConnected,
     walletAddress,
     connectWallet,
@@ -39,7 +40,6 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
 
   const [mode, setMode] = useState<Mode>(defaultMode)
   const [mounted, setMounted] = useState(false)
-  const [detailsOpen, setDetailsOpen] = useState(false)
 
   const [amount, setAmount] = useState('')
   const [status, setStatus] = useState<TxUiStatus>({ kind: 'idle' })
@@ -179,28 +179,11 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
     }
   }, [mode, walletAddress, lpAmount, token.address, token.decimals])
 
-  const stats = [
-    { label: 'Reserve', value: `${fromRawUnits(token.reserve, token.decimals)}` },
-    { label: 'TVL', value: formatCurrency(token.reserveHuman) },
-    { label: 'Pool Share', value: `${token.share.toFixed(1)}%` },
-    { label: 'Amplification', value: poolState ? `A = ${poolState.amp}` : '—' },
-    { label: 'Decimals', value: String(token.decimals) },
-    { label: 'Pool Type', value: 'StableSwap' },
-  ]
-
   const preview = getPoolPreviewStats(token.symbol)
 
   // Projected yearly yield from the entered amount × preview APY. Stablecoin
   // amounts are treated as ≈ USD, same assumption formatCurrency makes elsewhere.
   const estYearly = Number(amount) > 0 ? (Number(amount) * preview.apy) / 100 : 0
-
-  // Real, not preview: your proportional slice of this token's reserve,
-  // derived from your actual LP balance vs. total LP supply — same math
-  // MyLiquidity uses for its per-token breakdown.
-  const yourLiquidity =
-    lpBalance !== null && poolState && poolState.lpSupplyHuman > 0
-      ? (Number(fromRawUnits(lpBalance, LP_DECIMALS)) / poolState.lpSupplyHuman) * token.reserveHuman
-      : 0
 
   const tokenBalanceHuman = tokenBalance !== null ? fromRawUnits(tokenBalance, token.decimals) : null
   const insufficientBalance =
@@ -593,92 +576,23 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
           network fees apply.
         </p>
 
-        {/* Pool details — collapsed by default. All the protocol-internal and
-            preview metrics live here, out of the action flow. */}
-        <div className="mt-3">
-          <button
-            onClick={() => setDetailsOpen((v) => !v)}
-            className="w-full flex items-center justify-between py-2"
+        {/* Full metrics — reserves, composition, amplification, contracts —
+            live on the dedicated pool page, out of the action flow. */}
+        {!hideDetailsLink && (
+          <a
+            href={`/pools/${token.symbol.toLowerCase()}`}
+            className="mt-3 w-full flex items-center justify-between py-2 transition-opacity hover:opacity-70"
             style={{ color: 'var(--c-text-muted)' }}
           >
-            <span className="text-xs font-semibold uppercase tracking-wider">Pool details</span>
+            <span className="text-xs font-semibold uppercase tracking-wider">View full pool details</span>
             <svg
               width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
               strokeLinecap="round" strokeLinejoin="round"
-              style={{ transform: detailsOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}
             >
-              <polyline points="6 9 12 15 18 9" />
+              <polyline points="9 18 15 12 9 6" />
             </svg>
-          </button>
-
-          {detailsOpen && (
-            <div className="mt-1">
-              {walletConnected && yourLiquidity > 0 && (
-                <div
-                  className="flex items-center justify-between mb-3 p-3 rounded-lg"
-                  style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border-2)' }}
-                >
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wider mb-1" style={{ color: 'var(--c-text-faint)' }}>
-                      Your Liquidity
-                    </p>
-                    <p className="text-sm font-semibold" style={{ color: 'var(--c-text)' }}>
-                      {yourLiquidity.toFixed(4)} {token.symbol}
-                    </p>
-                  </div>
-                  <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>
-                    ≈ {formatCurrency(yourLiquidity)}
-                  </span>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                {stats.map(({ label, value }) => (
-                  <div
-                    key={label}
-                    className="p-3 rounded-lg"
-                    style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border)' }}
-                  >
-                    <p className="text-[11px] uppercase tracking-wider mb-1" style={{ color: 'var(--c-text-faint)' }}>
-                      {label}
-                    </p>
-                    <p className="text-sm font-medium truncate" style={{ color: 'var(--c-text)' }}>
-                      {value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              <div
-                className="grid grid-cols-3 gap-2 p-3 rounded-lg"
-                style={{ backgroundColor: 'var(--c-surface-2)', border: '1px dashed var(--c-border-2)' }}
-              >
-                <div className="col-span-3 mb-0.5">
-                  <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--c-text-faint)' }}>
-                    Preview data
-                  </span>
-                </div>
-                {[
-                  { label: 'APY', value: `${preview.apy.toFixed(1)}%`, accent: true },
-                  { label: 'Holders', value: preview.holders.toLocaleString() },
-                  { label: '24h Vol', value: formatCurrency(preview.volume24h) },
-                ].map(({ label, value, accent }) => (
-                  <div key={label}>
-                    <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--c-text-faint)' }}>
-                      {label}
-                    </p>
-                    <p
-                      className="text-xs font-medium truncate"
-                      style={{ color: accent ? 'var(--c-accent)' : 'var(--c-text-muted)' }}
-                    >
-                      {value}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+          </a>
+        )}
       </div>
     </div>
   )
