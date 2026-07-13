@@ -63,13 +63,13 @@ Ergebnis des UI/UX-Audits vom 08.07.2026. Jeder Punkt hat eine Checkbox und eine
 - Umsetzungsnotiz: Neues `quoteDepositSingleSided()` in `pool.ts` (Simulation mit `min_lp_out: 0`), im Deposit-Tab als debounced Zeile „You receive ≈ X LP shares" über der Rendite-Projektion. Braucht wie die Swap-Quote eine verbundene Wallet (Simulation läuft gegen den Account); Quote-Fehler beim Tippen (z. B. zu wenig Guthaben) zeigen „—" statt einer Fehlermeldung.
 
 ### 8. Max-Button + Insufficient-Balance-Validierung
-- [ ] **Status:** teilweise erledigt (10.07.2026, Swap-Teil via GitHub-Issue #5)
+- [x] **Status:** erledigt (Swap 10.07.2026 via #5; Deposit-Modal 13.07.2026)
 - Betrifft: `SwapWidget.tsx`, `PoolDetailModal.tsx` (Deposit-Tab)
 - Aktuell: Balance sichtbar, aber nicht klickbar; kein Max im Swap; Deposit-Modal zeigt Token-Balance gar nicht; Fehler kommt erst on-chain.
 - Soll:
   - [x] 25/50/75/100 %-Buttons im Swap („You pay"-Panel, nur bei verbundener Wallet mit Guthaben)
-  - [ ] Token-Balance im Deposit-Modal anzeigen (+ Prozent-Buttons dort)
-  - [x] Button-Label „Insufficient sDAI balance" + disabled bei zu wenig Guthaben (Swap; zusätzlich „Insufficient liquidity" wenn der Verkaufsbetrag die Reserve des Zieltokens übersteigt, und „Enter an amount" ohne Eingabe)
+  - [x] Token-Balance im Deposit-Modal anzeigen (+ 25/50/Max-Buttons dort) — via `getTokenBalance`, beim Modal-Redesign (siehe #30)
+  - [x] Button-Label „Insufficient sDAI balance" + disabled bei zu wenig Guthaben (Swap; zusätzlich „Insufficient liquidity" wenn der Verkaufsbetrag die Reserve des Zieltokens übersteigt, und „Enter an amount" ohne Eingabe). Deposit-Modal: „Not enough EURC balance"-CTA-State analog.
 
 ### 9. Slippage-Settings + Min received + Price-Impact-Warnung
 - [ ] **Status:** teilweise erledigt
@@ -217,6 +217,18 @@ Referenz: Perenas Earn-Card-View. Was ihre Cards besser machen und was wir über
 - Betrifft: `PoolsPage.tsx` (verknüpft mit #10)
 - Perena: Banner „Make your first deposit easily — Take our quiz to get paired with your match" + CTA „Find my match". Nimmt Neulinge an die Hand, bevor sie die Cards vergleichen müssen.
 - Soll: Für uns reicht ein schlankes Banner: „Neu hier? Hol dir Test-Token im Faucet →" bzw. später ein „Which pool fits you?"-Hinweis.
+
+### 30. Deposit/Withdraw-Modal entrümpeln (Perena-Simplizität)
+- [x] **Status:** erledigt (13.07.2026)
+- Betrifft: `PoolDetailModal.tsx`
+- Perena-Modal (Screenshots 13.07.): eine einzige Entscheidung — „Wie viel?". Deposit = Hero (APY + Est. returns) → Amount-Feld mit Token-Pill + Balance + Max → ein CTA → Fee-Footer. Withdraw noch schlanker (nur Betrag + Max, keine Hero-Zeile). **Keine** Reserve/TVL/Share/Amp/Decimals/Type/Holders/Vol im Handlungs-Flow.
+- Wir vorher: Amount-Input war unter „Your Liquidity"-Callout, 6-Zellen-Statraster und Preview-Block vergraben (`max-h-[85vh]` mit Scroll); dazu ein dritter „Sparplan"-Tab.
+- Soll:
+  - [x] Statraster (Reserve/TVL/Share/Amp/Decimals/Type) + Preview-Daten (Holders/Vol) + „Your Liquidity" in ein **einklappbares „Pool details"** unter dem CTA verschoben (default zu) — Handlungs-Flow bleibt sauber, Details einen Klick entfernt. (Perena legt diese Interna in ihr Transparency-Dashboard; wir bündeln sie hier bis wir einen eigenen Expert-View haben.)
+  - [x] Deposit: Hero-Zeile APY (Lila) + Est. returns/Jahr; Amount-Karte im Perena-Stil (großes Feld, Token-Pill rechts, Balance + 25/50/Max) — schließt zugleich #8
+  - [x] Withdraw: keine Hero, nur LP-Betrag + Max + Live-Quote
+  - [x] Sparplan als dritter Tab entfernt, als dezenter „Recurring · Soon"-Toggle in den Deposit-Flow gefaltet (analog Perenas „Amplify"-Toggle); Frequenz-Chips + Coming-soon-Hinweis beim Aufklappen
+  - [x] In Light + Dark verifiziert, keine Konsolenfehler, `tsc` clean
 
 ### Bewusst NICHT übernehmen
 - Search + Filter-Chips (Lockup/Strategy) — lohnt erst ab ~10+ Pools, wir haben 4.
