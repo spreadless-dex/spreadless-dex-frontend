@@ -1,0 +1,24 @@
+---
+import Layout from '../../layouts/Layout.astro'
+import Header from '../../components/Header'
+import PoolDetailPage from '../../components/PoolDetailPage'
+import { TOKENS } from '../../lib/stellar/config'
+
+export function getStaticPaths() {
+  // One static page per pool token; slug is the lowercased symbol (eurc, pyusd,
+  // susd, susdc). The live on-chain data is fetched client-side in the island.
+  return TOKENS.map((t) => ({
+    params: { token: t.symbol.toLowerCase() },
+    props: { symbol: t.symbol },
+  }))
+}
+
+const { symbol } = Astro.props
+---
+
+<Layout title={`${symbol} pool — Spreadless`}>
+  <Header client:load currentPage="pools" />
+  <div class="min-h-screen pt-16">
+    <PoolDetailPage client:load symbol={symbol} />
+  </div>
+</Layout>

@@ -14,7 +14,7 @@ interface PoolCardProps {
 // Editorial copy per pool asset — answers "who is this for and what happens
 // to my money" in plain language. Same symbol-keyed-with-fallback pattern as
 // mockPoolStats, for the day the pool is redeployed with new assets.
-const POOL_COPY: Record<string, { eyebrow: string; blurb: string }> = {
+export const POOL_COPY: Record<string, { eyebrow: string; blurb: string }> = {
   EURC: {
     eyebrow: 'For DeFi-native depositors',
     blurb:
@@ -37,7 +37,7 @@ const POOL_COPY: Record<string, { eyebrow: string; blurb: string }> = {
   },
 }
 
-const FALLBACK_COPY = {
+export const FALLBACK_COPY = {
   eyebrow: 'For depositors',
   blurb:
     'Deposit into the shared StableSwap pool and earn a share of every swap fee. Withdraw again at any time.',
@@ -134,6 +134,14 @@ export default function PoolCard({ token, onAction, index = 0 }: PoolCardProps) 
           Withdraw
         </button>
       </div>
+
+      <a
+        href={`/pools/${token.symbol.toLowerCase()}`}
+        className="mt-3 inline-flex items-center justify-center gap-1 text-xs font-medium transition-opacity hover:opacity-70"
+        style={{ color: 'var(--c-text-muted)' }}
+      >
+        Pool details →
+      </a>
     </div>
   )
 }
