@@ -24,17 +24,23 @@ export interface TokenInfo {
   openMint: boolean;
 }
 
+// TRANCHE 2 RELABEL: the contract's index-0/1 tokens are still deployed as
+// "sDAI"/"sUSDT" under the hood (same contractId, same actual asset) — the
+// contract engineer hasn't cut new tranche-2 tokens yet. Symbol here is
+// display-only (see metaFor() in pool.ts and the `.symbol` usages, which
+// are UI labels, never on-chain lookup keys), so relabeling is safe until
+// the SDK is updated with the real tranche-2 token set.
 export const TOKENS: TokenInfo[] = [
   {
     index: 0,
-    symbol: "sDAI",
+    symbol: "EURC",
     contractId: "CBXN4CMLFVDNVFSGNXFGP5EWI77ISC5KH5UXSDBQETZCJHYHA3KEP4JJ",
     decimals: 7,
     openMint: true,
   },
   {
     index: 1,
-    symbol: "sUSDT",
+    symbol: "PYUSD",
     contractId: "CB2NS6KYG5ZBHHVKXCHYWLRRH4AKFXNWRYNSQTKNFW23CAY4SGSQVG75",
     decimals: 7,
     openMint: true,

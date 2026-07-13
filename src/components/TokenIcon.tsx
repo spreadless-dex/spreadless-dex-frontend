@@ -2,11 +2,12 @@ import { tokenAvatarLabel } from '../lib/utils'
 
 // Real icons for the pool's known assets — sourced from an open-license
 // crypto-icon set (spothq/cryptocurrency-icons, CC0) for the tokens that
-// mimic well-known stables, and Synthetix's actual sUSD logo for SUSD since
-// that symbol is a real asset, not just a lookalike.
+// mimic well-known stables, and the real logos for SUSD (Synthetix) and
+// PYUSD (PayPal) since those symbols are real assets, not lookalikes.
+// EURC has no art yet (tranche-2 relabel, see config.ts) — falls back to
+// the initials circle below rather than show a mismatched icon.
 const ICON_SRC: Record<string, string> = {
-  sDAI: '/tokens/dai.svg',
-  sUSDT: '/tokens/usdt.svg',
+  PYUSD: '/tokens/pyusd.png',
   SUSD: '/tokens/susd.png',
   sUSDC: '/tokens/usdc.svg',
 }
