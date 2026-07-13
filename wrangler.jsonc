@@ -1,7 +1,12 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"compatibility_date": "2026-07-10",
-	"compatibility_flags": ["global_fetch_strictly_public"],
+	// nodejs_compat is required: the SSR bundle pulls in Node builtins
+	// (buffer/util via @spreadless-dex/sdk, crypto via stellar-wallets-kit),
+	// which the Workers runtime only provides with this flag. Without it the
+	// Worker fails startup validation on deploy — `wrangler deploy --dry-run`
+	// does NOT catch this, only a real deploy or `wrangler`/workerd dev does.
+	"compatibility_flags": ["global_fetch_strictly_public", "nodejs_compat"],
 	"name": "spreadless",
 	"main": "@astrojs/cloudflare/entrypoints/server",
 	"assets": {
