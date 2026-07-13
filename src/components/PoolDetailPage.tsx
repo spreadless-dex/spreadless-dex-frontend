@@ -350,7 +350,7 @@ export default function PoolDetailPage({ symbol }: PoolDetailPageProps) {
   )
 }
 
-function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+export function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <div
       className="rounded-2xl p-5"
@@ -371,7 +371,7 @@ function Section({ title, subtitle, children }: { title: string; subtitle?: stri
   )
 }
 
-function Field({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+export function Field({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
   return (
     <div>
       <dt className="text-[11px] uppercase tracking-wider mb-1" style={{ color: 'var(--c-text-faint)' }}>
@@ -384,7 +384,7 @@ function Field({ label, value, valueColor }: { label: string; value: string; val
   )
 }
 
-function ContractRow({ label, id }: { label: string; id: string }) {
+export function ContractRow({ label, id }: { label: string; id: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <span className="text-xs uppercase tracking-wider shrink-0" style={{ color: 'var(--c-text-faint)' }}>
