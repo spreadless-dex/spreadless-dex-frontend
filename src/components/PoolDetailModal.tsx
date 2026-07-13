@@ -11,6 +11,7 @@ import {
   getLpBalance,
   LP_DECIMALS,
 } from '../lib/stellar/pool'
+import { getTokenBalance } from '../lib/stellar/token'
 import { getPoolPreviewStats } from '../lib/mockPoolStats'
 import { mapTxError } from '../lib/stellar/errors'
 import type { TxPhase } from '../lib/stellar/types'
@@ -25,7 +26,7 @@ interface PoolDetailModalProps {
   defaultMode?: Mode
 }
 
-type Mode = 'deposit' | 'withdraw' | 'sparplan'
+type Mode = 'deposit' | 'withdraw'
 
 export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit' }: PoolDetailModalProps) {
   const {
@@ -38,21 +39,24 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
 
   const [mode, setMode] = useState<Mode>(defaultMode)
   const [mounted, setMounted] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
 
   const [amount, setAmount] = useState('')
   const [status, setStatus] = useState<TxUiStatus>({ kind: 'idle' })
   const [txPhase, setTxPhase] = useState<TxPhase | null>(null)
   const [depositQuote, setDepositQuote] = useState('')
   const [depositQuoting, setDepositQuoting] = useState(false)
+  const [tokenBalance, setTokenBalance] = useState<bigint | null>(null)
 
   const [lpAmount, setLpAmount] = useState('')
   const [lpBalance, setLpBalance] = useState<bigint | null>(null)
   const [withdrawQuote, setWithdrawQuote] = useState('')
   const [withdrawQuoting, setWithdrawQuoting] = useState(false)
 
-  // Sparplan (recurring deposit) — static preview only, per doc item 5.
+  // Recurring deposits ("Sparplan") — static preview only, not wired up yet.
+  // Folded into the deposit flow as a subtle toggle rather than its own tab.
+  const [recurring, setRecurring] = useState(false)
   const [sparFrequency, setSparFrequency] = useState<'weekly' | 'biweekly' | 'monthly'>('weekly')
-  const [sparAmount, setSparAmount] = useState('')
 
   useEffect(() => {
     setMounted(true)
@@ -78,6 +82,25 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
       cancelled = true
     }
   }, [walletAddress])
+
+  // The deposit token's wallet balance — drives the Balance readout, the
+  // percent shortcuts and the insufficient-balance CTA state.
+  useEffect(() => {
+    if (!walletAddress) {
+      setTokenBalance(null)
+      return
+    }
+    let cancelled = false
+    getTokenBalance(token.address, walletAddress)
+      .then((b) => { if (!cancelled) setTokenBalance(b) })
+      .catch((err) => {
+        console.error('Failed to load token balance:', err)
+        if (!cancelled) setTokenBalance(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [walletAddress, token.address])
 
   // Live deposit quote, debounced — "you'll receive ~X LP" before committing.
   // Matters because single-sided deposits carry a bonus/malus depending on how
@@ -179,6 +202,11 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
       ? (Number(fromRawUnits(lpBalance, LP_DECIMALS)) / poolState.lpSupplyHuman) * token.reserveHuman
       : 0
 
+  const tokenBalanceHuman = tokenBalance !== null ? fromRawUnits(tokenBalance, token.decimals) : null
+  const insufficientBalance =
+    mode === 'deposit' && walletConnected && tokenBalance !== null && !!amount &&
+    toRawUnits(amount, token.decimals) > tokenBalance
+
   const switchMode = (next: Mode) => {
     setMode(next)
     setStatus({ kind: 'idle' })
@@ -210,6 +238,9 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
       // pre-tx snapshot right after the tx confirms.
       refetchUntilChanged(() => getLpBalance(walletAddress), lpBalance)
         .then(setLpBalance)
+        .catch(() => {})
+      refetchUntilChanged(() => getTokenBalance(token.address, walletAddress), tokenBalance)
+        .then(setTokenBalance)
         .catch(() => {})
     } catch (err) {
       console.error('Deposit failed:', err)
@@ -252,6 +283,9 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
       loadPoolState() // refresh reserves after the withdrawal lands
       refetchUntilChanged(() => getLpBalance(walletAddress), lpBalance)
         .then(setLpBalance)
+        .catch(() => {})
+      refetchUntilChanged(() => getTokenBalance(token.address, walletAddress), tokenBalance)
+        .then(setTokenBalance)
         .catch(() => {})
     } catch (err) {
       console.error('Withdraw failed:', err)
@@ -296,8 +330,8 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
           </svg>
         </button>
 
-        <div className="flex items-center gap-4 mb-6">
-          <TokenIcon symbol={token.symbol} size={48} />
+        <div className="flex items-center gap-4 mb-5">
+          <TokenIcon symbol={token.symbol} size={44} />
           <div>
             <h2 className="text-xl font-bold leading-tight" style={{ color: 'var(--c-text)' }}>
               {token.symbol}
@@ -308,179 +342,102 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
           </div>
         </div>
 
-        {walletConnected && yourLiquidity > 0 && (
-          <div
-            className="flex items-center justify-between mb-5 p-3 rounded-lg"
-            style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border-2)' }}
-          >
-            <div>
-              <p className="text-[11px] uppercase tracking-wider mb-1" style={{ color: 'var(--c-text-faint)' }}>
-                Your Liquidity
-              </p>
-              <p className="text-sm font-semibold" style={{ color: 'var(--c-text)' }}>
-                {yourLiquidity.toFixed(4)} {token.symbol}
-              </p>
-            </div>
-            <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>
-              ≈ {formatCurrency(yourLiquidity)}
-            </span>
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-2 mb-5">
-          {stats.map(({ label, value }) => (
-            <div
-              key={label}
-              className="p-3 rounded-lg"
-              style={{
-                backgroundColor: 'var(--c-surface-2)',
-                border: '1px solid var(--c-border)',
-              }}
-            >
-              <p className="text-[11px] uppercase tracking-wider mb-1" style={{ color: 'var(--c-text-faint)' }}>
-                {label}
-              </p>
-              <p className="text-sm font-medium truncate" style={{ color: 'var(--c-text)' }}>
-                {value}
-              </p>
-            </div>
-          ))}
-        </div>
-
+        {/* Deposit / Withdraw tabs */}
         <div
-          className="grid grid-cols-3 gap-2 mb-5 p-3 rounded-lg"
-          style={{ backgroundColor: 'var(--c-surface-2)', border: '1px dashed var(--c-border-2)' }}
-        >
-          <div className="col-span-3 mb-0.5">
-            <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--c-text-faint)' }}>
-              Preview data
-            </span>
-          </div>
-          {[
-            { label: 'APY', value: `${preview.apy.toFixed(1)}%`, accent: true },
-            { label: 'Holders', value: preview.holders.toLocaleString() },
-            { label: '24h Vol', value: formatCurrency(preview.volume24h) },
-          ].map(({ label, value, accent }) => (
-            <div key={label}>
-              <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--c-text-faint)' }}>
-                {label}
-              </p>
-              <p
-                className="text-xs font-medium truncate"
-                style={{ color: accent ? 'var(--c-accent)' : 'var(--c-text-muted)' }}
-              >
-                {value}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {/* Deposit / Withdraw / Sparplan tabs */}
-        <div
-          className="grid grid-cols-3 gap-1 p-1 rounded-xl mb-3"
+          className="grid grid-cols-2 gap-1 p-1 rounded-xl mb-4"
           style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border)' }}
         >
-          {(['deposit', 'withdraw', 'sparplan'] as Mode[]).map((m) => (
+          {(['deposit', 'withdraw'] as Mode[]).map((m) => (
             <button
               key={m}
               onClick={() => switchMode(m)}
-              className="py-2 text-xs sm:text-sm font-semibold rounded-lg capitalize transition-all"
+              className="py-2 text-sm font-semibold rounded-lg capitalize transition-all"
               style={{
                 backgroundColor: mode === m ? 'var(--c-surface)' : 'transparent',
                 color: mode === m ? 'var(--c-text)' : 'var(--c-text-faint)',
                 boxShadow: mode === m ? 'var(--c-widget-shadow)' : 'none',
               }}
             >
-              {m === 'sparplan' ? 'Sparplan' : m}
+              {m}
             </button>
           ))}
         </div>
 
-        {mode === 'sparplan' ? (
-          <div className="mb-3">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-sm font-semibold" style={{ color: 'var(--c-text)' }}>
-                Recurring Deposit
-              </span>
-              <span
-                className="text-[10px] px-1.5 py-0.5 rounded uppercase tracking-wider"
-                style={{ border: '1px solid var(--c-border-2)', color: 'var(--c-text-faint)' }}
-              >
-                Coming soon
-              </span>
+        {/* Hero metric — APY + projected returns, deposit only (Perena-style).
+            Withdraw is a pure "how much" action, so it gets no hero. */}
+        {mode === 'deposit' && (
+          <div className="flex items-stretch gap-4 mb-4">
+            <div className="flex-1">
+              <p className="text-[11px] uppercase tracking-wider mb-1" style={{ color: 'var(--c-text-faint)' }}>
+                {token.symbol} APY
+              </p>
+              <p className="text-2xl font-bold leading-none" style={{ color: 'var(--c-accent)' }}>
+                {preview.apy.toFixed(1)}%
+              </p>
             </div>
-            <label className="text-[11px] uppercase tracking-wider mb-2 block" style={{ color: 'var(--c-text-faint)' }}>
-              Frequency
-            </label>
-            <div className="grid grid-cols-3 gap-1.5 mb-3">
-              {(['weekly', 'biweekly', 'monthly'] as const).map((f) => (
-                <button
-                  key={f}
-                  onClick={() => setSparFrequency(f)}
-                  className="py-2 text-xs font-semibold rounded-lg capitalize transition-all"
-                  style={{
-                    backgroundColor: sparFrequency === f ? 'var(--c-surface-2)' : 'transparent',
-                    color: sparFrequency === f ? 'var(--c-text)' : 'var(--c-text-faint)',
-                    border: '1px solid var(--c-border)',
-                  }}
-                >
-                  {f}
-                </button>
-              ))}
+            <div className="w-px" style={{ backgroundColor: 'var(--c-border)' }} />
+            <div className="flex-1">
+              <p className="text-[11px] uppercase tracking-wider mb-1" style={{ color: 'var(--c-text-faint)' }}>
+                Est. returns / year*
+              </p>
+              <p className="text-2xl font-bold leading-none" style={{ color: 'var(--c-text)' }}>
+                {estYearly > 0 ? `≈ ${formatCurrency(estYearly)}` : '$0.00'}
+              </p>
             </div>
-            <label className="text-[11px] uppercase tracking-wider mb-2 block" style={{ color: 'var(--c-text-faint)' }}>
-              Amount per {sparFrequency === 'biweekly' ? '2 weeks' : sparFrequency.replace('ly', '')}
-            </label>
+          </div>
+        )}
+
+        {mode === 'deposit' ? (
+          <div className="mb-4">
             <div
-              className="flex items-center rounded-xl overflow-hidden"
+              className="rounded-xl p-4"
               style={{ border: '1px solid var(--c-border)', backgroundColor: 'var(--c-surface-2)' }}
             >
-              <input
-                type="number"
-                placeholder="0.00"
-                value={sparAmount}
-                onChange={(e) => setSparAmount(e.target.value)}
-                className="flex-1 bg-transparent px-4 py-3 text-sm outline-none"
-                style={{ color: 'var(--c-text)' }}
-              />
-              <span className="px-4 py-3 text-sm shrink-0" style={{ color: 'var(--c-text-faint)', borderLeft: '1px solid var(--c-border)' }}>
-                {token.symbol}
-              </span>
+              <label className="text-[11px] uppercase tracking-wider mb-2 block" style={{ color: 'var(--c-text-faint)' }}>
+                Amount
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="flex-1 min-w-0 bg-transparent text-2xl font-semibold outline-none"
+                  style={{ color: 'var(--c-text)' }}
+                />
+                <span
+                  className="flex items-center gap-2 px-3 py-2 rounded-full shrink-0"
+                  style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)' }}
+                >
+                  <TokenIcon symbol={token.symbol} size={20} />
+                  <span className="text-sm font-semibold" style={{ color: 'var(--c-text)' }}>
+                    {token.symbol}
+                  </span>
+                </span>
+              </div>
+              {walletConnected && (
+                <div className="flex items-center justify-between mt-3">
+                  <span className="text-[11px]" style={{ color: 'var(--c-text-faint)' }}>
+                    Balance: {tokenBalanceHuman ?? '—'}
+                  </span>
+                  {tokenBalance !== null && tokenBalance > 0n && (
+                    <div className="flex gap-1.5">
+                      {[25, 50, 100].map((pct) => (
+                        <button
+                          key={pct}
+                          onClick={() => setAmount(fromRawUnits((tokenBalance * BigInt(pct)) / 100n, token.decimals))}
+                          className="text-[11px] font-semibold px-2 py-0.5 rounded transition-all"
+                          style={{ color: 'var(--c-text-muted)', border: '1px solid var(--c-border)' }}
+                        >
+                          {pct === 100 ? 'Max' : `${pct}%`}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            <p className="text-[11px] mt-3 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
-              Automatic recurring deposits are coming soon — this preview isn't wired up yet.
-            </p>
-          </div>
-        ) : mode === 'deposit' ? (
-          <div className="mb-3">
-            <label className="text-[11px] uppercase tracking-wider mb-2 block" style={{ color: 'var(--c-text-faint)' }}>
-              Deposit Amount
-            </label>
-            <div
-              className="flex items-center rounded-xl overflow-hidden transition-colors"
-              style={{
-                border: '1px solid var(--c-border)',
-                backgroundColor: 'var(--c-surface-2)',
-              }}
-            >
-              <input
-                type="number"
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="flex-1 bg-transparent px-4 py-3 text-sm outline-none"
-                style={{ color: 'var(--c-text)' }}
-              />
-              <span
-                className="px-4 py-3 text-sm shrink-0"
-                style={{
-                  color: 'var(--c-text-faint)',
-                  borderLeft: '1px solid var(--c-border)',
-                }}
-              >
-                {token.symbol}
-              </span>
-            </div>
+
             {walletConnected && amount && (
               <div className="flex items-center justify-between mt-2 px-1">
                 <span className="text-[11px]" style={{ color: 'var(--c-text-faint)' }}>
@@ -491,90 +448,130 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
                 </span>
               </div>
             )}
-            <div
-              className="flex items-center justify-between mt-2 px-1"
-              title="Based on the preview APY — live metrics coming soon"
-            >
-              <span className="text-[11px]" style={{ color: 'var(--c-text-faint)' }}>
-                Est. returns per year* · {preview.apy.toFixed(1)}% APY
-              </span>
-              <span
-                className="text-xs font-semibold"
-                style={{ color: estYearly > 0 ? 'var(--c-accent)' : 'var(--c-text-faint)' }}
+
+            {/* Recurring deposit — subtle toggle, preview only (was its own tab) */}
+            <div className="mt-3">
+              <button
+                onClick={() => setRecurring((v) => !v)}
+                className="w-full flex items-center justify-between py-2 px-1"
               >
-                {estYearly > 0 ? `≈ ${formatCurrency(estYearly)}` : '—'}
-              </span>
+                <span className="flex items-center gap-2">
+                  <span className="text-xs font-semibold" style={{ color: 'var(--c-text-muted)' }}>
+                    Recurring deposit
+                  </span>
+                  <span
+                    className="text-[9px] px-1.5 py-0.5 rounded uppercase tracking-wider"
+                    style={{ border: '1px solid var(--c-border-2)', color: 'var(--c-text-faint)' }}
+                  >
+                    Soon
+                  </span>
+                </span>
+                <span
+                  className="relative w-9 h-5 rounded-full transition-colors shrink-0"
+                  style={{ backgroundColor: recurring ? 'var(--c-accent)' : 'var(--c-border-2)' }}
+                >
+                  <span
+                    className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all"
+                    style={{ left: recurring ? '18px' : '2px' }}
+                  />
+                </span>
+              </button>
+              {recurring && (
+                <div className="mt-2">
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(['weekly', 'biweekly', 'monthly'] as const).map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setSparFrequency(f)}
+                        className="py-1.5 text-[11px] font-semibold rounded-lg capitalize transition-all"
+                        style={{
+                          backgroundColor: sparFrequency === f ? 'var(--c-surface-2)' : 'transparent',
+                          color: sparFrequency === f ? 'var(--c-text)' : 'var(--c-text-faint)',
+                          border: '1px solid var(--c-border)',
+                        }}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[11px] mt-2 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
+                    Automatic {sparFrequency} deposits are coming soon — for now this
+                    places a single deposit.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         ) : (
-          <div className="mb-3">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-[11px] uppercase tracking-wider" style={{ color: 'var(--c-text-faint)' }}>
+          <div className="mb-4">
+            <div
+              className="rounded-xl p-4"
+              style={{ border: '1px solid var(--c-border)', backgroundColor: 'var(--c-surface-2)' }}
+            >
+              <label className="text-[11px] uppercase tracking-wider mb-2 block" style={{ color: 'var(--c-text-faint)' }}>
                 LP Shares to Burn
               </label>
-              <span className="text-[11px]" style={{ color: 'var(--c-text-faint)' }}>
-                Balance: {lpBalance !== null ? fromRawUnits(lpBalance, LP_DECIMALS) : '—'}
-              </span>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={lpAmount}
+                  onChange={(e) => setLpAmount(e.target.value)}
+                  className="flex-1 min-w-0 bg-transparent text-2xl font-semibold outline-none"
+                  style={{ color: 'var(--c-text)' }}
+                />
+                <button
+                  onClick={() => lpBalance !== null && setLpAmount(fromRawUnits(lpBalance, LP_DECIMALS))}
+                  className="text-xs font-semibold px-3 py-2 rounded-full shrink-0"
+                  style={{ color: 'var(--c-text-muted)', border: '1px solid var(--c-border)', backgroundColor: 'var(--c-surface)' }}
+                >
+                  Max
+                </button>
+              </div>
+              <div className="flex items-center justify-between mt-3">
+                <span className="text-[11px]" style={{ color: 'var(--c-text-faint)' }}>
+                  Balance: {lpBalance !== null ? fromRawUnits(lpBalance, LP_DECIMALS) : '—'}
+                </span>
+                {lpAmount && (
+                  <span className="text-[11px] font-semibold" style={{ color: 'var(--c-text)' }}>
+                    {withdrawQuoting
+                      ? 'Fetching quote…'
+                      : withdrawQuote
+                        ? `≈ ${withdrawQuote} ${token.symbol}`
+                        : '—'}
+                  </span>
+                )}
+              </div>
             </div>
-            <div
-              className="flex items-center rounded-xl overflow-hidden transition-colors"
-              style={{
-                border: '1px solid var(--c-border)',
-                backgroundColor: 'var(--c-surface-2)',
-              }}
-            >
-              <input
-                type="number"
-                placeholder="0.00"
-                value={lpAmount}
-                onChange={(e) => setLpAmount(e.target.value)}
-                className="flex-1 bg-transparent px-4 py-3 text-sm outline-none"
-                style={{ color: 'var(--c-text)' }}
-              />
-              <button
-                onClick={() => lpBalance !== null && setLpAmount(fromRawUnits(lpBalance, LP_DECIMALS))}
-                className="px-3 py-3 text-xs font-semibold shrink-0"
-                style={{ color: 'var(--c-text-faint)', borderLeft: '1px solid var(--c-border)' }}
-              >
-                Max
-              </button>
-            </div>
-            {lpAmount && (
-              <p className="text-xs mt-2" style={{ color: 'var(--c-text-faint)' }}>
-                {withdrawQuoting
-                  ? 'Fetching quote…'
-                  : withdrawQuote
-                    ? `≈ ${withdrawQuote} ${token.symbol}`
-                    : '—'}
-              </p>
-            )}
           </div>
         )}
 
-        {mode === 'sparplan' ? (
-          <button
-            disabled
-            className="w-full py-3 text-sm font-semibold rounded-xl opacity-50 cursor-not-allowed"
-            style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
-          >
-            Start Sparplan — Coming Soon
-          </button>
-        ) : walletConnected ? (
-          <RainButton
-            onClick={mode === 'deposit' ? handleDeposit : handleWithdraw}
-            disabled={
-              mode === 'deposit'
-                ? !amount || Number(amount) <= 0
-                : !lpAmount || Number(lpAmount) <= 0 || withdrawQuoting
-            }
-            className="w-full py-3 text-sm font-semibold rounded-xl transition-all duration-150 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{
-              backgroundColor: 'var(--c-cta-bg)',
-              color: 'var(--c-cta-text)',
-            }}
-          >
-            {mode === 'deposit' ? `Deposit ${token.symbol}` : `Withdraw ${token.symbol}`}
-          </RainButton>
+        {walletConnected ? (
+          insufficientBalance ? (
+            <button
+              disabled
+              className="w-full py-3 text-sm font-semibold rounded-xl opacity-50 cursor-not-allowed"
+              style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
+            >
+              Not enough {token.symbol} balance
+            </button>
+          ) : (
+            <RainButton
+              onClick={mode === 'deposit' ? handleDeposit : handleWithdraw}
+              disabled={
+                mode === 'deposit'
+                  ? !amount || Number(amount) <= 0
+                  : !lpAmount || Number(lpAmount) <= 0 || withdrawQuoting
+              }
+              className="w-full py-3 text-sm font-semibold rounded-xl transition-all duration-150 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: 'var(--c-cta-bg)',
+                color: 'var(--c-cta-text)',
+              }}
+            >
+              {mode === 'deposit' ? `Deposit ${token.symbol}` : `Withdraw ${token.symbol}`}
+            </RainButton>
+          )
         ) : (
           <button
             onClick={connectWallet}
@@ -595,6 +592,93 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
           can shift slightly with pool balance (1% slippage guard). Stellar
           network fees apply.
         </p>
+
+        {/* Pool details — collapsed by default. All the protocol-internal and
+            preview metrics live here, out of the action flow. */}
+        <div className="mt-3">
+          <button
+            onClick={() => setDetailsOpen((v) => !v)}
+            className="w-full flex items-center justify-between py-2"
+            style={{ color: 'var(--c-text-muted)' }}
+          >
+            <span className="text-xs font-semibold uppercase tracking-wider">Pool details</span>
+            <svg
+              width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round"
+              style={{ transform: detailsOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+
+          {detailsOpen && (
+            <div className="mt-1">
+              {walletConnected && yourLiquidity > 0 && (
+                <div
+                  className="flex items-center justify-between mb-3 p-3 rounded-lg"
+                  style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border-2)' }}
+                >
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wider mb-1" style={{ color: 'var(--c-text-faint)' }}>
+                      Your Liquidity
+                    </p>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--c-text)' }}>
+                      {yourLiquidity.toFixed(4)} {token.symbol}
+                    </p>
+                  </div>
+                  <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>
+                    ≈ {formatCurrency(yourLiquidity)}
+                  </span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                {stats.map(({ label, value }) => (
+                  <div
+                    key={label}
+                    className="p-3 rounded-lg"
+                    style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border)' }}
+                  >
+                    <p className="text-[11px] uppercase tracking-wider mb-1" style={{ color: 'var(--c-text-faint)' }}>
+                      {label}
+                    </p>
+                    <p className="text-sm font-medium truncate" style={{ color: 'var(--c-text)' }}>
+                      {value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div
+                className="grid grid-cols-3 gap-2 p-3 rounded-lg"
+                style={{ backgroundColor: 'var(--c-surface-2)', border: '1px dashed var(--c-border-2)' }}
+              >
+                <div className="col-span-3 mb-0.5">
+                  <span className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--c-text-faint)' }}>
+                    Preview data
+                  </span>
+                </div>
+                {[
+                  { label: 'APY', value: `${preview.apy.toFixed(1)}%`, accent: true },
+                  { label: 'Holders', value: preview.holders.toLocaleString() },
+                  { label: '24h Vol', value: formatCurrency(preview.volume24h) },
+                ].map(({ label, value, accent }) => (
+                  <div key={label}>
+                    <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--c-text-faint)' }}>
+                      {label}
+                    </p>
+                    <p
+                      className="text-xs font-medium truncate"
+                      style={{ color: accent ? 'var(--c-accent)' : 'var(--c-text-muted)' }}
+                    >
+                      {value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
