@@ -5,12 +5,13 @@ import { Menu, X } from "lucide-react";
 import { readPoolState } from "../lib/stellar/pool";
 
 interface HeaderProps {
-  currentPage?: "home" | "pools" | "swap" | "faucet" | "activity";
+  currentPage?: "home" | "earn" | "pools" | "swap" | "faucet" | "activity";
 }
 
 const navLinks = [
   { href: "/swap", label: "Swap", page: "swap" },
-  { href: "/pools", label: "Earn", page: "pools" },
+  { href: "/earn", label: "Earn", page: "earn" },
+  { href: "/pools", label: "Pools", page: "pools" },
   { href: "/activity", label: "Activity", page: "activity" },
   { href: "#", label: "Analytics", page: "analytics", disabled: true },
   { href: "#", label: "Docs", page: "docs", disabled: true },
