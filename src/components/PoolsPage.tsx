@@ -2,12 +2,22 @@ import { useEffect, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { formatCurrency } from '../lib/utils'
 import PoolsGrid from './PoolsGrid'
+import PoolsRegister from './PoolsRegister'
 import PoolDetailModal from './PoolDetailModal'
 import MyLiquidity from './MyLiquidity'
 import PositionSummary from './PositionSummary'
 import { TrendingUp, Gauge, Layers, Activity, Search } from 'lucide-react'
 
-type Tab = 'pools' | 'liquidity'
+type Tab = 'invest' | 'pools' | 'portfolio'
+
+// Issue #28: the asset cards aren't "pools" — they're ways to invest into the
+// one shared StableSwap pool. So: Invest (the cards) · Pools (the real pool,
+// register-style) · Portfolio (your positions).
+const TAB_SUBTITLE: Record<Tab, string> = {
+  invest: 'Single-sided liquidity. Deposit one stablecoin and earn.',
+  pools: 'The live StableSwap pool powering every deposit.',
+  portfolio: 'Your liquidity positions and earnings.',
+}
 
 export default function PoolsPage() {
   const {
@@ -19,7 +29,7 @@ export default function PoolsPage() {
     setSelectedToken,
   } = useAppStore()
 
-  const [tab, setTab] = useState<Tab>('pools')
+  const [tab, setTab] = useState<Tab>('invest')
   const [search, setSearch] = useState('')
   const [modalMode, setModalMode] = useState<'deposit' | 'withdraw'>('deposit')
 
@@ -116,17 +126,18 @@ export default function PoolsPage() {
             Earn
           </h1>
           <p className="text-sm" style={{ color: 'var(--c-text)', opacity: 0.72 }}>
-            Single-sided liquidity. Deposit one stablecoin and earn.
+            {TAB_SUBTITLE[tab]}
           </p>
         </div>
 
         <div
-          className="inline-grid grid-cols-2 gap-1 p-1 rounded-xl mb-6"
+          className="inline-grid grid-cols-3 gap-1 p-1 rounded-xl mb-6"
           style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border)' }}
         >
           {([
+            { key: 'invest' as Tab, label: 'Invest' },
             { key: 'pools' as Tab, label: 'Pools' },
-            { key: 'liquidity' as Tab, label: 'My Liquidity' },
+            { key: 'portfolio' as Tab, label: 'Portfolio' },
           ]).map(({ key, label }) => (
             <button
               key={key}
@@ -143,7 +154,7 @@ export default function PoolsPage() {
           ))}
         </div>
 
-        {tab === 'liquidity' ? (
+        {tab === 'portfolio' ? (
           <MyLiquidity />
         ) : poolStatus === 'error' ? (
           <div
@@ -165,8 +176,11 @@ export default function PoolsPage() {
             </button>
           </div>
         ) : poolStatus === 'ready' && poolState ? (
+          tab === 'pools' ? (
+            <PoolsRegister />
+          ) : (
           <>
-            <PositionSummary onViewDetails={() => setTab('liquidity')} />
+            <PositionSummary onViewDetails={() => setTab('portfolio')} />
 
             <div className="relative max-w-xs mb-6">
               <Search size={15} strokeWidth={1.8} style={{ color: 'var(--c-text-faint)', position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
@@ -204,6 +218,7 @@ export default function PoolsPage() {
               )
             })()}
           </>
+          )
         ) : (
           <PoolsSkeleton />
         )}
