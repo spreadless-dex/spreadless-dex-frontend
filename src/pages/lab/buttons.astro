@@ -1,0 +1,494 @@
+---
+// LOCAL PLAYGROUND — not part of the product. Delete before shipping.
+// Compares CTA hover/press treatments. Everything stays monochrome: the
+// design language reserves colour (--c-accent) for APY figures only, so the
+// "interesting" has to come from motion, surface and timing — never hue.
+import Layout from '../../layouts/Layout.astro'
+import Header from '../../components/Header'
+
+const ARROW = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>`
+
+// Round 2 — the buttons stop being rectangles-with-opacity and start behaving
+// like material: ink, magnets, glyphs, physics. Still zero hue.
+const BOLD = [
+  { id: 'scramble', name: 'Glyph Scramble',   note: 'The label shreds into random glyphs and resolves back, letter by letter. Terminal/crypto energy.' },
+  { id: 'wave',     name: 'Character Wave',   note: 'Each letter lifts in sequence, like a ripple through the word. Tactile without touching the box.' },
+  { id: 'ink',      name: 'Ink Blot',         note: 'Ink blooms outward from the exact point you entered and floods the button. Direction is never the same twice.' },
+  { id: 'runner',   name: 'Edge Runner',      note: 'A light orbits the perimeter while hovered. Reads as “armed / live”.' },
+  { id: 'snap',     name: 'Brutalist Snap',   note: 'A hard offset block sits behind. Hover slides the button onto it; click snaps it flat. Loud and physical.' },
+  { id: 'launch',   name: 'Arrow Launch',     note: 'The arrow shoots out of the button and a fresh one flies in behind it. Pure momentum.' },
+  { id: 'burst',    name: 'Particle Burst',   note: 'Click detonates monochrome particles from the cursor. Echoes the ambient dots in the canvas.' },
+  { id: 'tilt',     name: '3D Tilt',          note: 'The face tilts toward the cursor with a specular sheen riding the highlight. Feels like glass.' },
+]
+
+const VARIANTS = [
+  { id: 'slide',    name: 'Arrow Slide',      note: 'Arrow travels, label makes room. Quietest option — reads as polish, not gimmick.' },
+  { id: 'sweep',    name: 'Fill Sweep',       note: 'Ink floods in from the left and the label inverts. Strong, still monochrome.' },
+  { id: 'sheen',    name: 'Sheen',            note: 'A gloss streak crosses the face once per hover. Premium-feeling; can get gaudy if repeated.' },
+  { id: 'roll',     name: 'Label Roll',       note: 'The label rolls up and a clone rolls in beneath it. Playful, very “app-like”.' },
+  { id: 'lift',     name: 'Lift & Press',     note: 'Rises on hover with a soft shadow, squashes on click. Most physical.' },
+  { id: 'ripple',   name: 'Click Ripple',     note: 'Ripple spreads from the exact cursor point. Pure press feedback — pairs with any hover.' },
+  { id: 'spotlight',name: 'Cursor Spotlight', note: 'A soft highlight tracks the cursor across the face. Subtle, feels alive.' },
+  { id: 'brackets', name: 'Corner Brackets',  note: 'Corner brackets draw in around the label. Technical / terminal flavour.' },
+  { id: 'magnetic', name: 'Magnetic',         note: 'The button leans toward the cursor and snaps back. Highest “cool”, highest risk.' },
+]
+---
+
+<Layout title="Button lab — Spreadless">
+  <Header client:load />
+
+  <main class="lab">
+    <header class="head">
+      <h1>Button lab</h1>
+      <p>
+        Every variant below is the same primary + ghost pair from the landing hero, so we can compare
+        them like-for-like. Hover and click each one. Flip the theme toggle in the header — a treatment
+        only counts if it survives both.
+      </p>
+      <p class="warn">Local playground, not linked from the app. Nothing here is committed.</p>
+    </header>
+
+    {VARIANTS.map(({ id, name, note }) => (
+      <section class="row">
+        <div class="meta">
+          <span class="idx">{name}</span>
+          <p>{note}</p>
+        </div>
+        <div class={`pair fx-${id}`} data-fx={id}>
+          <button class="btn primary">
+            <span class="label">Generate Yield<i set:html={ARROW} /></span>
+            <span class="label clone" aria-hidden="true">Generate Yield<i set:html={ARROW} /></span>
+          </button>
+          <button class="btn ghost">
+            <span class="label">Exchange Assets<i set:html={ARROW} /></span>
+            <span class="label clone" aria-hidden="true">Exchange Assets<i set:html={ARROW} /></span>
+          </button>
+        </div>
+      </section>
+    ))}
+
+    <header class="head head2">
+      <h1>Bolder</h1>
+      <p>
+        These treat the button as material rather than a rectangle with a hover state. Same rule
+        applies — not a single drop of colour. Everything below earns its interest from motion,
+        physics and typography.
+      </p>
+    </header>
+
+    {BOLD.map(({ id, name, note }) => (
+      <section class="row">
+        <div class="meta">
+          <span class="idx">{name}</span>
+          <p>{note}</p>
+        </div>
+        <div class={`pair fx-${id}`} data-fx={id}>
+          <button class="btn primary">
+            <span class="label">Generate Yield<i set:html={ARROW} /></span>
+            <span class="label clone" aria-hidden="true">Generate Yield<i set:html={ARROW} /></span>
+          </button>
+          <button class="btn ghost">
+            <span class="label">Exchange Assets<i set:html={ARROW} /></span>
+            <span class="label clone" aria-hidden="true">Exchange Assets<i set:html={ARROW} /></span>
+          </button>
+        </div>
+      </section>
+    ))}
+  </main>
+</Layout>
+
+<style>
+  .lab { max-width: 1100px; margin: 0 auto; padding: 6rem 1.5rem 6rem; }
+  .head { margin-bottom: 3rem; max-width: 46rem; }
+  .head h1 { font-size: 1.75rem; font-weight: 700; color: var(--c-text); margin-bottom: .6rem; }
+  .head p { font-size: .9rem; line-height: 1.6; color: var(--c-text-muted); }
+  .warn { margin-top: .75rem; font-size: .78rem; color: var(--c-text-faint); }
+
+  .row {
+    display: grid; grid-template-columns: 1fr auto; gap: 2rem; align-items: center;
+    padding: 1.75rem 0; border-top: 1px solid var(--c-border);
+  }
+  @media (max-width: 760px) { .row { grid-template-columns: 1fr; } }
+  .meta .idx { font-size: .8rem; font-weight: 700; color: var(--c-text); letter-spacing: .02em; }
+  .meta p { margin-top: .3rem; font-size: .82rem; line-height: 1.5; color: var(--c-text-faint); max-width: 34rem; }
+
+  .pair { display: flex; gap: .75rem; }
+
+  /* Shared base — identical geometry to the real hero CTAs */
+  .btn {
+    position: relative; overflow: hidden; isolation: isolate;
+    display: inline-flex; align-items: center;
+    padding: .75rem 1.5rem; border-radius: .75rem;
+    font-size: .875rem; font-weight: 700; cursor: pointer;
+    border: 1px solid transparent;
+    transition: transform .18s cubic-bezier(.2,.8,.2,1), box-shadow .18s ease, opacity .18s ease;
+  }
+  .btn .label { display: inline-flex; align-items: center; gap: .5rem; position: relative; z-index: 2; }
+  /* The roll clone only exists for fx-roll; every other variant ignores it. */
+  .btn .clone { display: none; }
+  .btn i { display: inline-flex; transition: transform .25s cubic-bezier(.2,.8,.2,1); }
+  .primary { background: var(--c-cta-bg); color: var(--c-cta-text); }
+  .ghost   { background: transparent; color: var(--c-text); border-color: var(--c-border-2); }
+  .btn:active { transform: scale(.985); }
+
+  /* 1 — Arrow Slide */
+  .fx-slide .btn:hover i { transform: translateX(4px); }
+  .fx-slide .btn:hover { opacity: .88; }
+
+  /* 2 — Fill Sweep: ink floods from the left, label inverts */
+  .fx-sweep .btn::before {
+    content: ''; position: absolute; inset: 0; z-index: 1;
+    transform: scaleX(0); transform-origin: left;
+    transition: transform .38s cubic-bezier(.2,.8,.2,1);
+  }
+  .fx-sweep .primary::before { background: var(--c-cta-text); }
+  .fx-sweep .ghost::before   { background: var(--c-text); }
+  .fx-sweep .btn:hover::before { transform: scaleX(1); }
+  .fx-sweep .btn .label { transition: color .3s ease .06s; }
+  .fx-sweep .primary:hover .label { color: var(--c-cta-bg); }
+  .fx-sweep .ghost:hover .label   { color: var(--c-surface); }
+  .fx-sweep .btn:hover i { transform: translateX(3px); }
+
+  /* 3 — Sheen: one gloss pass across the face */
+  .fx-sheen .btn::after {
+    content: ''; position: absolute; top: 0; bottom: 0; width: 45%; z-index: 1;
+    left: -60%; transform: skewX(-20deg);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+    transition: left .55s cubic-bezier(.3,.7,.3,1);
+  }
+  :global(html:not(.dark)) .fx-sheen .ghost::after {
+    background: linear-gradient(90deg, transparent, rgba(0,0,0,.07), transparent);
+  }
+  .fx-sheen .btn:hover::after { left: 115%; }
+  .fx-sheen .btn:hover { opacity: .95; }
+
+  /* 4 — Label Roll: real label rolls up, a real clone rolls in beneath it.
+     (A ::after/attr() clone can't carry the arrow SVG, so both are markup.) */
+  .fx-roll .btn { overflow: hidden; }
+  .fx-roll .btn .label { transition: transform .32s cubic-bezier(.2,.8,.2,1); }
+  .fx-roll .btn .clone {
+    display: inline-flex; position: absolute; inset: 0;
+    align-items: center; justify-content: center;
+    transform: translateY(100%);
+  }
+  .fx-roll .btn:hover .label { transform: translateY(-100%); }
+  .fx-roll .btn:hover .clone { transform: translateY(0); }
+
+  /* 5 — Lift & Press */
+  .fx-lift .btn:hover { transform: translateY(-3px); box-shadow: 0 10px 24px -8px rgba(0,0,0,.35); }
+  .fx-lift .btn:active { transform: translateY(-1px) scale(.98); box-shadow: 0 3px 10px -6px rgba(0,0,0,.4); }
+  .fx-lift .btn:hover i { transform: translateX(3px); }
+
+  /* 6 — Click Ripple (JS sets --x/--y) */
+  .fx-ripple .btn:hover i { transform: translateX(3px); }
+  .fx-ripple .btn :global(.ripple) {
+    position: absolute; z-index: 1; border-radius: 50%; pointer-events: none;
+    transform: translate(-50%, -50%) scale(0);
+    animation: rippleOut .6s cubic-bezier(.2,.8,.2,1) forwards;
+  }
+  .fx-ripple .primary :global(.ripple) { background: color-mix(in srgb, var(--c-cta-text) 30%, transparent); }
+  .fx-ripple .ghost   :global(.ripple) { background: color-mix(in srgb, var(--c-text) 14%, transparent); }
+  @keyframes rippleOut { to { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
+
+  /* 7 — Cursor Spotlight (JS sets --x/--y) */
+  .fx-spotlight .btn::before {
+    content: ''; position: absolute; inset: 0; z-index: 1; opacity: 0;
+    transition: opacity .25s ease;
+    background: radial-gradient(120px circle at var(--x, 50%) var(--y, 50%),
+                                rgba(255,255,255,.28), transparent 60%);
+  }
+  :global(html:not(.dark)) .fx-spotlight .ghost::before {
+    background: radial-gradient(120px circle at var(--x, 50%) var(--y, 50%),
+                                rgba(0,0,0,.07), transparent 60%);
+  }
+  .fx-spotlight .btn:hover::before { opacity: 1; }
+  .fx-spotlight .btn:hover i { transform: translateX(3px); }
+
+  /* 8 — Corner Brackets */
+  .fx-brackets .btn { overflow: visible; }
+  .fx-brackets .btn::before, .fx-brackets .btn::after {
+    content: ''; position: absolute; width: 9px; height: 9px; z-index: 3;
+    border: 2px solid currentColor; opacity: 0;
+    transition: all .28s cubic-bezier(.2,.8,.2,1);
+  }
+  .fx-brackets .btn::before { top: -4px;    left: -4px;  border-right: 0; border-bottom: 0; }
+  .fx-brackets .btn::after  { bottom: -4px; right: -4px; border-left: 0;  border-top: 0; }
+  .fx-brackets .btn:hover::before { opacity: 1; top: -6px;    left: -6px; }
+  .fx-brackets .btn:hover::after  { opacity: 1; bottom: -6px; right: -6px; }
+  .fx-brackets .primary::before, .fx-brackets .primary::after { color: var(--c-text); }
+  .fx-brackets .btn:hover i { transform: translateX(3px); }
+
+  /* 9 — Magnetic (JS sets --mx/--my) */
+  .fx-magnetic .btn {
+    transform: translate(var(--mx, 0px), var(--my, 0px));
+    transition: transform .35s cubic-bezier(.2,.8,.2,1);
+  }
+  .fx-magnetic .btn.pulling { transition: transform .08s linear; }
+  .fx-magnetic .btn:hover i { transform: translateX(3px); }
+
+  /* ══ ROUND 2 ═══════════════════════════════════════════════════════════ */
+
+  .head2 { margin-top: 4.5rem; padding-top: 3rem; border-top: 1px solid var(--c-border-2); }
+
+  /* Per-character spans (JS-split) used by Scramble + Wave. The wrapper keeps
+     the letters out of the label's flex gap; .ch must be inline-block so it
+     can be transformed. */
+  .btn :global(.chars) { display: inline-block; white-space: pre; }
+  .btn :global(.ch) { display: inline-block; white-space: pre; }
+
+  /* 10 — Glyph Scramble (JS swaps glyphs) */
+  .fx-scramble .btn:hover i { transform: translateX(3px); }
+
+  /* 11 — Character Wave */
+  .fx-wave .btn :global(.ch) {
+    transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+    transition-delay: calc(var(--i) * 22ms);
+  }
+  .fx-wave .btn:hover :global(.ch) { transform: translateY(-5px); }
+  .fx-wave .btn:hover i { transform: translateX(3px); }
+
+  /* 12 — Ink Blot: floods radially from wherever the cursor entered */
+  .fx-ink .btn::before {
+    content: ''; position: absolute; z-index: 1;
+    top: var(--y, 50%); left: var(--x, 50%);
+    width: 0; height: 0; border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: width .5s cubic-bezier(.2,.8,.2,1), height .5s cubic-bezier(.2,.8,.2,1);
+  }
+  .fx-ink .primary::before { background: var(--c-cta-text); }
+  .fx-ink .ghost::before   { background: var(--c-text); }
+  .fx-ink .btn:hover::before { width: 260px; height: 260px; }
+  .fx-ink .btn .label { transition: color .35s ease .1s; }
+  .fx-ink .primary:hover .label { color: var(--c-cta-bg); }
+  .fx-ink .ghost:hover .label   { color: var(--c-surface); }
+
+  /* 13 — Edge Runner: a light orbits the border (offset-path: border-box).
+     Needs overflow:visible or the dot gets sliced in half on the edge. */
+  .fx-runner .btn { overflow: visible; }
+  .fx-runner .btn::after {
+    content: ''; position: absolute; z-index: 3;
+    width: 5px; height: 5px; border-radius: 50%;
+    background: currentColor; opacity: 0;
+    offset-path: border-box; offset-distance: 0%; offset-rotate: 0deg;
+    transition: opacity .2s ease;
+  }
+  .fx-runner .primary::after { box-shadow: 0 0 8px 2px var(--c-cta-text); }
+  .fx-runner .ghost::after   { box-shadow: 0 0 8px 2px var(--c-text); }
+  .fx-runner .btn:hover::after { opacity: 1; animation: orbit 1.5s linear infinite; }
+  @keyframes orbit { to { offset-distance: 100%; } }
+  .fx-runner .btn:hover i { transform: translateX(3px); }
+
+  /* 14 — Brutalist Snap: a hard block behind; hover slides onto it, click flattens */
+  .fx-snap .btn { overflow: visible; transition: transform .16s cubic-bezier(.2,.8,.2,1), box-shadow .16s ease; }
+  .fx-snap .primary { box-shadow: 5px 5px 0 0 var(--c-border-2); }
+  .fx-snap .ghost   { box-shadow: 5px 5px 0 0 var(--c-text); }
+  .fx-snap .btn:hover  { transform: translate(2px, 2px); }
+  .fx-snap .primary:hover { box-shadow: 3px 3px 0 0 var(--c-border-2); }
+  .fx-snap .ghost:hover   { box-shadow: 3px 3px 0 0 var(--c-text); }
+  .fx-snap .btn:active { transform: translate(5px, 5px); box-shadow: 0 0 0 0 transparent; }
+
+  /* 15 — Arrow Launch: the arrow shoots out right, a fresh one flies in from
+     the left. One element, so the "fresh" arrow is the same glyph wrapping
+     around while invisible — cheaper than a clone and reads identically. */
+  .fx-launch .btn:hover i { animation: launch .55s cubic-bezier(.2,.8,.2,1); }
+  @keyframes launch {
+    0%   { transform: translateX(0);     opacity: 1; }
+    40%  { transform: translateX(170%);  opacity: 0; }
+    41%  { transform: translateX(-170%); opacity: 0; }
+    100% { transform: translateX(0);     opacity: 1; }
+  }
+
+  /* 16 — Particle Burst (JS spawns .dot) */
+  .fx-burst .btn:hover i { transform: translateX(3px); }
+  .fx-burst .btn :global(.dot) {
+    position: absolute; z-index: 3; width: 4px; height: 4px; border-radius: 50%;
+    pointer-events: none; background: currentColor;
+  }
+
+  /* 17 — 3D Tilt (JS sets --rx/--ry/--x/--y) */
+  .fx-tilt { perspective: 700px; }
+  .fx-tilt .btn {
+    transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transform-style: preserve-3d;
+    transition: transform .3s cubic-bezier(.2,.8,.2,1);
+  }
+  .fx-tilt .btn.tilting { transition: transform .06s linear; }
+  .fx-tilt .btn::before {
+    content: ''; position: absolute; inset: 0; z-index: 1; opacity: 0;
+    transition: opacity .25s ease;
+    background: radial-gradient(160px circle at var(--x, 50%) var(--y, 50%),
+                                rgba(255,255,255,.45), transparent 55%);
+  }
+  :global(html:not(.dark)) .fx-tilt .ghost::before {
+    background: radial-gradient(160px circle at var(--x, 50%) var(--y, 50%),
+                                rgba(0,0,0,.09), transparent 55%);
+  }
+  .fx-tilt .btn:hover::before { opacity: 1; }
+</style>
+
+<script>
+  // Click Ripple — spawn a circle at the cursor, sized to cover the button.
+  document.querySelectorAll<HTMLElement>('.fx-ripple .btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const r = btn.getBoundingClientRect()
+      const d = Math.max(r.width, r.height) * 2.2
+      const ink = document.createElement('span')
+      ink.className = 'ripple'
+      ink.style.width = ink.style.height = `${d}px`
+      ink.style.left = `${e.clientX - r.left}px`
+      ink.style.top = `${e.clientY - r.top}px`
+      btn.appendChild(ink)
+      ink.addEventListener('animationend', () => ink.remove())
+    })
+  })
+
+  // Cursor Spotlight — feed the pointer position into the gradient.
+  document.querySelectorAll<HTMLElement>('.fx-spotlight .btn').forEach((btn) => {
+    btn.addEventListener('pointermove', (e) => {
+      const r = btn.getBoundingClientRect()
+      btn.style.setProperty('--x', `${e.clientX - r.left}px`)
+      btn.style.setProperty('--y', `${e.clientY - r.top}px`)
+    })
+  })
+
+  // Magnetic — lean toward the cursor, snap back on leave.
+  document.querySelectorAll<HTMLElement>('.fx-magnetic .btn').forEach((btn) => {
+    const STRENGTH = 0.28
+    btn.addEventListener('pointermove', (e) => {
+      const r = btn.getBoundingClientRect()
+      btn.classList.add('pulling')
+      btn.style.setProperty('--mx', `${(e.clientX - (r.left + r.width / 2)) * STRENGTH}px`)
+      btn.style.setProperty('--my', `${(e.clientY - (r.top + r.height / 2)) * STRENGTH}px`)
+    })
+    btn.addEventListener('pointerleave', () => {
+      btn.classList.remove('pulling')
+      btn.style.setProperty('--mx', '0px')
+      btn.style.setProperty('--my', '0px')
+    })
+  })
+
+  /* ══ ROUND 2 ═══════════════════════════════════════════════════════════ */
+
+  // Split a label's text into per-character spans, leaving the arrow <i> alone.
+  // The chars go inside ONE wrapper: the label is a flex row with `gap`, so
+  // loose char spans would each become a flex item and inherit that gap —
+  // spelling the label out l i k e  t h i s.
+  function splitChars(label: HTMLElement) {
+    const text = label.firstChild
+    if (!text || text.nodeType !== Node.TEXT_NODE) return []
+    const wrap = document.createElement('span')
+    wrap.className = 'chars'
+    const spans = (text.textContent ?? '').split('').map((c, i) => {
+      const s = document.createElement('span')
+      s.className = 'ch'
+      s.textContent = c
+      s.style.setProperty('--i', String(i))
+      wrap.appendChild(s)
+      return s
+    })
+    label.replaceChild(wrap, text)
+    return spans
+  }
+
+  // Character Wave — each letter lifts on a stagger (delay is pure CSS).
+  document.querySelectorAll<HTMLElement>('.fx-wave .btn > .label').forEach(splitChars)
+
+  // Glyph Scramble — letters churn through junk glyphs, then settle back.
+  const GLYPHS = '#%$&@/\\<>=*+!?░▒▓╱╲▚▞'
+  document.querySelectorAll<HTMLElement>('.fx-scramble .btn').forEach((btn) => {
+    const label = btn.querySelector<HTMLElement>('.label')!
+    const spans = splitChars(label)
+    const final = spans.map((s) => s.textContent ?? '')
+    // Lock each slot to its natural width, else the swapped glyphs (# vs i)
+    // resize the button and the whole row jitters on hover.
+    spans.forEach((s) => {
+      s.style.width = `${s.getBoundingClientRect().width}px`
+      s.style.textAlign = 'center'
+    })
+    let raf = 0
+    let frame = 0
+
+    btn.addEventListener('pointerenter', () => {
+      cancelAnimationFrame(raf)
+      frame = 0
+      const tick = () => {
+        // Each character locks in after its own threshold, left to right.
+        let settled = 0
+        spans.forEach((s, i) => {
+          if (frame > i * 2 + 8) {
+            s.textContent = final[i]
+            settled++
+          } else if (final[i].trim()) {
+            s.textContent = GLYPHS[Math.floor(Math.random() * GLYPHS.length)]
+          }
+        })
+        frame++
+        if (settled < spans.length) raf = requestAnimationFrame(tick)
+      }
+      raf = requestAnimationFrame(tick)
+    })
+    btn.addEventListener('pointerleave', () => {
+      cancelAnimationFrame(raf)
+      spans.forEach((s, i) => (s.textContent = final[i]))
+    })
+  })
+
+  // Ink Blot — remember where the pointer entered; the flood starts there.
+  document.querySelectorAll<HTMLElement>('.fx-ink .btn').forEach((btn) => {
+    const mark = (e: PointerEvent) => {
+      const r = btn.getBoundingClientRect()
+      btn.style.setProperty('--x', `${e.clientX - r.left}px`)
+      btn.style.setProperty('--y', `${e.clientY - r.top}px`)
+    }
+    btn.addEventListener('pointerenter', mark)
+    btn.addEventListener('pointerleave', mark) // drain back toward the exit point
+  })
+
+  // Particle Burst — detonate dots from the click point.
+  document.querySelectorAll<HTMLElement>('.fx-burst .btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const r = btn.getBoundingClientRect()
+      const ox = e.clientX - r.left
+      const oy = e.clientY - r.top
+      for (let i = 0; i < 14; i++) {
+        const dot = document.createElement('span')
+        dot.className = 'dot'
+        dot.style.left = `${ox}px`
+        dot.style.top = `${oy}px`
+        btn.appendChild(dot)
+        const angle = (Math.PI * 2 * i) / 14 + Math.random() * 0.4
+        const dist = 26 + Math.random() * 34
+        dot.animate(
+          [
+            { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+            {
+              transform: `translate(calc(-50% + ${Math.cos(angle) * dist}px), calc(-50% + ${Math.sin(angle) * dist}px)) scale(0)`,
+              opacity: 0,
+            },
+          ],
+          { duration: 480 + Math.random() * 220, easing: 'cubic-bezier(.2,.8,.2,1)' },
+        ).onfinish = () => dot.remove()
+      }
+    })
+  })
+
+  // 3D Tilt — face leans toward the cursor, specular highlight rides along.
+  document.querySelectorAll<HTMLElement>('.fx-tilt .btn').forEach((btn) => {
+    const MAX = 12
+    btn.addEventListener('pointermove', (e) => {
+      const r = btn.getBoundingClientRect()
+      const px = (e.clientX - r.left) / r.width
+      const py = (e.clientY - r.top) / r.height
+      btn.classList.add('tilting')
+      btn.style.setProperty('--ry', `${(px - 0.5) * MAX * 2}deg`)
+      btn.style.setProperty('--rx', `${(0.5 - py) * MAX * 2}deg`)
+      btn.style.setProperty('--x', `${e.clientX - r.left}px`)
+      btn.style.setProperty('--y', `${e.clientY - r.top}px`)
+    })
+    btn.addEventListener('pointerleave', () => {
+      btn.classList.remove('tilting')
+      btn.style.setProperty('--rx', '0deg')
+      btn.style.setProperty('--ry', '0deg')
+    })
+  })
+</script>
