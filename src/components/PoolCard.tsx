@@ -15,10 +15,10 @@ interface PoolCardProps {
 // to my money" in plain language. Same symbol-keyed-with-fallback pattern as
 // mockPoolStats, for the day the pool is redeployed with new assets.
 const POOL_COPY: Record<string, { eyebrow: string; blurb: string }> = {
-  EURC: {
+  USDx: {
     eyebrow: 'For DeFi-native depositors',
     blurb:
-      'Your EURC works in the shared four-stablecoin pool and earns a slice of every swap. If one stable wobbles, the pool absorbs it together.',
+      'Your USDx works in the shared four-stablecoin pool and earns a slice of every swap. If one stable wobbles, the pool absorbs it together.',
   },
   PYUSD: {
     eyebrow: 'For most depositors',

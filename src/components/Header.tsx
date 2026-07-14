@@ -28,6 +28,9 @@ export default function Header({ currentPage = "home" }: HeaderProps) {
   } = useAppStore();
 
   const [menuOpen, setMenuOpen] = useState(false);
+  // Drives the slide-in transform separately from menuOpen so the drawer can
+  // animate back out (translateX) before it unmounts, instead of just vanishing.
+  const [menuVisible, setMenuVisible] = useState(false);
 
   useEffect(() => {
     if (theme === "dark") {
@@ -37,10 +40,21 @@ export default function Header({ currentPage = "home" }: HeaderProps) {
     }
   }, [theme]);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const raf = requestAnimationFrame(() => setMenuVisible(true));
+    return () => cancelAnimationFrame(raf);
+  }, [menuOpen]);
+
+  const closeMenu = () => {
+    setMenuVisible(false);
+    window.setTimeout(() => setMenuOpen(false), 250);
+  };
+
   // Close menu on route change / escape
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMenuOpen(false);
+      if (e.key === "Escape") closeMenu();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -163,7 +177,7 @@ export default function Header({ currentPage = "home" }: HeaderProps) {
 
             {/* Hamburger — mobile only */}
             <button
-              onClick={() => setMenuOpen((o) => !o)}
+              onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
               aria-label="Toggle menu"
               className="md:hidden w-9 h-9 flex items-center justify-center rounded-lg border transition-all duration-200"
               style={{
@@ -177,35 +191,56 @@ export default function Header({ currentPage = "home" }: HeaderProps) {
         </div>
       </header>
 
-      {/* Mobile menu */}
+      {/* Mobile menu — slides in from the left as a sidebar */}
       {menuOpen && (
-        <div
-          className="fixed inset-0 z-40 md:hidden"
-          onClick={() => setMenuOpen(false)}
-        >
+        <div className="fixed inset-0 z-40 md:hidden" onClick={closeMenu}>
           {/* Backdrop */}
           <div
-            className="absolute inset-0"
-            style={{ background: "rgba(0,0,0,0.2)" }}
+            className="absolute inset-0 transition-opacity duration-250"
+            style={{
+              background: "rgba(0,0,0,0.35)",
+              opacity: menuVisible ? 1 : 0,
+            }}
           />
 
           {/* Drawer */}
           <nav
-            className="absolute top-16 left-0 right-0 border-b"
+            className="absolute top-0 left-0 h-full w-[78vw] max-w-[300px] flex flex-col transition-transform duration-250 ease-out"
             style={{
+              transform: menuVisible ? "translateX(0)" : "translateX(-100%)",
               backgroundColor:
-                "color-mix(in srgb, var(--c-surface) 96%, transparent)",
-              borderColor: "var(--c-border)",
+                "color-mix(in srgb, var(--c-surface) 98%, transparent)",
+              borderRight: "1px solid var(--c-border)",
               backdropFilter: "blur(16px)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col gap-1">
+            <div
+              className="flex items-center justify-between px-5 h-16 shrink-0"
+              style={{ borderBottom: "1px solid var(--c-border)" }}
+            >
+              <span
+                className="font-semibold text-lg tracking-tight"
+                style={{ color: "var(--c-text)" }}
+              >
+                Spreadless
+              </span>
+              <button
+                onClick={closeMenu}
+                aria-label="Close menu"
+                className="w-9 h-9 flex items-center justify-center rounded-lg border transition-all duration-200"
+                style={{ borderColor: "var(--c-border)", color: "var(--c-text-muted)" }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-1">
               {navLinks.map(({ href, label, page, disabled }) => (
                 <a
                   key={page}
                   href={disabled ? undefined : href}
-                  onClick={() => !disabled && setMenuOpen(false)}
+                  onClick={() => !disabled && closeMenu()}
                   className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${disabled ? "cursor-not-allowed select-none" : ""}`}
                   style={{
                     color:
@@ -238,7 +273,7 @@ export default function Header({ currentPage = "home" }: HeaderProps) {
                 <button
                   onClick={() => {
                     walletConnected ? disconnectWallet() : connectWallet();
-                    setMenuOpen(false);
+                    closeMenu();
                   }}
                   className="w-full py-3 text-sm font-semibold rounded-xl transition-all"
                   style={{

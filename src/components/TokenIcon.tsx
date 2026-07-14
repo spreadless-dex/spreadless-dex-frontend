@@ -1,12 +1,15 @@
 import { tokenAvatarLabel } from '../lib/utils'
 
-// Real icons for the pool's known assets — sourced from an open-license
-// crypto-icon set (spothq/cryptocurrency-icons, CC0) for the tokens that
-// mimic well-known stables, and the real logos for SUSD (Synthetix) and
-// PYUSD (PayPal) since those symbols are real assets, not lookalikes.
-// EURC has no art yet (tranche-2 relabel, see config.ts) — falls back to
-// the initials circle below rather than show a mismatched icon.
+// Real icons for the pool's known assets — sourced from each asset's actual
+// on-chain toml_info via stellar.expert, since these symbols map to real,
+// verifiable assets rather than lookalikes:
+//   - SUSD: the Stellar-native asset issued by synt.tech (GCHW7CW...JYIH),
+//     NOT Synthetix's Ethereum sUSD — an earlier pass wrongly used that logo.
+//   - USDx: FxDAO's Decentralized USD Coin (assets.fxdao.io).
+//   - PYUSD: PayPal USD.
+//   - sUSDC: open-license crypto-icon set (spothq/cryptocurrency-icons, CC0).
 const ICON_SRC: Record<string, string> = {
+  USDx: '/tokens/usdx.png',
   PYUSD: '/tokens/pyusd.png',
   SUSD: '/tokens/susd.png',
   sUSDC: '/tokens/usdc.svg',
