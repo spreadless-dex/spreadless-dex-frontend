@@ -15,14 +15,33 @@ import TokenSelectModal from './TokenSelectModal'
 
 type Slippage = 'auto' | '0.1' | '0.5' | '1' | 'custom'
 
-// Converts the UI selection to basis points for swapExactIn's toleranceBps.
-// Clamped to a sane range so a fat-fingered custom value can't zero out
-// slippage protection (0 or negative) or wave through an absurd tolerance.
-function slippageToBps(slippage: Slippage, custom: string): bigint {
+// Tolerance is carried in parts per million, not basis points: whole bps bottom
+// out at 0.01%, and on a stable pair a 0.001% tolerance is a reasonable thing to
+// ask for. 1 ppm = 0.0001% is the floor — below that the on-chain min_out would
+// round away to nothing anyway at 7 token decimals.
+const MIN_PPM = 1n
+const MAX_PPM = 500_000n // 50%
+const AUTO_PPM = 10_000n // 1%
+const PPM_PER_PCT = 10_000
+
+// How long an accepted quote may stay on screen before we refresh it. The quote
+// is the baseline for the on-chain floor, so a stale one means the swap reverts
+// on price moves the user never saw.
+const QUOTE_REFRESH_MS = 20_000
+
+// Converts the UI selection to ppm for swapExactIn's tolerancePpm. Clamped so a
+// fat-fingered custom value can't zero out slippage protection (0 or negative)
+// or wave through an absurd tolerance.
+function slippageToPpm(slippage: Slippage, custom: string): bigint {
   const pct = slippage === 'auto' ? 1 : slippage === 'custom' ? Number(custom) : Number(slippage)
-  if (!Number.isFinite(pct) || pct <= 0) return 100n // fall back to the safe 1% default
-  const bps = Math.round(pct * 100)
-  return BigInt(Math.min(Math.max(bps, 1), 5000)) // 0.01%–50%
+  if (!Number.isFinite(pct) || pct <= 0) return AUTO_PPM // fall back to the safe 1% default
+  const ppm = BigInt(Math.round(pct * PPM_PER_PCT))
+  return ppm < MIN_PPM ? MIN_PPM : ppm > MAX_PPM ? MAX_PPM : ppm
+}
+
+// Percent with no trailing-zero padding, so 1 ppm reads "0.0001%", not "0.00%".
+function formatPpmPct(ppm: bigint): string {
+  return String(parseFloat((Number(ppm) / PPM_PER_PCT).toFixed(4)))
 }
 
 // What the pill button itself displays — the live selected value, not just an icon.
@@ -60,6 +79,10 @@ function TransactionSettings({
     { key: '0.5', label: '0.5%' },
     { key: '1', label: '1%' },
   ]
+
+  // Below ~0.01% a stablecoin swap will revert on ordinary pool movement, so say
+  // so rather than let the user discover it as a failed transaction.
+  const tightTolerance = slippage === 'custom' && custom !== '' && slippageToPpm(slippage, custom) < 100n
 
   return (
     <div ref={ref} className="relative">
@@ -119,6 +142,8 @@ function TransactionSettings({
                 type="number"
                 placeholder="Custom"
                 value={custom}
+                min={formatPpmPct(MIN_PPM)}
+                step={formatPpmPct(MIN_PPM)}
                 onChange={(e) => { onCustomChange(e.target.value); onSlippageChange('custom') }}
                 className="w-14 text-xs px-2 py-1.5 bg-transparent outline-none"
                 style={{ color: 'var(--c-text)' }}
@@ -127,8 +152,14 @@ function TransactionSettings({
             </div>
           </div>
           <p className="text-[11px] mt-3 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
-            Applied on-chain as your minimum received — the trade reverts instead of settling below it.
+            Applied on-chain as your minimum received, measured against the quote you see — the trade
+            reverts instead of settling below it. Down to {formatPpmPct(MIN_PPM)}%.
           </p>
+          {tightTolerance && (
+            <p className="text-[11px] mt-2 leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
+              At this tolerance the swap reverts on almost any price move between quote and execution.
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -136,6 +167,16 @@ function TransactionSettings({
 }
 
 type OrderMode = 'market' | 'limit'
+
+// The quote currently on screen. Held in raw units and tagged with the exact
+// inputs it was produced for, because it is what the on-chain min_out is derived
+// from — a quote that no longer matches the form must never reach a signature.
+interface Quote {
+  tokenIn: string
+  tokenOut: string
+  amountIn: bigint
+  amountOut: bigint
+}
 
 export default function SwapWidget() {
   const [orderMode, setOrderMode] = useState<OrderMode>('market')
@@ -154,7 +195,7 @@ export default function SwapWidget() {
   const [fromToken, setFromToken] = useState<PoolToken | null>(null)
   const [toToken, setToToken] = useState<PoolToken | null>(null)
   const [fromAmount, setFromAmount] = useState('')
-  const [toAmount, setToAmount] = useState('')
+  const [quote, setQuote] = useState<Quote | null>(null)
   const [networkFee, setNetworkFee] = useState<number | null>(null)
   const [rateFlipped, setRateFlipped] = useState(false)
   // Set right after a swap confirms — while non-null, the success takeover
@@ -182,13 +223,13 @@ export default function SwapWidget() {
   // connected wallet's account, so there's nothing to quote until it's connected.
   useEffect(() => {
     if (!walletAddress || !fromToken || !toToken || !fromAmount) {
-      setToAmount('')
+      setQuote(null)
       setNetworkFee(null)
       return
     }
     const amountIn = toRawUnits(fromAmount, fromToken.decimals)
     if (amountIn <= 0n) {
-      setToAmount('')
+      setQuote(null)
       setNetworkFee(null)
       return
     }
@@ -204,13 +245,13 @@ export default function SwapWidget() {
           amountIn,
         })
         if (!cancelled) {
-          setToAmount(fromRawUnits(amountOut, toToken.decimals))
+          setQuote({ tokenIn: fromToken.address, tokenOut: toToken.address, amountIn, amountOut })
           setNetworkFee(networkFeeXlm)
         }
       } catch (err) {
         console.error('Quote failed:', err)
         if (!cancelled) {
-          setToAmount('')
+          setQuote(null)
           setNetworkFee(null)
         }
       } finally {
@@ -223,6 +264,30 @@ export default function SwapWidget() {
       clearTimeout(timer)
     }
   }, [walletAddress, fromToken, toToken, fromAmount])
+
+  // Silent re-quote on a timer. The displayed quote is the baseline for the
+  // on-chain floor, so letting it sit while the pool moves would revert swaps
+  // against a price the user never agreed to. No spinner: the numbers refresh,
+  // the form stays usable. Paused mid-transaction so the baseline can't shift
+  // out from under a tx that's already being signed.
+  useEffect(() => {
+    if (!walletAddress || !quote || txPhase !== null) return
+    const { tokenIn, tokenOut, amountIn } = quote
+    const timer = setInterval(async () => {
+      try {
+        const { amountOut, networkFeeXlm } = await quoteSwapExactIn({ to: walletAddress, tokenIn, tokenOut, amountIn })
+        setQuote((prev) =>
+          prev && prev.tokenIn === tokenIn && prev.tokenOut === tokenOut && prev.amountIn === amountIn
+            ? { ...prev, amountOut }
+            : prev,
+        )
+        setNetworkFee(networkFeeXlm)
+      } catch (err) {
+        console.error('Quote refresh failed:', err)
+      }
+    }, QUOTE_REFRESH_MS)
+    return () => clearInterval(timer)
+  }, [walletAddress, quote, txPhase])
 
   // Real wallet balances for whichever tokens are currently selected.
   useEffect(() => {
@@ -255,11 +320,23 @@ export default function SwapWidget() {
     return () => { cancelled = true }
   }, [walletAddress, toToken])
 
+  const amountInRaw = fromToken && fromAmount ? toRawUnits(fromAmount, fromToken.decimals) : 0n
+  // Only a quote produced for exactly these inputs may be displayed or signed
+  // against — anything else is a leftover from the previous form state.
+  const liveQuote =
+    quote && fromToken && toToken &&
+    quote.tokenIn === fromToken.address &&
+    quote.tokenOut === toToken.address &&
+    quote.amountIn === amountInRaw
+      ? quote
+      : null
+  const toAmount = liveQuote && toToken ? fromRawUnits(liveQuote.amountOut, toToken.decimals) : ''
+
   const handleFlip = () => {
     setFromToken(toToken)
     setToToken(fromToken)
     setFromAmount(toAmount)
-    setToAmount('')
+    setQuote(null)
   }
 
   const handleFromTokenChange = (t: PoolToken) => {
@@ -274,11 +351,14 @@ export default function SwapWidget() {
 
   const handleSwap = async () => {
     if (!walletAddress || !fromToken || !toToken || !fromAmount) return
-    const amountIn = toRawUnits(fromAmount, fromToken.decimals)
-    if (amountIn <= 0n) return
+    // No signature without a quote for these exact inputs: the quote is what the
+    // on-chain floor is measured against, so signing without one would enforce a
+    // minimum the user never saw.
+    if (!liveQuote || liveQuote.amountIn <= 0n) return
+    const amountIn = liveQuote.amountIn
 
-    const toleranceBps = slippageToBps(slippage, customSlippage)
-    const slippagePct = `${(Number(toleranceBps) / 100).toFixed(2)}%`
+    const tolerancePpm = slippageToPpm(slippage, customSlippage)
+    const slippagePct = `${formatPpmPct(tolerancePpm)}%`
 
     setStatus({ kind: 'idle' })
     try {
@@ -287,7 +367,8 @@ export default function SwapWidget() {
         tokenIn: fromToken.address,
         tokenOut: toToken.address,
         amountIn,
-        toleranceBps,
+        tolerancePpm,
+        quotedOut: liveQuote.amountOut,
         onPhase: setTxPhase,
       })
       const receivedAmount = fromRawUnits(result, toToken.decimals)
@@ -310,7 +391,7 @@ export default function SwapWidget() {
         .then(setConfirmedSwap)
         .catch((err) => console.error('Failed to record activity:', err))
       setFromAmount('')
-      setToAmount('')
+      setQuote(null)
       loadPoolState() // refresh reserves after the swap lands
       // Poll instead of a one-shot refetch — the RPC can briefly serve the
       // pre-swap snapshot right after the tx confirms.
@@ -346,7 +427,6 @@ export default function SwapWidget() {
   // proxy for price impact — same peg assumption pool.ts uses for TVL.
   const priceImpact = hasAmount ? ((fromNum - toNum) / fromNum) * 100 : 0
 
-  const amountInRaw = fromToken && amountEntered ? toRawUnits(fromAmount, fromToken.decimals) : 0n
   const insufficientBalance =
     walletConnected && fromBalance !== null && amountInRaw > fromBalance
   // The pool can't pay out more of a token than it holds — with all tokens
@@ -354,12 +434,12 @@ export default function SwapWidget() {
   const insufficientLiquidity =
     walletConnected && !!toToken && amountEntered && fromNum >= toToken.reserveHuman
 
-  // Mirror of the on-chain floor swapExactIn submits with, so "Minimum
-  // received" shows exactly what the contract would enforce.
-  const toleranceBps = slippageToBps(slippage, customSlippage)
-  const quotedOutRaw = hasAmount && toToken ? toRawUnits(toAmount, toToken.decimals) : 0n
-  const minReceived = quotedOutRaw - (quotedOutRaw * toleranceBps) / 10_000n
-  const slippagePct = Number(toleranceBps) / 100
+  // Mirror of the on-chain floor swapExactIn submits with, derived from the same
+  // quote, so "Minimum received" shows exactly what the contract will enforce.
+  const tolerancePpm = slippageToPpm(slippage, customSlippage)
+  const quotedOutRaw = liveQuote?.amountOut ?? 0n
+  const minReceived = quotedOutRaw - (quotedOutRaw * tolerancePpm) / 1_000_000n
+  const slippagePct = formatPpmPct(tolerancePpm)
 
   const loadingPool = poolStatus === 'idle' || poolStatus === 'loading' || !fromToken || !toToken
 
