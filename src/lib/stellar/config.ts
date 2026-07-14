@@ -10,6 +10,15 @@
 
 export const NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
 export const RPC_URL = "https://soroban-testnet.stellar.org";
+// Classic-layer endpoint. Trustlines live on the classic account, not in
+// Soroban, so changing one is a classic tx and goes through Horizon.
+export const HORIZON_URL = "https://horizon-testnet.stellar.org";
+
+/** A classic Stellar asset, as it appears in a trustline. */
+export interface ClassicAsset {
+  code: string;
+  issuer: string;
+}
 
 export const POOL_CONTRACT_ID =
   "CCAD3EH4P74PVYL3IC6ND7RSV6NYYOMUMNKRNVBJYOVIZP7Z2QS5XTSN";
@@ -22,6 +31,18 @@ export interface TokenInfo {
   decimals: number;
   /** Open-mint test tokens let anyone call mint(to, amount). SACs do not. */
   openMint: boolean;
+  /**
+   * Set only for Stellar Asset Contracts — a SAC wraps a *classic* asset, and a
+   * classic asset can only be held by an account that has a trustline for it.
+   * Without one, every transfer of this token into the user's account fails, so
+   * the UI has to offer the trustline first (see trustline.ts).
+   *
+   * Native Soroban tokens have no classic side and no trustline: leave unset.
+   *
+   * Verifiable: Asset(code, issuer).contractId(NETWORK_PASSPHRASE) must equal
+   * this token's contractId.
+   */
+  classicAsset?: ClassicAsset;
 }
 
 // TRANCHE 2 RELABEL: the contract's index-0/1 tokens are still deployed as
@@ -51,6 +72,10 @@ export const TOKENS: TokenInfo[] = [
     contractId: "CDDE66QMXWVUVEHLA5IRUJBHPJK3RFH6JIXCIJ5S6HOAXAPYR2AIZUWD",
     decimals: 7,
     openMint: false, // Stellar Asset Contract — only the issuer can mint.
+    classicAsset: {
+      code: "SUSD",
+      issuer: "GCYFVS3J6JNJLJZ6JVPFCW7IGILIWEFGFPUAFBOBR4PQARR6OIBZHOAU",
+    },
   },
   {
     index: 3,

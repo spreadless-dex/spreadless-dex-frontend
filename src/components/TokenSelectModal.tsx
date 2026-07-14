@@ -36,7 +36,7 @@ export default function TokenSelectModal({ tokens, value, onChange, exclude, wal
     if (!open || !walletAddress) return
     let cancelled = false
     selectable.forEach((t) => {
-      getTokenBalance(t.address, walletAddress)
+      getTokenBalance(t.address, walletAddress, t.decimals)
         .then((b) => { if (!cancelled) setBalances((prev) => ({ ...prev, [t.symbol]: b })) })
         .catch(() => { if (!cancelled) setBalances((prev) => ({ ...prev, [t.symbol]: null })) })
     })
