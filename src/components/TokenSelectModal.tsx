@@ -8,7 +8,7 @@ import TokenIcon from './TokenIcon'
 // symbol-keyed-with-fallback pattern as PoolCard's POOL_COPY, for the day
 // the pool is redeployed with a new asset this map doesn't know about yet.
 const TOKEN_NAMES: Record<string, string> = {
-  EURC: 'Euro Coin',
+  USDx: 'Decentralized USD Coin',
   PYUSD: 'PayPal USD',
   SUSD: 'Synth USD',
   sUSDC: 'USD Coin',

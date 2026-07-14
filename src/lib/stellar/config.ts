@@ -33,7 +33,7 @@ export interface TokenInfo {
 export const TOKENS: TokenInfo[] = [
   {
     index: 0,
-    symbol: "EURC",
+    symbol: "USDx",
     contractId: "CBXN4CMLFVDNVFSGNXFGP5EWI77ISC5KH5UXSDBQETZCJHYHA3KEP4JJ",
     decimals: 7,
     openMint: true,
