@@ -12,6 +12,7 @@ import RainButton from './RainButton'
 import TxStatus, { type TxUiStatus } from './TxStatus'
 import TxDetailDrawer from './TxDetailDrawer'
 import TokenSelectModal from './TokenSelectModal'
+import { TrustlineNotice, trustlineCtaLabel, useTrustline } from './TrustlineGate'
 
 type Slippage = 'auto' | '0.1' | '0.5' | '1' | 'custom'
 
@@ -208,6 +209,10 @@ export default function SwapWidget() {
   const [fromBalance, setFromBalance] = useState<bigint | null>(null)
   const [toBalance, setToBalance] = useState<bigint | null>(null)
 
+  // The token being *received* is the one that needs a trustline — paying out a
+  // SAC-wrapped asset into an account that doesn't trust it reverts the swap.
+  const trustline = useTrustline(toToken?.address, toToken?.symbol, walletAddress)
+
   useEffect(() => {
     loadPoolState()
   }, [loadPoolState])
@@ -296,7 +301,7 @@ export default function SwapWidget() {
       return
     }
     let cancelled = false
-    getTokenBalance(fromToken.address, walletAddress)
+    getTokenBalance(fromToken.address, walletAddress, fromToken.decimals)
       .then((b) => { if (!cancelled) setFromBalance(b) })
       .catch((err) => {
         console.error('Failed to load balance:', err)
@@ -311,7 +316,7 @@ export default function SwapWidget() {
       return
     }
     let cancelled = false
-    getTokenBalance(toToken.address, walletAddress)
+    getTokenBalance(toToken.address, walletAddress, toToken.decimals)
       .then((b) => { if (!cancelled) setToBalance(b) })
       .catch((err) => {
         console.error('Failed to load balance:', err)
@@ -395,10 +400,10 @@ export default function SwapWidget() {
       loadPoolState() // refresh reserves after the swap lands
       // Poll instead of a one-shot refetch — the RPC can briefly serve the
       // pre-swap snapshot right after the tx confirms.
-      refetchUntilChanged(() => getTokenBalance(fromToken.address, walletAddress), fromBalance)
+      refetchUntilChanged(() => getTokenBalance(fromToken.address, walletAddress, fromToken.decimals), fromBalance)
         .then(setFromBalance)
         .catch(() => {})
-      refetchUntilChanged(() => getTokenBalance(toToken.address, walletAddress), toBalance)
+      refetchUntilChanged(() => getTokenBalance(toToken.address, walletAddress, toToken.decimals), toBalance)
         .then(setToBalance)
         .catch(() => {})
     } catch (err) {
@@ -794,11 +799,20 @@ export default function SwapWidget() {
         </div>
       )}
 
+      {/* One-time trustline step — shown before the CTA it replaces, so the
+          changed button label reads as the next step rather than an error. */}
+      {walletConnected && <TrustlineNotice symbol={toToken.symbol} state={trustline} />}
+
       {/* CTA */}
       <RainButton
-        onClick={!walletConnected ? connectWallet : handleSwap}
+        onClick={!walletConnected ? connectWallet : trustline.needed ? trustline.enable : handleSwap}
         enableLoader={walletConnected}
-        disabled={walletConnected && (!hasAmount || quoting || insufficientBalance || insufficientLiquidity)}
+        disabled={
+          walletConnected &&
+          (trustline.needed
+            ? trustline.adding
+            : !hasAmount || quoting || insufficientBalance || insufficientLiquidity)
+        }
         className="w-full py-3.5 text-sm font-semibold rounded-xl transition-all duration-150 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
         style={{
           backgroundColor: 'var(--c-cta-bg)',
@@ -807,13 +821,15 @@ export default function SwapWidget() {
       >
         {!walletConnected
           ? 'Connect Wallet to Exchange'
-          : !amountEntered
-            ? 'Enter an amount'
-            : insufficientBalance
-              ? `Insufficient ${fromToken.symbol} balance`
-              : insufficientLiquidity
-                ? 'Insufficient liquidity'
-                : `Exchange ${fromToken.symbol} → ${toToken.symbol}`}
+          : trustline.needed
+            ? trustlineCtaLabel(toToken.symbol, trustline)
+            : !amountEntered
+              ? 'Enter an amount'
+              : insufficientBalance
+                ? `Insufficient ${fromToken.symbol} balance`
+                : insufficientLiquidity
+                  ? 'Insufficient liquidity'
+                  : `Exchange ${fromToken.symbol} → ${toToken.symbol}`}
       </RainButton>
 
       <TxStatus phase={txPhase} status={status} />

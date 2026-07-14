@@ -19,6 +19,7 @@ import { recordDeposit, recordWithdraw } from '../lib/activity/record'
 import RainButton from './RainButton'
 import TxStatus, { type TxUiStatus } from './TxStatus'
 import TokenIcon from './TokenIcon'
+import { TrustlineNotice, trustlineCtaLabel, useTrustline } from './TrustlineGate'
 
 interface PoolDetailModalProps {
   token: PoolToken
@@ -52,6 +53,15 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
   const [lpBalance, setLpBalance] = useState<bigint | null>(null)
   const [withdrawQuote, setWithdrawQuote] = useState('')
   const [withdrawQuoting, setWithdrawQuoting] = useState(false)
+
+  // Only withdrawing pays the token *out* to the wallet, so only withdrawing can
+  // hit a missing trustline. Depositing spends a token the wallet already holds,
+  // which it could only hold with the trustline in place.
+  const trustline = useTrustline(
+    mode === 'withdraw' ? token.address : undefined,
+    token.symbol,
+    walletAddress,
+  )
 
   // Recurring deposits ("Sparplan") — static preview only, not wired up yet.
   // Folded into the deposit flow as a subtle toggle rather than its own tab.
@@ -91,7 +101,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
       return
     }
     let cancelled = false
-    getTokenBalance(token.address, walletAddress)
+    getTokenBalance(token.address, walletAddress, token.decimals)
       .then((b) => { if (!cancelled) setTokenBalance(b) })
       .catch((err) => {
         console.error('Failed to load token balance:', err)
@@ -222,7 +232,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
       refetchUntilChanged(() => getLpBalance(walletAddress), lpBalance)
         .then(setLpBalance)
         .catch(() => {})
-      refetchUntilChanged(() => getTokenBalance(token.address, walletAddress), tokenBalance)
+      refetchUntilChanged(() => getTokenBalance(token.address, walletAddress, token.decimals), tokenBalance)
         .then(setTokenBalance)
         .catch(() => {})
     } catch (err) {
@@ -267,7 +277,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
       refetchUntilChanged(() => getLpBalance(walletAddress), lpBalance)
         .then(setLpBalance)
         .catch(() => {})
-      refetchUntilChanged(() => getTokenBalance(token.address, walletAddress), tokenBalance)
+      refetchUntilChanged(() => getTokenBalance(token.address, walletAddress, token.decimals), tokenBalance)
         .then(setTokenBalance)
         .catch(() => {})
     } catch (err) {
@@ -529,6 +539,8 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
           </div>
         )}
 
+        {walletConnected && <TrustlineNotice symbol={token.symbol} state={trustline} />}
+
         {walletConnected ? (
           insufficientBalance ? (
             <button
@@ -538,6 +550,15 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
             >
               Not enough {token.symbol} balance
             </button>
+          ) : trustline.needed ? (
+            <RainButton
+              onClick={trustline.enable}
+              disabled={trustline.adding}
+              className="w-full py-3 text-sm font-semibold rounded-xl transition-all duration-150 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
+            >
+              {trustlineCtaLabel(token.symbol, trustline)}
+            </RainButton>
           ) : (
             <RainButton
               onClick={mode === 'deposit' ? handleDeposit : handleWithdraw}
