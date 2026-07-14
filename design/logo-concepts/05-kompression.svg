@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Spreadless — Konzept 05 "Kompression": zwei Keile druecken den Spread auf null -->
+  <path d="M15 11 L49 11 L32 32 Z" fill="#0A0A0A" stroke="#0A0A0A" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M15 53 L49 53 L32 32 Z" fill="#A855F7" stroke="#A855F7" stroke-width="3" stroke-linejoin="round"/>
+</svg>

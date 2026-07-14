@@ -68,3 +68,8 @@ export const FAUCET_TOKENS = TOKENS.filter((t) => t.openMint);
 export function explorerTxUrl(hash: string): string {
   return `https://stellar.expert/explorer/testnet/tx/${hash}`;
 }
+
+/** Stellar Expert link for a contract (token or pool) on this network. */
+export function explorerContractUrl(contractId: string): string {
+  return `https://stellar.expert/explorer/testnet/contract/${contractId}`;
+}
