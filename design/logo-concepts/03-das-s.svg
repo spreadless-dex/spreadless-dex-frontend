@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Spreadless — Konzept 03 "Das S": zwei Hälften treffen sich in der Mitte -->
+  <path d="M43 15 C36 10 22 11 21 21 C20.5 28 27 31 32 32" stroke="#0A0A0A" stroke-width="6.5" stroke-linecap="round"/>
+  <path d="M21 49 C28 54 42 53 43 43 C43.5 36 37 33 32 32" stroke="#A855F7" stroke-width="6.5" stroke-linecap="round"/>
+</svg>

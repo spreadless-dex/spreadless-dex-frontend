@@ -63,21 +63,21 @@ Ergebnis des UI/UX-Audits vom 08.07.2026. Jeder Punkt hat eine Checkbox und eine
 - Umsetzungsnotiz: Neues `quoteDepositSingleSided()` in `pool.ts` (Simulation mit `min_lp_out: 0`), im Deposit-Tab als debounced Zeile „You receive ≈ X LP shares" über der Rendite-Projektion. Braucht wie die Swap-Quote eine verbundene Wallet (Simulation läuft gegen den Account); Quote-Fehler beim Tippen (z. B. zu wenig Guthaben) zeigen „—" statt einer Fehlermeldung.
 
 ### 8. Max-Button + Insufficient-Balance-Validierung
-- [ ] **Status:** offen
+- [x] **Status:** erledigt (Swap 10.07.2026 via #5; Deposit-Modal 13.07.2026)
 - Betrifft: `SwapWidget.tsx`, `PoolDetailModal.tsx` (Deposit-Tab)
 - Aktuell: Balance sichtbar, aber nicht klickbar; kein Max im Swap; Deposit-Modal zeigt Token-Balance gar nicht; Fehler kommt erst on-chain.
 - Soll:
-  - [ ] Klickbare Balance / Max-Button überall
-  - [ ] Token-Balance im Deposit-Modal anzeigen
-  - [ ] Button-Label „Insufficient sDAI balance" + disabled bei zu wenig Guthaben
+  - [x] 25/50/75/100 %-Buttons im Swap („You pay"-Panel, nur bei verbundener Wallet mit Guthaben)
+  - [x] Token-Balance im Deposit-Modal anzeigen (+ 25/50/Max-Buttons dort) — via `getTokenBalance`, beim Modal-Redesign (siehe #30)
+  - [x] Button-Label „Insufficient sDAI balance" + disabled bei zu wenig Guthaben (Swap; zusätzlich „Insufficient liquidity" wenn der Verkaufsbetrag die Reserve des Zieltokens übersteigt, und „Enter an amount" ohne Eingabe). Deposit-Modal: „Not enough EURC balance"-CTA-State analog.
 
 ### 9. Slippage-Settings + Min received + Price-Impact-Warnung
 - [ ] **Status:** teilweise erledigt
 - Betrifft: `SwapWidget.tsx` (Zahnrad inzwischen funktional), `lib/stellar/pool.ts`
 - Soll:
   - [x] Zahnrad funktional machen: Slippage-Toleranz einstellbar — `TransactionSettings` mit Presets (Auto/0.1/0.5/1 %) + Custom, auf 0.01–50 % geclampt, fließt als `toleranceBps` in den On-Chain-`min_out`-Floor
-  - [ ] „Minimum received"-Zeile in der Rate-Info
-  - [ ] Farbwarnung bei Price Impact: >1 % gelb, >3 % rot + Bestätigungsdialog
+  - [x] „Minimum received"-Zeile — Teil der neuen Swap-Detail-Box (GitHub-Issue #5, 10.07.2026): exakt derselbe BigInt-Floor, den `swapExactIn` on-chain submitted; daneben Route, Exchange Rate (per Klick invertierbar), Price Impact und Network Fee (echt, aus `minResourceFee` der Quote-Simulation)
+  - [~] Farbwarnung bei Price Impact: >1 % rot umgesetzt; gelbe Zwischenstufe + Bestätigungsdialog bei >3 % noch offen
 
 ### 10. Onboarding-Pfad / Zero-Balance-State
 - [ ] **Status:** offen
@@ -218,6 +218,31 @@ Referenz: Perenas Earn-Card-View. Was ihre Cards besser machen und was wir über
 - Perena: Banner „Make your first deposit easily — Take our quiz to get paired with your match" + CTA „Find my match". Nimmt Neulinge an die Hand, bevor sie die Cards vergleichen müssen.
 - Soll: Für uns reicht ein schlankes Banner: „Neu hier? Hol dir Test-Token im Faucet →" bzw. später ein „Which pool fits you?"-Hinweis.
 
+### 30. Deposit/Withdraw-Modal entrümpeln (Perena-Simplizität)
+- [x] **Status:** erledigt (13.07.2026)
+- Betrifft: `PoolDetailModal.tsx`
+- Perena-Modal (Screenshots 13.07.): eine einzige Entscheidung — „Wie viel?". Deposit = Hero (APY + Est. returns) → Amount-Feld mit Token-Pill + Balance + Max → ein CTA → Fee-Footer. Withdraw noch schlanker (nur Betrag + Max, keine Hero-Zeile). **Keine** Reserve/TVL/Share/Amp/Decimals/Type/Holders/Vol im Handlungs-Flow.
+- Wir vorher: Amount-Input war unter „Your Liquidity"-Callout, 6-Zellen-Statraster und Preview-Block vergraben (`max-h-[85vh]` mit Scroll); dazu ein dritter „Sparplan"-Tab.
+- Soll:
+  - [x] Statraster (Reserve/TVL/Share/Amp/Decimals/Type) + Preview-Daten (Holders/Vol) + „Your Liquidity" aus dem Modal entfernt. Zunächst in ein einklappbares „Pool details" verschoben, dann (siehe #31) durch einen „View full pool details →"-Link auf die dedizierte Pool-Seite ersetzt — Modal ist jetzt reiner Handlungs-Flow.
+  - [x] Deposit: Hero-Zeile APY (Lila) + Est. returns/Jahr; Amount-Karte im Perena-Stil (großes Feld, Token-Pill rechts, Balance + 25/50/Max) — schließt zugleich #8
+  - [x] Withdraw: keine Hero, nur LP-Betrag + Max + Live-Quote
+  - [x] Sparplan als dritter Tab entfernt, als dezenter „Recurring · Soon"-Toggle in den Deposit-Flow gefaltet (analog Perenas „Amplify"-Toggle); Frequenz-Chips + Coming-soon-Hinweis beim Aufklappen
+  - [x] In Light + Dark verifiziert, keine Konsolenfehler, `tsc` clean
+
+### 31. Pool-Detail-/Transparency-Seite pro Pool (GitHub-Issue #24)
+- [x] **Status:** erledigt (13.07.2026)
+- Betrifft: `PoolDetailPage.tsx` (neu), `src/pages/pools/[token].astro` (neu, SSG via `getStaticPaths`), `PoolDetailModal.tsx`, `PoolCard.tsx`, `config.ts`
+- Perena legt Reserven/Amp/Fees/Holder-Stats in ein eigenes Transparency-Dashboard statt in den Aktionsdialog. Wir haben das Gegenstück gebaut, damit die Tiefe sauber lebt und das Modal (siehe #30) reiner Handlungs-Flow bleibt.
+- Umgesetzt:
+  - [x] Eigene Route `/pools/[token]` (Slug = kleingeschriebenes Symbol), 4 statische Seiten; Live-Daten client-seitig aus dem Store
+  - [x] Sektionen: Key-Metrics-Band (APY*/TVL/Share/Vol*), **Pool-Zusammensetzung** (Stacked-Share-Bar + alle 4 Token mit Reserve/Share/Rohbetrag, aktiver Token in Akzent), **Parameter & Health** (A, Pool-Typ, Status, LP-Supply, Decimals, Holders*), **Your position** (Wallet-gated), **How this pool works** (StableSwap-/Amplification-Erklärung — knüpft an #8/Lucas), **Contracts & network** (Pool- + Token-Contract mit Explorer-Links — schließt #15 für Pools)
+  - [x] Erreichbar von Card („Pool details →") und Modal („View full pool details →"); `hideDetailsLink`-Prop unterdrückt den Link, wenn das Modal von der Detail-Seite selbst geöffnet wird
+  - [x] `explorerContractUrl()` in `config.ts` ergänzt (Contract- statt Tx-Link)
+  - [x] Preview-Daten weiterhin klar mit `*` markiert; Live vs. Preview im Footer erklärt
+  - [x] Light + Dark verifiziert, keine Konsolenfehler, `tsc` clean, `astro build` erzeugt alle 4 Seiten
+  - **Offen (blockiert, wie gehabt):** echte APY/Fees/Volumen/Holder + Cap-Auslastung — warten auf Contract-Getter bzw. Oracle (ROADMAP #4/#27)
+
 ### Bewusst NICHT übernehmen
 - Search + Filter-Chips (Lockup/Strategy) — lohnt erst ab ~10+ Pools, wir haben 4.
 - Hero-Artwork pro Card — Perenas KI-Blumenbilder sind Branding-Geschmackssache; unser reduziertes Schwarz/Weiß ist eine bewusst andere, seriösere Richtung. Falls visuelles Gewicht gewünscht: eher dezente Token-Farbakzente als Vollbild-Artwork.
@@ -246,3 +271,8 @@ Referenz: Perenas Earn-Card-View. Was ihre Cards besser machen und was wir über
 - 2026-07-10 — #6 + #7 umgesetzt: „Your position"-Leiste über dem Pools-Grid (`PositionSummary.tsx`) + Pool-Share-Kennzahl in My Liquidity; Deposit-Vorab-Quote „You receive ≈ X LP shares" via `quoteDepositSingleSided()`. Beides im Browser verifiziert (Layout mit Temp-Daten, danach zurückgebaut).
 - 2026-07-10 — Alle Flows end-to-end auf Testnet verifiziert (frischer Friendbot-Account, echte Transaktionen): Faucet-Mint, Swap (250 sDAI → 249.953 sUSDT), Deposit (Quote 499.993859157 LP == tatsächlich erhaltene LP), Position-Leiste/My Liquidity mit echten Werten, Withdraw (Quote == Ergebnis), Fehler-Mapping („Not enough sDAI in your wallet for this amount."). Dabei gefundener Bug gefixt: Bei fehlgeschlagener Simulation liefert das SDK ein `Err`-Objekt statt zu werfen — Quote-Zeilen zeigten „[object Object]". Fix: `unwrapResult()` in `pool.ts` an allen `.result`-Stellen; `mapTxError` erkennt zusätzlich die dekodierte InsufficientBalance-Docstring-Meldung. Bekannte Kleinigkeit (vorbestehend): Balance-Refresh direkt nach Tx-Erfolg kann dem Ledger einen Moment hinterherhinken.
 - 2026-07-10 — Verifikations-Findings gefixt und erneut auf Testnet verifiziert: (1) Balance-Refresh nach Tx-Erfolg pollt jetzt bis sich der Wert ändert (`refetch.ts`, in Swap-Balances und LP-Balance nach Deposit/Withdraw; My Liquidity refetcht bei Pool-State-Refresh) — Swap 50 sDAI: beide Balances aktualisierten sich ohne Reload exakt. (2) Token-Avatare zeigten „US" für sUSDT/SUSD/sUSDC (`slice(0,2)`) — jetzt `tokenAvatarLabel()` (nur s-Präfix strippen): DAI · USDT · SUSD · USDC, überall (Cards, Modal, My Liquidity, Faucet).
+- 2026-07-10 — GitHub-Issues #11 + #20 (Quick Wins, PR #21 gemerged): Landing-Hero neu getextet („Global asset exchange, built on Stellar" / „Trade clear, spread less"), CTAs „Generate Yield" + „Exchange Assets", Stats-Reihe auf die vorgegebenen Werte inkl. „Not live data"-Disclaimer mit stabble.org-Link, How-it-works-Karten mit neuer Copy (Transparent Execution / Minimal Slippage / Single-Asset Deposits). Issue #18 als Duplikat von #16 geschlossen.
+- 2026-07-10 — GitHub-Issue #5 umgesetzt (deckt Roadmap #8-Swap-Teil und #9-Rest mit ab): 25/50/75/100 %-Buttons im „You pay"-Panel; Swap-Detail-Box mit Route, invertierbarer Exchange Rate, Price Impact (`<0.01%`-Format, rot ab >1 %), Network Fee aus der Quote-Simulation (`quoteSwapExactIn` gibt jetzt `{amountOut, networkFeeXlm}` zurück) sowie „Execution protection" (Slippage-Toleranz + Minimum received, exakt der On-Chain-Floor); CTA-States „Enter an amount" / „Insufficient X balance" / „Insufficient liquidity". Pool-Fee-Zeile bewusst weggelassen (kein Fee-Getter im Contract, Roadmap #4). End-to-end auf Testnet verifiziert: 25 %-Button → Swap 74.9969135 sDAI → erhalten exakt die gequotete Menge 74.9765754 sUSDT, Min received 74.2268097 == Quote × 0.99, Balances in-place aktualisiert.
+- 2026-07-13 — GitHub-Issue #28 umgesetzt: Earn-Seite semantisch entwirrt. Die Asset-Karten sind keine „Pools", sondern Wege, in den EINEN StableSwap-Pool einzuzahlen — daher Tabs umbenannt zu **Invest** (die Karten) · **Pools** · **Portfolio** (vorher „Pools"/„My Liquidity"). Neuer **Pools**-Tab zeigt den einen Pool register-artig als eine Zeile (`PoolsRegister.tsx`: Icon-Cluster, A/Status, Assets, TVL, APY-Range 4.9–8.1 %) → Klick öffnet die neue **pool-weite** Transparency-Seite `/pools/stableswap` (`PoolOverviewPage.tsx`): Header mit Icon-Cluster + Invest/Swap-CTAs, Key-Metrics (APY-Range/TVL/Assets/24h-Vol\*), Composition (alle 4 Assets, jede Zeile verlinkt auf die per-Token-Detailseite `/pools/[token]`), Parameters & Health, StableSwap-Erklärung, alle Kontrakte + Network. Subtitle wechselt pro Tab. `Section`/`Field`/`ContractRow` aus `PoolDetailPage` exportiert und wiederverwendet. Live vs. Preview weiter strikt getrennt (`*`). Verifiziert im Browser (Light + Dark): Tabs, Register-Zeile, Detailseite, Contracts. `tsc` clean, `astro build` erzeugt `/pools/stableswap`.
+- 2026-07-13 — Nachschärfung zu #28 (Feedback Lucas): „Pools" ist jetzt ein eigener **Header-Menüpunkt**, kein Earn-Tab. Routing entwirrt: `/pools` = Pools-Registerliste (`PoolsListPage` → `PoolsRegister`), Earn-Seite umgezogen auf `/earn` (Header „Earn" → `/earn`, „Pools" → `/pools`). Earn hat wieder nur **Invest** + **Portfolio**. Detailseiten bleiben unter `/pools/[token]` bzw. `/pools/stableswap`, alle mit `currentPage="pools"`. „Earn/Deposit"-CTAs (Landing „Generate Yield" ×2, Swap-Erfolg „Generate Yield", Activity-Retry für deposit/withdraw, Overview-„Invest") zeigen jetzt auf `/earn`; Backlinks der Detailseiten auf `/pools` (Register). Verifiziert im Browser (Light + Dark).
+- 2026-07-14 — GitHub-Issue #30 (Feedback Lucas): Landing-CTA „Exchange Assets" vom nackten Text-Link zu einem **Ghost-Button** aufgewertet — gleiche Maße wie das primäre „Generate Yield" (px-6 py-3, font-bold, rounded-xl, SVG-Pfeil), aber Outline (`--c-border-2`) statt Fill. Damit klar als zweite Aktion erkennbar. Verifiziert im Browser (Light + Dark).

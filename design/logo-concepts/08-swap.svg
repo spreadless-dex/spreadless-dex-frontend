@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Spreadless — Konzept 08 "Der Swap": zwei Assets tauschen die Plaetze, Kreuzung ohne Reibung -->
+  <path d="M10 21 C28 21 36 43 54 43" stroke="#0A0A0A" stroke-width="6" stroke-linecap="round"/>
+  <path d="M10 43 C28 43 36 21 54 21" stroke="#A855F7" stroke-width="6" stroke-linecap="round"/>
+</svg>

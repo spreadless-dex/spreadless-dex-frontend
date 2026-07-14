@@ -41,7 +41,7 @@ import SwapWidget from '../components/SwapWidget'
 
         <div class="flex items-center gap-4 mb-20 animate-fade-up" style="animation-delay: 0.24s;">
           <a
-            href="/pools"
+            href="/earn"
             class="inline-flex items-center gap-2 px-6 py-3 text-sm font-bold rounded-xl active:scale-[0.99] transition-all"
             style="background-color: var(--c-cta-bg); color: var(--c-cta-text);"
           >
@@ -52,10 +52,13 @@ import SwapWidget from '../components/SwapWidget'
           </a>
           <a
             href="/swap"
-            class="inline-flex items-center px-5 py-3 text-sm font-medium transition-all"
-            style="color: var(--c-text-muted);"
+            class="inline-flex items-center gap-2 px-6 py-3 text-sm font-bold rounded-xl active:scale-[0.99] transition-all hover:opacity-70"
+            style="border: 1px solid var(--c-border-2); color: var(--c-text);"
           >
-            Exchange Assets →
+            Exchange Assets
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+            </svg>
           </a>
         </div>
 
@@ -204,7 +207,7 @@ import SwapWidget from '../components/SwapWidget'
         No pairs. No complexity. Just deposit and earn.
       </p>
       <a
-        href="/pools"
+        href="/earn"
         class="inline-flex items-center gap-2 px-8 py-4 font-semibold rounded-xl active:scale-[0.99] transition-all text-sm"
         style="background-color: var(--c-cta-bg); color: var(--c-cta-text);"
       >

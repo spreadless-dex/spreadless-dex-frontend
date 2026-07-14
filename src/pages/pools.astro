@@ -1,10 +1,10 @@
 ---
 import Layout from '../layouts/Layout.astro'
 import Header from '../components/Header'
-import PoolsPage from '../components/PoolsPage'
+import PoolsListPage from '../components/PoolsListPage'
 ---
 
-<Layout title="Earn — Spreadless">
+<Layout title="Pools — Spreadless">
   <Header client:load currentPage="pools" />
-  <PoolsPage client:load />
+  <PoolsListPage client:load />
 </Layout>

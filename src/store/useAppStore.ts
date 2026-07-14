@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { readPoolState } from "../lib/stellar/pool";
 import type { PoolState, PoolToken } from "../lib/stellar/pool";
-import { StellarWalletsKit } from "@creit-tech/stellar-wallets-kit";
 
 export type { PoolState, PoolToken } from "../lib/stellar/pool";
 
@@ -22,8 +21,11 @@ interface AppState {
   toggleTheme: () => void;
 }
 
+// Guard on window, not localStorage: newer Node versions define a global
+// localStorage whose methods throw unless the runtime was started with
+// --localstorage-file, which crashes SSR/prerender builds.
 const storedTheme =
-  typeof localStorage !== "undefined"
+  typeof window !== "undefined"
     ? (localStorage.getItem("spreadless-theme") as "light" | "dark" | null)
     : null;
 
@@ -85,7 +87,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 let walletKitPromise: ReturnType<typeof bootWalletKit> | null = null;
 
 async function bootWalletKit() {
-  const {} = await import("@creit-tech/stellar-wallets-kit/sdk");
+  // Imported here (not top-level) on purpose: the kit's state module reads
+  // localStorage at module scope, which crashes Astro's prerender in Node.
+  const { StellarWalletsKit } = await import("@creit-tech/stellar-wallets-kit/sdk");
   const { defaultModules } =
     await import("@creit-tech/stellar-wallets-kit/modules/utils");
   const { KitEventType, Networks, SwkAppDarkTheme, SwkAppLightTheme } =

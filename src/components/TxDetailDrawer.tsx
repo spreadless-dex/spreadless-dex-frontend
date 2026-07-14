@@ -14,8 +14,8 @@ const STATUS_COLOR: Record<ActivityRecord['status'], string> = {
 
 const RETRY_HREF: Record<ActivityRecord['type'], string> = {
   swap: '/swap',
-  deposit: '/pools',
-  withdraw: '/pools',
+  deposit: '/earn',
+  withdraw: '/earn',
 }
 
 export default function TxDetailDrawer({ activity, onClose }: TxDetailDrawerProps) {

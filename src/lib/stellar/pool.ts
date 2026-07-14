@@ -232,14 +232,23 @@ interface SwapArgs {
   onPhase?: OnPhase;
 }
 
+export interface SwapQuote {
+  amountOut: bigint;
+  /**
+   * Estimated network fee in XLM, read from the simulation's resource fee.
+   * Null when the RPC response doesn't carry one — treat as "unknown", not 0.
+   */
+  networkFeeXlm: number | null;
+}
+
 /** Simulate-only: how much tokenOut this swap would yield right now. */
 export async function quoteSwapExactIn({
   to,
   tokenIn,
   tokenOut,
   amountIn,
-}: Omit<SwapArgs, "toleranceBps" | "onPhase">): Promise<bigint> {
-  if (amountIn <= 0n) return 0n;
+}: Omit<SwapArgs, "toleranceBps" | "onPhase">): Promise<SwapQuote> {
+  if (amountIn <= 0n) return { amountOut: 0n, networkFeeXlm: null };
   const pool = await writeClient(to);
   const quote = await pool.swap_exact_in({
     to,
@@ -248,7 +257,17 @@ export async function quoteSwapExactIn({
     amount_in: amountIn,
     min_out: 0n,
   });
-  return unwrapResult(quote.result);
+  // minResourceFee is in stroops (1 XLM = 10^7). Only present on successful
+  // simulations; the submit adds the base fee on top, hence "estimated".
+  const feeStroops = Number(
+    (quote.simulation as { minResourceFee?: string } | undefined)
+      ?.minResourceFee,
+  );
+  return {
+    amountOut: unwrapResult(quote.result),
+    networkFeeXlm:
+      Number.isFinite(feeStroops) && feeStroops > 0 ? feeStroops / 1e7 : null,
+  };
 }
 
 /** Swap an exact amount of tokenIn for tokenOut. Returns the tokenOut received. */
