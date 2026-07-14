@@ -226,8 +226,21 @@ interface SwapArgs {
   tokenOut: string;
   /** Amount of tokenIn in raw on-chain units. */
   amountIn: bigint;
-  /** Slippage tolerance in basis points (100 = 1%). */
-  toleranceBps?: bigint;
+  /**
+   * Slippage tolerance in parts per million (10_000 = 1%, 1 = 0.0001%).
+   * Finer than basis points on purpose: bps can't express a tolerance below
+   * 0.01%, which is a range users actually ask for on stable pairs.
+   */
+  tolerancePpm?: bigint;
+  /**
+   * The quoted output the user accepted, in raw units — the baseline the
+   * tolerance is measured against. Pass the amountOut from the quote that was
+   * on screen when they hit swap, so `min_out` enforces exactly the number they
+   * agreed to. Omit only when there is no user-facing quote; the swap then
+   * falls back to simulating its own baseline, which measures nothing but the
+   * drift between simulation and inclusion.
+   */
+  quotedOut?: bigint;
   /** Called as the tx moves through its lifecycle (preparing → signing → submitting). */
   onPhase?: OnPhase;
 }
@@ -247,7 +260,10 @@ export async function quoteSwapExactIn({
   tokenIn,
   tokenOut,
   amountIn,
-}: Omit<SwapArgs, "toleranceBps" | "onPhase">): Promise<SwapQuote> {
+}: Omit<
+  SwapArgs,
+  "tolerancePpm" | "quotedOut" | "onPhase"
+>): Promise<SwapQuote> {
   if (amountIn <= 0n) return { amountOut: 0n, networkFeeXlm: null };
   const pool = await writeClient(to);
   const quote = await pool.swap_exact_in({
@@ -276,23 +292,31 @@ export async function swapExactIn({
   tokenIn,
   tokenOut,
   amountIn,
-  toleranceBps = 100n,
+  tolerancePpm = 10_000n,
+  quotedOut,
   onPhase,
 }: SwapArgs): Promise<TxResult<bigint>> {
   onPhase?.("preparing");
   const pool = await writeClient(to, onPhase);
 
-  // Same two-phase pattern as depositSingleSided: simulate for the quote,
-  // then submit for real with an on-chain slippage floor.
-  const quote = await pool.swap_exact_in({
-    to,
-    token_in: tokenIn,
-    token_out: tokenOut,
-    amount_in: amountIn,
-    min_out: 0n,
-  });
-  const quotedOut = unwrapResult(quote.result);
-  const minOut = quotedOut - (quotedOut * toleranceBps) / 10_000n;
+  // The tolerance is only meaningful against the price the user agreed to, so
+  // the baseline is their quote — not a fresh simulation taken a moment before
+  // submitting, which would re-anchor to whatever the pool has already moved to
+  // and let any real slippage through.
+  const baselineOut =
+    quotedOut ??
+    unwrapResult(
+      (
+        await pool.swap_exact_in({
+          to,
+          token_in: tokenIn,
+          token_out: tokenOut,
+          amount_in: amountIn,
+          min_out: 0n,
+        })
+      ).result,
+    );
+  const minOut = baselineOut - (baselineOut * tolerancePpm) / 1_000_000n;
 
   const tx = await pool.swap_exact_in({
     to,
