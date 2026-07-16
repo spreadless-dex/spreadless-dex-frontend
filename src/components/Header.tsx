@@ -3,7 +3,6 @@ import { useAppStore } from "../store/useAppStore";
 import { shortenAddress } from "../lib/utils";
 import { Menu, X } from "lucide-react";
 import { readPoolState } from "../lib/stellar/pool";
-import Logo from "./Logo";
 
 interface HeaderProps {
   currentPage?: "home" | "earn" | "pools" | "swap" | "faucet" | "activity";
@@ -85,11 +84,10 @@ export default function Header({ currentPage = "home" }: HeaderProps) {
           {/* Logo */}
           <a
             href="/"
-            className="flex items-center gap-2.5 transition-opacity hover:opacity-60"
+            className="font-semibold text-lg tracking-tight transition-opacity hover:opacity-60"
             style={{ color: "var(--c-text)" }}
           >
-            <Logo variant="mono" weight="bold" height={17} />
-            <span className="font-semibold text-lg tracking-tight">Spreadless</span>
+            Spreadless
           </a>
 
           {/* Desktop nav */}
@@ -223,10 +221,9 @@ export default function Header({ currentPage = "home" }: HeaderProps) {
               style={{ borderBottom: "1px solid var(--c-border)" }}
             >
               <span
-                className="flex items-center gap-2.5 font-semibold text-lg tracking-tight"
+                className="font-semibold text-lg tracking-tight"
                 style={{ color: "var(--c-text)" }}
               >
-                <Logo variant="mono" weight="bold" height={16} />
                 Spreadless
               </span>
               <button
