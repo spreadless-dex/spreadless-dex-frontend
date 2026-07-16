@@ -135,7 +135,7 @@ export default function TxDetailDrawer({ activity, onClose }: TxDetailDrawerProp
               href={activity.explorerUrl}
               target="_blank"
               rel="noreferrer"
-              className="block w-full text-center py-3 text-sm font-semibold rounded-xl transition-all active:scale-[0.99]"
+              className="block w-full text-center py-3 text-sm font-semibold rounded-xl btn-lift"
               style={{ border: '1px solid var(--c-border-2)', color: 'var(--c-text)' }}
             >
               View on Explorer
@@ -144,7 +144,7 @@ export default function TxDetailDrawer({ activity, onClose }: TxDetailDrawerProp
           {activity.status === 'failed' && (
             <a
               href={RETRY_HREF[activity.type]}
-              className="block w-full text-center py-3 text-sm font-semibold rounded-xl transition-all active:scale-[0.99]"
+              className="block w-full text-center py-3 text-sm font-semibold rounded-xl btn-lift"
               style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
             >
               Try Again

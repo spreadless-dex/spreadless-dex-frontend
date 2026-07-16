@@ -146,7 +146,7 @@ export default function Faucet() {
           </p>
           <button
             onClick={connectWallet}
-            className="px-6 py-3 text-sm font-semibold rounded-xl transition-all active:scale-[0.99]"
+            className="px-6 py-3 text-sm font-semibold rounded-xl btn-lift"
             style={{ backgroundColor: "var(--c-cta-bg)", color: "var(--c-cta-text)" }}
           >
             Connect Wallet
@@ -195,7 +195,7 @@ export default function Faucet() {
           <RainButton
             onClick={handleMint}
             disabled={!amount || Number(amount) <= 0}
-            className="w-full py-3.5 text-sm font-semibold rounded-xl transition-all duration-150 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3.5 text-sm font-semibold rounded-xl btn-lift disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
               backgroundColor: "var(--c-cta-bg)",
               color: "var(--c-cta-text)",

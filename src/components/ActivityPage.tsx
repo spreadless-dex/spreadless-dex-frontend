@@ -147,7 +147,7 @@ export default function ActivityPage() {
         </p>
         <button
           onClick={connectWallet}
-          className="px-6 py-3 text-sm font-semibold rounded-xl transition-all active:scale-[0.99]"
+          className="px-6 py-3 text-sm font-semibold rounded-xl btn-lift"
           style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
         >
           Connect Wallet
@@ -185,7 +185,7 @@ export default function ActivityPage() {
         <button
           onClick={() => exportCsv(filtered)}
           disabled={filtered.length === 0}
-          className="px-4 py-2 text-sm font-semibold rounded-xl transition-all active:scale-[0.99] disabled:opacity-40 disabled:cursor-not-allowed"
+          className="px-4 py-2 text-sm font-semibold rounded-xl btn-lift disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ border: '1px solid var(--c-border-2)', color: 'var(--c-text)' }}
         >
           Export CSV

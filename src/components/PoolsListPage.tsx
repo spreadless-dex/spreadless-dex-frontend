@@ -38,7 +38,7 @@ export default function PoolsListPage() {
             </p>
             <button
               onClick={loadPoolState}
-              className="px-5 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-[0.99]"
+              className="px-5 py-2.5 text-sm font-semibold rounded-xl btn-lift"
               style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
             >
               Retry

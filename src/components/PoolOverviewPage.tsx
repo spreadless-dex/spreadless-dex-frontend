@@ -45,7 +45,7 @@ export default function PoolOverviewPage() {
           </p>
           <button
             onClick={loadPoolState}
-            className="px-5 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-[0.99]"
+            className="px-5 py-2.5 text-sm font-semibold rounded-xl btn-lift"
             style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
           >
             Retry
@@ -131,14 +131,14 @@ export default function PoolOverviewPage() {
         <div className="flex gap-2 sm:flex-col sm:w-40 shrink-0">
           <a
             href="/earn"
-            className="flex-1 text-center py-2.5 text-sm font-semibold rounded-xl transition-all duration-150 hover:opacity-90 active:scale-[0.99]"
+            className="flex-1 text-center py-2.5 text-sm font-semibold rounded-xl btn-lift"
             style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
           >
             Invest
           </a>
           <a
             href="/swap"
-            className="flex-1 text-center py-2.5 text-sm font-semibold rounded-xl transition-all duration-150 hover:opacity-80 active:scale-[0.99]"
+            className="flex-1 text-center py-2.5 text-sm font-semibold rounded-xl btn-lift"
             style={{ border: '1px solid var(--c-border-2)', color: 'var(--c-text)' }}
           >
             Swap

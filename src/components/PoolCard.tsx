@@ -121,14 +121,14 @@ export default function PoolCard({ token, onAction, index = 0 }: PoolCardProps) 
       <div className="grid grid-cols-2 gap-2">
         <button
           onClick={() => onAction('deposit')}
-          className="py-2.5 text-sm font-semibold rounded-xl transition-all duration-150 hover:opacity-90 active:scale-[0.99]"
+          className="py-2.5 text-sm font-semibold rounded-xl btn-lift"
           style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
         >
           Deposit
         </button>
         <button
           onClick={() => onAction('withdraw')}
-          className="py-2.5 text-sm font-semibold rounded-xl transition-all duration-150 hover:opacity-80 active:scale-[0.99]"
+          className="py-2.5 text-sm font-semibold rounded-xl btn-lift"
           style={{ border: '1px solid var(--c-border-2)', color: 'var(--c-text)' }}
         >
           Withdraw

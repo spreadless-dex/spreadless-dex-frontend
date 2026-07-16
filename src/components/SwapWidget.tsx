@@ -458,7 +458,7 @@ export default function SwapWidget() {
         <p className="text-xs mb-5 break-words" style={{ color: 'var(--c-text-faint)' }}>{poolError}</p>
         <button
           onClick={loadPoolState}
-          className="px-5 py-2.5 text-sm font-semibold rounded-xl transition-all active:scale-[0.99]"
+          className="px-5 py-2.5 text-sm font-semibold rounded-xl btn-lift"
           style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
         >
           Retry
@@ -494,14 +494,14 @@ export default function SwapWidget() {
           <div className="space-y-2">
             <button
               onClick={() => setDetailActivity(confirmedSwap)}
-              className="w-full py-3 text-sm font-semibold rounded-xl transition-all active:scale-[0.99]"
+              className="w-full py-3 text-sm font-semibold rounded-xl btn-lift"
               style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
             >
               View Details
             </button>
             <a
               href="/earn"
-              className="block w-full text-center py-3 text-sm font-semibold rounded-xl transition-all active:scale-[0.99]"
+              className="block w-full text-center py-3 text-sm font-semibold rounded-xl btn-lift"
               style={{ border: '1px solid var(--c-border-2)', color: 'var(--c-text)' }}
             >
               Generate Yield
@@ -813,7 +813,7 @@ export default function SwapWidget() {
             ? trustline.adding
             : !hasAmount || quoting || insufficientBalance || insufficientLiquidity)
         }
-        className="w-full py-3.5 text-sm font-semibold rounded-xl transition-all duration-150 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full py-3.5 text-sm font-semibold rounded-xl btn-lift disabled:opacity-50 disabled:cursor-not-allowed"
         style={{
           backgroundColor: 'var(--c-cta-bg)',
           color: 'var(--c-cta-text)',

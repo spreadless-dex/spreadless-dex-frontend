@@ -57,6 +57,32 @@
     stroke-dashoffset: 40;
     animation: drawStroke 0.35s ease-out 0.45s forwards;
   }
+
+  /* "Lift & Press" — the house motion for every primary/ghost CTA (chosen from
+     the /lab/buttons shootout). The button rises on hover with a soft shadow and
+     squashes on click: physical, monochrome, no hue. Owns transform/box-shadow
+     so it must NOT be paired with Tailwind's transform/opacity hover utilities —
+     the whole point is to replace `active:scale-* hover:opacity-*`.
+
+     RainButton keeps its rain loader independently: the lift lives on the
+     <button> element, the rain on a canvas overlay inside it. */
+  .btn-lift {
+    transition:
+      transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
+      box-shadow 0.18s ease,
+      background-color 0.25s ease,
+      color 0.25s ease,
+      border-color 0.25s ease,
+      opacity 0.18s ease;
+  }
+  .btn-lift:hover:not(:disabled):not([aria-disabled="true"]) {
+    transform: translateY(-3px);
+    box-shadow: var(--c-lift-shadow);
+  }
+  .btn-lift:active:not(:disabled):not([aria-disabled="true"]) {
+    transform: translateY(-1px) scale(0.98);
+    box-shadow: var(--c-lift-shadow-press);
+  }
 }
 
 /* ─── Theme tokens — light is default ─────────────────── */
@@ -88,6 +114,9 @@
     0 16px 32px rgba(0,0,0,0.10),
     0 48px 80px rgba(0,0,0,0.12),
     0 80px 100px rgba(0,0,0,0.06);
+  /* Depth cue for the lifted CTA (see .btn-lift). */
+  --c-lift-shadow:       0 10px 24px -8px rgba(0,0,0,0.35);
+  --c-lift-shadow-press: 0 4px 10px -6px rgba(0,0,0,0.40);
 }
 
 html.dark {
@@ -107,6 +136,10 @@ html.dark {
   --c-skeleton-glow: rgba(255,255,255,0.06);
   --c-card-shadow:   none;
   --c-widget-shadow: none;
+  /* On the near-black background a black shadow barely reads, so lean darker and
+     let the motion carry most of the depth. */
+  --c-lift-shadow:       0 12px 28px -8px rgba(0,0,0,0.75);
+  --c-lift-shadow-press: 0 4px 12px -6px rgba(0,0,0,0.85);
 }
 
 /* ─── Ambient canvas ───────────────────────────────────── */
