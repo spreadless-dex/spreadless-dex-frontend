@@ -6,7 +6,14 @@ import { readPoolState } from "../lib/stellar/pool";
 import Logo from "./Logo";
 
 interface HeaderProps {
-  currentPage?: "home" | "earn" | "pools" | "swap" | "faucet" | "activity";
+  currentPage?:
+    | "home"
+    | "earn"
+    | "pools"
+    | "swap"
+    | "faucet"
+    | "activity"
+    | "docs";
 }
 
 const navLinks = [
@@ -15,7 +22,7 @@ const navLinks = [
   { href: "/pools", label: "Pools", page: "pools" },
   { href: "/activity", label: "Activity", page: "activity" },
   { href: "#", label: "Analytics", page: "analytics", disabled: true },
-  { href: "#", label: "Docs", page: "docs", disabled: true },
+  { href: "/docs", label: "Docs", page: "docs" },
   { href: "/faucet", label: "Faucet", page: "faucet" },
 ];
 

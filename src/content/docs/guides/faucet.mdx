@@ -1,0 +1,44 @@
+---
+title: Get Testnet Tokens
+description: Mint free test stablecoins to your wallet so you have something to swap and deposit.
+---
+
+import Callout from "../../../components/docs/Callout.astro";
+import Figure from "../../../components/docs/Figure.astro";
+
+To try swaps and deposits you need some test tokens. The built-in **[Faucet](/faucet)**
+mints them straight to your connected wallet, free, on Stellar Testnet.
+
+<Figure
+  src="/docs/screenshots/faucet.png"
+  alt="The testnet faucet page"
+  caption="The testnet faucet. Connect a wallet, then pick a token and mint it straight to your account."
+/>
+
+## Steps
+
+1. [Connect your wallet](/docs/guides/connect-wallet) if you haven't.
+2. Open the **[Faucet](/faucet)**.
+3. Choose a token, enter an amount (or accept the default), and click
+   **Mint {"{token}"}**.
+4. Approve the transaction in your wallet. The balance lands in a few seconds.
+
+## Which tokens are mintable
+
+Only the **open-mint** test tokens can be minted from the faucet — these are test
+assets whose `mint(to, amount)` is open to anyone. In the current testnet
+deployment those are `USDx`, `PYUSD`, and `sUSDC`.
+
+<Callout kind="note" title="Why SUSD isn't on the faucet">
+  `SUSD` is a **Stellar Asset Contract** wrapping a *classic* asset — only its
+  issuer can mint it, so it isn't faucet-mintable. Holding it also requires a
+  [trustline](/docs/guides/trustlines) first. The other three are native test
+  tokens with none of that ceremony.
+</Callout>
+
+<Callout kind="warning" title="No value">
+  These are testnet tokens. They are not redeemable and have no monetary value —
+  they exist only to exercise the app.
+</Callout>
+
+Now that you're funded, go [make a swap](/docs/guides/swap).

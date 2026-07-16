@@ -1,0 +1,92 @@
+---
+title: Using the SDK
+description: How the front-end talks to the pool contract, and the patterns to copy if you integrate directly.
+---
+
+import Callout from "../../../components/docs/Callout.astro";
+
+Contract interaction goes through `@spreadless-dex/sdk`, which wraps
+`@stellar/stellar-sdk` with a typed client for the pool. The app centralises all
+of it in `src/lib/stellar/pool.ts`; these are the patterns worth copying.
+
+## Two clients: read and write
+
+```ts
+// Read-only: no wallet. View calls just simulate.
+const pool = new sdk.Client({
+  contractId: POOL_CONTRACT_ID,
+  rpcUrl: RPC_URL,
+  networkPassphrase: NETWORK_PASSPHRASE,
+});
+
+// Write: needs the connected wallet as source account + signer.
+const pool = new sdk.Client({
+  contractId: POOL_CONTRACT_ID,
+  rpcUrl: RPC_URL,
+  networkPassphrase: NETWORK_PASSPHRASE,
+  publicKey: address,
+  signAuthEntry: signer.signAuthEntry,
+  signTransaction: signer.signTransaction,
+});
+```
+
+## Reading pool state
+
+```ts
+const [tokens, reserves, amp, paused, supply, owner] = await Promise.all([
+  pool.get_tokens().then((t) => t.result),
+  pool.get_reserves().then((t) => t.result),
+  pool.get_amp().then((t) => t.result),
+  pool.paused().then((t) => t.result),
+  pool.total_supply().then((t) => t.result),
+  pool.get_owner().then((t) => t.result),
+]);
+```
+
+Reserves come back in the pool's canonical order, aligned with `tokens`. Scale by
+each token's decimals with `fromRawUnits` to get human values.
+
+## The simulate-then-submit pattern
+
+Every write quotes first, then submits with an on-chain floor derived from that
+quote. For a swap:
+
+```ts
+// 1. Simulate with a zero floor to read the exact quote.
+const quote = await pool.swap_exact_in({
+  to, token_in, token_out, amount_in, min_out: 0n,
+});
+const baseline = unwrapResult(quote.result);
+
+// 2. Submit with min_out = baseline − tolerance (parts-per-million).
+const minOut = baseline - (baseline * tolerancePpm) / 1_000_000n;
+const tx = await pool.swap_exact_in({
+  to, token_in, token_out, amount_in, min_out: minOut,
+});
+const sent = await tx.signAndSend();
+```
+
+See [Slippage & Safety](/docs/protocol/slippage-and-safety) for why the baseline is
+the *user-accepted* quote, not a fresh pre-submit simulation.
+
+<Callout kind="warning" title="Always unwrap Results">
+  A failed simulation returns a Rust-style `Err` object instead of throwing —
+  `String(it)` is `"[object Object]"`. Wrap every `.result` with an `unwrapResult`
+  helper that unwraps `Result`-likes so callers get a real value or a real throw:
+
+  ```ts
+  function unwrapResult(v) {
+    return v && typeof v === "object" && typeof v.unwrap === "function"
+      ? v.unwrap()
+      : v;
+  }
+  ```
+</Callout>
+
+## Amounts and decimals
+
+All contract amounts are `bigint` in raw units. LP shares (`SLP`) are 9 decimals;
+the current test tokens are 7. Convert at the UI boundary only, and keep arithmetic
+in raw units to avoid float drift.
+
+Next: [Run it Locally](/docs/developers/local-setup).

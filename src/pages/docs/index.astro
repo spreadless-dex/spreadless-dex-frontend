@@ -1,0 +1,24 @@
+---
+import { DOCS_HOME, docHref } from "../../lib/docs-nav";
+
+// /docs is an entry point, not a page of its own — send visitors to the first
+// doc. Rendered as a static meta-refresh so it works identically on the CDN and
+// in local preview, independent of adapter redirect support.
+const target = docHref(DOCS_HOME);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="refresh" content={`0; url=${target}`} />
+    <link rel="canonical" href={target} />
+    <title>Spreadless Docs</title>
+    <script is:inline define:vars={{ target }}>
+      window.location.replace(target);
+    </script>
+  </head>
+  <body>
+    <p>Redirecting to <a href={target}>the documentation</a>…</p>
+  </body>
+</html>

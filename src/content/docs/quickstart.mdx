@@ -1,0 +1,55 @@
+---
+title: Quickstart
+description: From an empty wallet to a completed swap on Stellar Testnet in about five minutes.
+---
+
+import Callout from "../../components/docs/Callout.astro";
+
+This is the fastest path through the whole product. Every step links to a
+detailed guide if you want more.
+
+<Callout kind="note" title="Testnet only">
+  You will use test tokens with no real value. Never send mainnet funds to any
+  address here.
+</Callout>
+
+## 1. Connect a wallet
+
+Click **Connect Wallet** in the top-right and pick a Stellar wallet (Freighter is
+the simplest browser option). Approve the connection. A brand-new testnet account
+needs a little test XLM for fees first — fund it from Friendbot (most wallets,
+Freighter included, have a one-click button); actions revert until it's funded.
+→ [Connect a Wallet](/docs/guides/connect-wallet)
+
+## 2. Get test tokens
+
+Open the **[Faucet](/faucet)** and mint a couple of the open-mint stablecoins
+(for example `USDx` and `PYUSD`). These arrive in your wallet in a few seconds.
+→ [Get Testnet Tokens](/docs/guides/faucet)
+
+## 3. Add a trustline (only if prompted)
+
+Some assets are *classic* Stellar assets and require a **trustline** before your
+account can hold them. If you try to receive one without a trustline, Spreadless
+offers to add it in one click.
+→ [Trustlines](/docs/guides/trustlines)
+
+## 4. Swap
+
+Go to **[Swap](/swap)**, choose what you're paying and receiving, type an amount,
+and review the quote — rate, price impact, network fee, and minimum received.
+Hit swap and sign. Settlement is a few seconds.
+→ [How to Swap](/docs/guides/swap)
+
+## 5. Earn (optional)
+
+Head to **[Earn](/earn)** and deposit a *single* stablecoin into a pool to receive
+LP shares and start earning a slice of trading fees. Withdraw back into any one
+asset whenever you like.
+→ [Provide Liquidity](/docs/guides/provide-liquidity)
+
+---
+
+That's the entire loop: **connect → fund → swap → earn**. If you want to
+understand *why* the swap barely moved the price, read
+[The Invariant Curve](/docs/concepts/invariant-curve) next.

@@ -1,0 +1,52 @@
+---
+title: What is Spreadless
+description: A stablecoin exchange on Stellar where the price you see is the price you get.
+---
+
+import Callout from "../../components/docs/Callout.astro";
+
+Spreadless is an automated market maker (AMM) for **stablecoins and other
+close-to-parity assets**, built on [Stellar](https://stellar.org) and its
+Soroban smart-contract platform. It exists to solve one specific, expensive
+problem: the gap between the price a trade is quoted at and the amount that
+actually lands in your account — the *spread*.
+
+On a conventional AMM, that gap widens fast as your order grows. Spreadless
+prices trades with a **StableSwap invariant** tuned for assets that are meant to
+trade near the same value, so swapping one dollar-stablecoin for another moves
+the price only fractionally — even for large orders — as long as the pool stays
+reasonably balanced.
+
+## What you can do
+
+- **Swap** one stablecoin for another with near-zero slippage on balanced pools.
+- **Provide liquidity** with a *single* asset — no manual 50/50 pairing — and
+  earn a share of trading fees.
+- **Withdraw** back into any single supported asset in the pool at any time.
+
+## Why it reads differently to a typical DEX
+
+Most decentralized exchanges were built for volatile, uncorrelated token pairs.
+That machinery — constant-product curves, two-sided liquidity, unpredictable
+price impact — is a poor fit when the two things you're trading are both meant to
+be worth a dollar. Spreadless is built the other way around: it *assumes*
+correlation and turns that assumption into tighter pricing, simpler deposits, and
+execution you can preview before you sign.
+
+<Callout kind="note" title="Testnet">
+  Everything documented here runs on **Stellar Testnet**. Tokens are test assets
+  with no value, mintable from the built-in [faucet](/docs/guides/faucet). Do not
+  send real funds to any address in these docs.
+</Callout>
+
+## How to read these docs
+
+- **[Concepts · The Math](/docs/concepts/invariant-curve)** — what the invariant
+  curve and the amplification factor actually are, with an interactive model. Start
+  here if you want to understand *why* the pricing is different.
+- **[Guides](/docs/guides/connect-wallet)** — step-by-step walkthroughs for
+  connecting a wallet, getting test tokens, swapping, and providing liquidity.
+- **[Protocol](/docs/protocol/architecture)** — the smart-contract layer: pool
+  architecture, the method reference, and how on-chain slippage guards work.
+- **[Developers](/docs/developers/stack)** — the front-end stack and how to
+  integrate the SDK.

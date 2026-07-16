@@ -1,0 +1,49 @@
+---
+title: Withdraw Liquidity
+description: Burn your LP shares and exit into any single supported asset, at any time.
+---
+
+import Callout from "../../../components/docs/Callout.astro";
+import Figure from "../../../components/docs/Figure.astro";
+
+Your liquidity isn't locked. Whenever you like, burn some or all of your `SLP`
+shares and take the value out as **one** asset of your choice from the pool.
+
+<Figure
+  alt="The withdraw panel with an amount-to-burn field and the asset to exit into"
+  caption="Withdrawing: choose how much LP to burn and which asset to receive."
+/>
+
+## Steps
+
+1. Open **[Earn](/earn)** and select the pool you're in (or find the position in
+   your [Portfolio](/docs/guides/portfolio)).
+2. On the **Withdraw** tab, set how much LP to burn — use **Max** to exit fully.
+3. Choose the asset to receive. The panel quotes the amount out from a live
+   simulation.
+4. Confirm and approve in your wallet.
+
+## Exit into any single asset
+
+Withdrawal uses `withdraw_one_token`: you burn LP and receive the entire value in
+**one** chosen asset, not a basket. So you can enter a pool with `USDx` and leave
+entirely in `PYUSD` if that's what you need.
+
+<Callout kind="note" title="Trustline for classic assets">
+  If you exit into a classic asset like `SUSD`, your account needs a
+  [trustline](/docs/guides/trustlines) for it first — the app offers to add it
+  inline before the withdrawal.
+</Callout>
+
+<Callout kind="tip" title="Withdrawing one token walks the curve">
+  Pulling everything into a single asset nudges the pool off balance, so it carries
+  a small price impact — the same curve mechanics as a swap. Exiting into the pool's
+  *abundant* asset is cheaper than into its scarce one.
+</Callout>
+
+<Callout kind="warning" title="On-chain minimum">
+  The withdrawal carries a `min_amount_out` floor from your quote minus tolerance.
+  A moving pool can't pay you less than that — the contract reverts instead.
+</Callout>
+
+Next: track it all in [Portfolio & Activity](/docs/guides/portfolio).

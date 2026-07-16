@@ -1,0 +1,73 @@
+---
+title: FAQ
+description: Short answers to the questions that come up most.
+---
+
+import Callout from "../../../components/docs/Callout.astro";
+
+## Is this real money?
+
+No. Everything documented here runs on **Stellar Testnet** with test tokens that
+have no value. Never send mainnet funds to any address in these docs.
+
+## Why is my swap's price impact so low?
+
+Because Spreadless prices with a [StableSwap invariant](/docs/concepts/invariant-curve)
+that stays flat near a 1:1 exchange for correlated assets. On a balanced pool your
+trade barely moves the price — that's the entire design goal. Push the pool far off
+balance and it steepens quickly.
+
+## What is the amplification factor?
+
+`A` is the dial that sets how flat the curve is near the peg. Higher `A` = tighter
+pricing and less slippage while balanced, but a sharper penalty once imbalanced.
+See [Amplification Factor](/docs/concepts/amplification) — it has an interactive
+model.
+
+## Can I really deposit just one token?
+
+Yes. [Single-sided liquidity](/docs/concepts/single-sided) works because the
+invariant already assumes the assets trade near parity, so the pool can value an
+imbalanced contribution fairly. You receive `SLP` LP shares and can withdraw into
+any single asset later.
+
+## What's an LP token here?
+
+`SLP`, 9 decimals. Unusually, **the pool contract is itself the LP token** — there's
+no separate deployment. Your share balance is read from the pool's own `balance()`.
+See [Architecture](/docs/protocol/architecture).
+
+## Why did an asset ask me for a "trustline"?
+
+That asset is a classic Stellar asset (a Stellar Asset Contract). Stellar requires
+your account to opt into holding a classic asset via a
+[trustline](/docs/guides/trustlines) first. The app adds it in one click. Native
+tokens don't need one.
+
+## Is the "minimum received" a real guarantee?
+
+Yes. It's the exact `min_out` the contract enforces on-chain — your quote minus
+tolerance. If the pool can't deliver at least that, the transaction reverts. See
+[Slippage & Safety](/docs/protocol/slippage-and-safety).
+
+## Where does the APY come from, and is it fixed?
+
+From trading fees accruing to the pool, split across LP shares. It is **not fixed**
+— the displayed figure is an annualised projection from recent activity and moves
+with volume and liquidity. See [Fees & Yield](/docs/concepts/fees-yield).
+
+## What's the biggest risk as a liquidity provider?
+
+A **de-peg**. The invariant keeps quoting near 1:1 into a failing peg, so the pool
+accumulates the weak asset — the stablecoin form of impermanent loss. The
+execution floor protects your trade price, not the assets' pegs.
+
+## Is it custodial?
+
+No. Spreadless is non-custodial; the contract only moves funds you authorise in a
+signed transaction, and every action is a verifiable on-chain Stellar transaction.
+
+<Callout kind="note" title="Still stuck?">
+  The [Glossary](/docs/resources/glossary) defines the terms used across these
+  docs, and each concept page goes deeper than the answers here.
+</Callout>

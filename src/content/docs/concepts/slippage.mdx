@@ -1,0 +1,68 @@
+---
+title: Slippage & Price Impact
+description: The difference between the mid-price and what you actually get — where it comes from and how Spreadless keeps it small.
+---
+
+import Callout from "../../../components/docs/Callout.astro";
+
+**Price impact** is how much your own trade moves the price against you.
+**Slippage** is the broader term for the gap between the price you expected and
+the price you executed at — including price impact plus any drift between quoting
+and settlement. On a stablecoin AMM, price impact is usually the dominant part,
+and it comes straight out of the curve's shape.
+
+## Where it comes from
+
+When you swap, you add your input token to one reserve and remove the output token
+from another. That shifts the pool along its invariant curve. The **slope of the
+curve at your landing point is the marginal price** — and because you move the
+reserves as you trade, you slide down a slightly worse slope with every unit. The
+average of those slopes is your effective price; the difference from the starting
+price is the price impact.
+
+- On a **curved** (constant-product) pool, the slope changes immediately, so even
+  small trades pay.
+- On the **flat** middle of a StableSwap pool, the slope barely changes, so price
+  impact stays tiny until the pool is pushed far from balance.
+
+The [interactive model](/docs/concepts/invariant-curve) shows both numbers side
+by side for the same trade — that gap is the point of the whole design.
+
+## Two things that determine your slippage
+
+1. **Trade size relative to the pool.** A trade that is small next to total
+   liquidity stays on the flat section. A trade large enough to meaningfully
+   rebalance the pool walks into the steep part.
+2. **How balanced the pool already is.** Starting from a lopsided pool, you're
+   already on a steeper part of the curve before you begin — so the same trade
+   costs more.
+
+<Callout kind="tip" title="Keep slippage low">
+  Prefer pools with deep, balanced reserves for large orders, and split very large
+  trades if a single one would tilt the pool. Each pool's composition bar on its
+  detail page shows how balanced it currently is.
+</Callout>
+
+## How the app protects you
+
+Spreadless never relies on the on-screen quote alone. Every swap, deposit, and
+withdrawal enforces a **minimum-received floor on-chain**:
+
+1. It **simulates** the trade to get an exact quote.
+2. It subtracts your slippage tolerance to compute a hard minimum.
+3. It submits the real transaction carrying that minimum. If conditions move and
+   the pool can't deliver at least that amount, the contract **reverts** — you
+   are never silently filled at a worse price.
+
+The swap panel shows this explicitly as *Minimum received* under "Execution
+protection". The mechanism is documented in full under
+[Slippage & Safety](/docs/protocol/slippage-and-safety).
+
+<Callout kind="note" title="Tolerance precision">
+  Swap tolerance is expressed in parts-per-million, not just basis points, because
+  on tightly-pegged pairs traders genuinely ask for floors below 0.01% — a
+  precision basis points can't express.
+</Callout>
+
+Next: why you can add liquidity with just one token —
+[Single-Sided Liquidity](/docs/concepts/single-sided).

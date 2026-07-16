@@ -1,0 +1,50 @@
+---
+title: Trustlines
+description: What a Stellar trustline is, when Spreadless needs one, and how to add it in a click.
+---
+
+import Callout from "../../../components/docs/Callout.astro";
+import Figure from "../../../components/docs/Figure.astro";
+
+A **trustline** is a Stellar-specific concept with no equivalent on most other
+chains. Before your account can hold a *classic* Stellar asset, it must explicitly
+opt in to that asset by creating a trustline for it. Without one, any transfer of
+that asset into your account simply fails.
+
+## When you'll hit one
+
+Most test tokens here are native Soroban tokens and need no trustline. The
+exception in the current deployment is **`SUSD`**, which is a Stellar Asset
+Contract wrapping a classic asset. If you try to receive `SUSD` — for example by
+swapping into it or withdrawing a pool into it — without a trustline, the transfer
+can't land.
+
+Spreadless detects this and offers to add the trustline first, inline, before the
+swap or withdrawal:
+
+<Figure
+  alt="An inline notice offering to add the required trustline before a swap"
+  caption="When an asset needs a trustline, the app offers to add it in one step."
+  chrome={false}
+/>
+
+## Adding one
+
+1. Attempt the action that needs the asset (swap into it, or withdraw into it).
+2. When the trustline notice appears, click to **add the trustline**.
+3. Approve the transaction in your wallet.
+4. Retry the original action — it now goes through.
+
+<Callout kind="note" title="It's a classic-layer transaction">
+  Trustlines live on the classic Stellar account, not inside Soroban, so adding
+  one is a classic transaction that goes through Horizon rather than the smart
+  contract. It's a one-time step per asset, and costs only the tiny base fee plus
+  a small reserve that's released if you ever remove the trustline.
+</Callout>
+
+<Callout kind="tip" title="Native tokens skip all this">
+  `USDx`, `PYUSD`, and `sUSDC` are native and need no trustline — you can swap and
+  deposit them immediately after [minting](/docs/guides/faucet).
+</Callout>
+
+Next: [How to Swap](/docs/guides/swap).

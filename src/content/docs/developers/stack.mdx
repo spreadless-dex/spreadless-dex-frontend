@@ -1,0 +1,63 @@
+---
+title: Tech Stack
+description: What the front-end is built with and how the pieces are arranged.
+---
+
+import Callout from "../../../components/docs/Callout.astro";
+
+The Spreadless front-end is a statically-rendered Astro site with React islands
+for the interactive parts, deployed to Cloudflare.
+
+## Stack at a glance
+
+| Layer | Choice |
+| --- | --- |
+| Framework | **Astro** (static output) |
+| Interactive UI | **React 19** islands (`client:load` / `client:visible`) |
+| Styling | **Tailwind CSS v4** + CSS custom-property design tokens |
+| State | **Zustand** |
+| Wallets | **Stellar Wallets Kit** (`@creit-tech/stellar-wallets-kit`) |
+| Contract SDK | **`@spreadless-dex/sdk`** (wraps `@stellar/stellar-sdk`) |
+| Deploy target | **Cloudflare** (`@astrojs/cloudflare` adapter) |
+| Docs | **MDX** content collection (this section) |
+
+## Why static + islands
+
+Most pages are content or read-mostly views, so they ship as static HTML and
+hydrate only the interactive components — the swap widget, faucet, deposit forms.
+This keeps the site fast and cheap to serve while still supporting rich,
+wallet-driven interactivity where it's needed.
+
+<Callout kind="note" title="The SDK is browser-only">
+  `@stellar/stellar-sdk` is heavy and not SSR-friendly, so the pool library imports
+  it **dynamically** — it only ever loads in the browser. Contract calls never run
+  during the static build.
+</Callout>
+
+## Project structure
+
+```text
+src/
+  components/        React islands + Astro UI
+    docs/            docs-only components (CurveVisualizer, Callout, Figure)
+  content/
+    docs/            the MDX documentation you're reading
+  layouts/           Layout.astro (shell) + DocsLayout.astro (sidebar)
+  lib/
+    stellar/         config, pool calls, trustlines, horizon, units
+    docs-nav.ts      docs sidebar source of truth
+  pages/             routes (index, swap, earn, pools, faucet, docs/…)
+  store/             Zustand store + wallet signer
+  styles/global.css  design tokens + Tailwind
+```
+
+## Design system
+
+The visual language is strictly **monochrome** — black and white with grey — with
+a **single purple accent reserved for yield (APY) figures only**. Everything else,
+including all buttons and CTAs, stays black/white. Theming is a set of CSS custom
+properties on `:root` with a `html.dark` override, applied before first paint to
+avoid a flash. When adding UI, style through the tokens (`var(--c-text)`,
+`var(--c-surface)`, …) rather than hard-coding colours.
+
+Next: [Using the SDK](/docs/developers/sdk).

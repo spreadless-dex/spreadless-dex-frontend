@@ -1,0 +1,73 @@
+---
+title: Slippage & Safety
+description: How the on-chain minimum-out floor is computed and enforced so you're never filled at a worse price than you accepted.
+---
+
+import Callout from "../../../components/docs/Callout.astro";
+
+Every state-changing operation — swap, deposit, withdrawal — carries a **minimum
+acceptable output that the contract enforces**. This is the core safety mechanism,
+and it's worth understanding exactly.
+
+## The two-phase pattern
+
+For each write, the front-end:
+
+1. **Simulates** the real call with the floor set to `0`. This returns the exact
+   output the pool would give right now — the *quote*.
+2. **Submits** the real call with the floor set to `quote − tolerance`. Your wallet
+   signs this transaction. The contract recomputes against whatever the reserves
+   are at inclusion time and either delivers ≥ the floor or **reverts**.
+
+Because step 2 recomputes on-chain, any adverse movement between quote and
+inclusion is caught. You are never silently filled below your floor.
+
+## The floors, per operation
+
+| Operation | Floor parameter | Baseline |
+| --- | --- | --- |
+| `swap_exact_in` | `min_out` | The quoted output you accepted on screen |
+| `deposit` | `min_lp_out` | The simulated LP-out at submit time |
+| `withdraw_one_token` | `min_amount_out` | The simulated token-out at submit time |
+
+## Why swaps use the on-screen quote as the baseline
+
+For swaps, the tolerance is measured against **the exact quote that was on screen
+when you hit swap** — not a fresh simulation taken a moment before submitting. A
+fresh baseline would silently re-anchor to whatever the pool had already moved to,
+letting real slippage through. Anchoring to your accepted quote means `min_out`
+enforces precisely the number you agreed to.
+
+<Callout kind="note" title="Tolerance in parts-per-million">
+  Swap tolerance is expressed in **parts-per-million** (10,000 ppm = 1%), not just
+  basis points. On tightly-pegged pairs, traders legitimately want floors below
+  0.01% — finer than a basis point can express. Deposits and withdrawals use basis
+  points (100 bps = 1%).
+</Callout>
+
+## Other safety surfaces
+
+- **`paused()`** — a pool can be paused by its owner; the app reads this and the
+  contract enforces it, so no trades settle against a paused pool.
+- **Simulation errors surface as errors** — a failed simulation returns a
+  `Result::Err`, which the app unwraps into a real, human-readable failure (e.g.
+  *"Not enough USDx in your wallet for this amount."*) rather than submitting a
+  doomed transaction.
+- **Non-custodial throughout** — the contract only ever moves funds you authorise
+  in the signed transaction; there is no approval that grants standing access.
+
+## Risks the floor does *not* remove
+
+The minimum-out floor protects your *execution*. It does not protect against:
+
+- **A de-peg** of one of the pool's assets — the invariant will keep quoting near
+  1:1 into a failing peg, accumulating the weak asset (see
+  [Fees & Yield](/docs/concepts/fees-yield)).
+- **Smart-contract risk** — as with any on-chain protocol.
+- **A pool being paused** when you want to act.
+
+<Callout kind="warning" title="Testnet">
+  These docs describe the Testnet deployment. Contract addresses and token sets
+  change on redeploys — always read live values. See
+  [Deployments & Network](/docs/protocol/deployments).
+</Callout>
