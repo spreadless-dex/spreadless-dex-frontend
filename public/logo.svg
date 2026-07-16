@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 200" width="680" height="200" role="img" aria-label="Spreadless">
+  <!-- Two thin bows, level and nearly touching at the centre, flaring to the edges;
+       gold left half, ink right half. The ink half tracks light/dark. -->
+  <g fill="#C79A3E">
+    <path d="M20,18C120,66 260,87 340,89L340,93C260,91 120,72 20,18Z"/>
+    <path d="M20,18C120,66 260,87 340,89L340,93C260,91 120,72 20,18Z" transform="matrix(1 0 0 -1 0 200)"/>
+  </g>
+  <g class="ink">
+    <path d="M20,18C120,66 260,87 340,89L340,93C260,91 120,72 20,18Z" transform="matrix(-1 0 0 1 680 0)"/>
+    <path d="M20,18C120,66 260,87 340,89L340,93C260,91 120,72 20,18Z" transform="matrix(-1 0 0 -1 680 200)"/>
+  </g>
+  <style>
+    .ink { fill: #111; }
+    @media (prefers-color-scheme: dark) { .ink { fill: #f0f0f0; } }
+  </style>
+</svg>
