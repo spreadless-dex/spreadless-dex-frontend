@@ -7,7 +7,7 @@
 	// Worker fails startup validation on deploy — `wrangler deploy --dry-run`
 	// does NOT catch this, only a real deploy or `wrangler`/workerd dev does.
 	"compatibility_flags": ["global_fetch_strictly_public", "nodejs_compat"],
-	"name": "spreadless",
+	"name": "spreadless-dex-frontend",
 	"main": "@astrojs/cloudflare/entrypoints/server",
 	"assets": {
 		"directory": "./dist",
