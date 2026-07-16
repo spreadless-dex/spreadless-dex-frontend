@@ -250,7 +250,7 @@ export default function CurveVisualizer() {
               fill={c.faint}
               transform="rotate(-90)"
             >
-              reserve of USDT →
+              reserve of PYUSD →
             </text>
           </svg>
 
@@ -296,7 +296,7 @@ export default function CurveVisualizer() {
           <Control
             label="Trade size"
             value={`${fmt(data.inAmt, 0)} USDC`}
-            sub={`into a ${X0}-USDC / ${X0}-USDT pool`}
+            sub={`into a ${X0}-USDC / ${X0}-PYUSD pool`}
             min={1}
             max={160}
             step={1}
