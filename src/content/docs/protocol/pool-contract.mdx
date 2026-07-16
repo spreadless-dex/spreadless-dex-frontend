@@ -1,0 +1,97 @@
+---
+title: Pool Contract Reference
+description: The methods the front-end calls on the pool contract, what they take, and what they return.
+---
+
+import Callout from "../../../components/docs/Callout.astro";
+
+This is a practical reference to the pool contract methods the app uses, grouped
+by read and write. Types are shown as the front-end sees them through the SDK
+(`bigint` for on-chain integer amounts). Amounts are always in **raw units** —
+scale by the token's decimals to get human values.
+
+<Callout kind="note" title="Raw units">
+  On-chain amounts are integers in the token's smallest unit. A `USDx` reserve of
+  `1500000000` at 7 decimals is `150.0` tokens. LP shares (`SLP`) use 9 decimals.
+</Callout>
+
+## Read methods
+
+These simulate only — no signature, no state change.
+
+| Method | Returns | Purpose |
+| --- | --- | --- |
+| `get_tokens()` | `address[]` | The pool's assets, in canonical order. |
+| `get_reserves()` | `i128[]` | Reserve of each token, same order as `get_tokens`. |
+| `get_amp()` | `u32` | Effective amplification `A` (ramp-aware). |
+| `paused()` | `bool` | Whether the pool is currently paused. |
+| `total_supply()` | `i128` | Total `SLP` shares outstanding. |
+| `balance(account)` | `i128` | An account's `SLP` share balance. |
+| `get_owner()` | `address` | The pool's admin/owner. |
+
+## Write methods
+
+Each takes a signer (`to`) and enforces an on-chain minimum. All three follow the
+same simulate-for-quote, submit-with-floor pattern.
+
+### `swap_exact_in`
+
+Sell an exact amount of one token for as much of another as the curve allows.
+
+```ts
+swap_exact_in({
+  to,          // recipient + signer
+  token_in,    // address of token being sold
+  token_out,   // address of token being bought
+  amount_in,   // bigint, raw units of token_in
+  min_out,     // bigint, on-chain floor — revert if output < this
+}) // → bigint  (token_out received)
+```
+
+### `deposit`
+
+Add liquidity. `amounts_in` is indexed by canonical token order; single-sided
+means one non-zero slot and zeros elsewhere.
+
+```ts
+deposit({
+  to,          // recipient of LP + signer
+  amounts_in,  // bigint[], one entry per pool token
+  min_lp_out,  // bigint, floor on LP minted — revert if fewer
+}) // → bigint  (SLP shares minted)
+```
+
+### `withdraw_one_token`
+
+Burn LP shares and exit entirely into one chosen asset.
+
+```ts
+withdraw_one_token({
+  to,             // recipient of token_out + signer
+  lp_amount,      // bigint, SLP to burn (9 decimals)
+  token_out,      // address of asset to receive
+  min_amount_out, // bigint, floor on payout — revert if less
+}) // → bigint  (token_out received)
+```
+
+## Quoting
+
+The front-end never trusts a bare on-screen number. Before every write it runs the
+same call with the floor set to `0` to read the exact quote, then re-submits with
+the floor set from that quote minus tolerance. The read-only quote helpers wrap
+this:
+
+- `quoteSwapExactIn` → `{ amountOut, networkFeeXlm }`
+- `quoteDepositSingleSided` → `bigint` LP out
+- `quoteWithdrawOneToken` → `bigint` token out
+
+<Callout kind="warning" title="Result unwrapping">
+  On a failed simulation the SDK returns a Rust-style `Err` object rather than
+  throwing. The app normalises these (`unwrapResult`) so a failed quote surfaces a
+  real error instead of leaking `[object Object]` into the UI. If you integrate
+  directly, handle the `Result` type — don't assume `.result` is always a value.
+</Callout>
+
+For how the floors are computed and enforced, see
+[Slippage & Safety](/docs/protocol/slippage-and-safety). For contract IDs and the
+token set, see [Deployments & Network](/docs/protocol/deployments).

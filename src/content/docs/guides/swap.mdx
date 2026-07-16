@@ -1,0 +1,63 @@
+---
+title: How to Swap
+description: Exchange one stablecoin for another, and read everything the quote is telling you before you sign.
+---
+
+import Callout from "../../../components/docs/Callout.astro";
+import Figure from "../../../components/docs/Figure.astro";
+
+Swapping is the core action: pay one stablecoin, receive another, priced by the
+[invariant curve](/docs/concepts/invariant-curve). The panel shows the full
+economics of the trade before you commit.
+
+<Figure
+  src="/docs/screenshots/swap.png"
+  alt="The swap panel with the You pay and You receive fields"
+  caption="The swap panel: choose what you pay and receive. The live quote and its detail rows fill in once a wallet is connected."
+/>
+
+## Steps
+
+1. Open **[Swap](/swap)**.
+2. In **You pay**, pick the token you're selling and enter an amount — or use the
+   **25 / 50 / 75 / Max** shortcuts to fill from your balance.
+3. In **You receive**, pick the token you want. The quote fills in automatically.
+4. Review the detail rows (below).
+5. Click **Exchange** and approve in your wallet. Settlement takes a few seconds.
+
+## Reading the quote
+
+- **Exchange rate** — the effective rate for this trade. Tap it to invert the
+  direction it's displayed in.
+- **Price impact** — how much your trade moves the price, shown as `<0.01%` when
+  tiny and flagged in red past ~1%. On balanced stablecoin pools it stays very
+  small (this is the whole point — see [Slippage](/docs/concepts/slippage)).
+- **Network fee** — the estimated Stellar fee, read from the simulation.
+- **Execution protection → Minimum received** — the hard floor enforced on-chain.
+  If the pool can't deliver at least this, the transaction reverts.
+
+<Callout kind="tip" title="The minimum is real">
+  *Minimum received* isn't a display estimate — it's the exact `min_out` the
+  contract enforces. Your quote minus your slippage tolerance. You will never be
+  filled below it.
+</Callout>
+
+## Button states
+
+The action button tells you what's blocking a trade before you try:
+
+- **Connect Wallet to Exchange** — no wallet connected yet.
+- **Enter an amount** — no input amount.
+- **Insufficient {"{token}"} balance** — you don't hold enough of the pay token.
+- **Insufficient liquidity** — the pool can't support a trade this large.
+- **Exchange {"{from}"} → {"{to}"}** — good to go.
+
+<Callout kind="note" title="Quotes need a connected wallet">
+  The quote is a live on-chain simulation run against your account, so the rate,
+  price impact, network fee, and minimum-received rows fill in only once a wallet is
+  connected. For classic assets you'll also need a
+  [trustline](/docs/guides/trustlines) before you can receive them.
+</Callout>
+
+Want to earn instead of trade? Head to
+[Provide Liquidity](/docs/guides/provide-liquidity).

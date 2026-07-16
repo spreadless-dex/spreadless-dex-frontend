@@ -1,0 +1,94 @@
+---
+// A framed screenshot for the guides. Wraps the image in a light browser-chrome
+// so a captured app screen reads as "a screen", not a floating rectangle.
+// When `src` is missing it renders a labelled placeholder of the same shape, so
+// guides can be written before the screenshot exists.
+interface Props {
+  src?: string;
+  alt: string;
+  caption?: string;
+  /** Show the fake browser chrome (default true). */
+  chrome?: boolean;
+}
+const { src, alt, caption, chrome = true } = Astro.props;
+---
+
+<figure class="figure">
+  <div class:list={["figure-frame", { "figure-chromeless": !chrome }]}>
+    {
+      chrome && (
+        <div class="figure-bar" aria-hidden="true">
+          <span class="figure-dot" />
+          <span class="figure-dot" />
+          <span class="figure-dot" />
+        </div>
+      )
+    }
+    {
+      src ? (
+        <img src={src} alt={alt} loading="lazy" />
+      ) : (
+        <div class="figure-placeholder">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <path d="m21 15-5-5L5 21" />
+          </svg>
+          <span>{alt}</span>
+        </div>
+      )
+    }
+  </div>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+  .figure {
+    margin: 0 0 1.75rem;
+  }
+  .figure-frame {
+    border: 1px solid var(--c-border-2);
+    border-radius: 0.85rem;
+    overflow: hidden;
+    background-color: var(--c-surface);
+    box-shadow: var(--c-card-shadow);
+  }
+  .figure-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.6rem 0.85rem;
+    border-bottom: 1px solid var(--c-border);
+    background-color: var(--c-surface-2);
+  }
+  .figure-dot {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+    background-color: var(--c-border-2);
+  }
+  .figure-frame img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .figure-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    min-height: 12rem;
+    padding: 2rem;
+    color: var(--c-text-faint);
+    text-align: center;
+    font-size: 0.85rem;
+  }
+  figcaption {
+    margin-top: 0.7rem;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--c-text-muted);
+    text-align: center;
+  }
+</style>

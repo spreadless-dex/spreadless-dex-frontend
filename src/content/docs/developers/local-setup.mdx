@@ -1,0 +1,71 @@
+---
+title: Run it Locally
+description: Clone, install, and run the front-end — plus the one deployment gotcha worth knowing.
+---
+
+import Callout from "../../../components/docs/Callout.astro";
+
+## Prerequisites
+
+- **Node ≥ 22.12** (see `engines` in `package.json`).
+- A Stellar testnet wallet (e.g. Freighter) for the wallet-driven flows.
+
+## Install
+
+The project pulls the Stellar Wallets Kit from the **JSR** registry, wired up in
+`.npmrc`:
+
+```text
+@jsr:registry=https://npm.jsr.io
+```
+
+Then a normal install:
+
+```sh
+npm install
+```
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Astro dev server at `localhost:4321` |
+| `npm run build` | Static production build to `./dist/` |
+| `npm run preview` | Build, then serve with `wrangler dev` (Cloudflare runtime) |
+| `npm run deploy` | Build and `wrangler deploy` |
+
+<Callout kind="tip" title="Dev server">
+  `npm run dev` serves at `localhost:4321` with hot-reload; stop it with `Ctrl-C`.
+  To keep it running in a long-lived or automated session, background it with your
+  shell (`npm run dev &`) or a process manager rather than the foreground.
+</Callout>
+
+## Configuration
+
+Testnet contract IDs, the RPC/Horizon URLs, and the token set live in
+`src/lib/stellar/config.ts`. Keep it in sync with the contract repo's
+`deployments/testnet.json`. See
+[Deployments & Network](/docs/protocol/deployments) for the current values.
+
+<Callout kind="warning" title="The macOS lockfile trap on Cloudflare">
+  `package-lock.json` resolved on **macOS** drops Linux-only optional native deps
+  (`utf-8-validate`, `bufferutil` — optional peers of `ws`). Cloudflare builds on
+  Linux, where `npm ci` then fails with *"Missing: utf-8-validate from lock file"*.
+  If you add or change a dependency on a Mac, regenerate the lockfile inside a
+  Linux container before pushing:
+
+  ```sh
+  docker run --rm -v "$PWD":/app -w /app node:22 \
+    npm install --package-lock-only
+  ```
+
+  This restores exactly the dropped entries with no version drift.
+</Callout>
+
+## Docs (this section)
+
+Documentation is an MDX content collection under `src/content/docs`, with the
+sidebar defined in `src/lib/docs-nav.ts`. To add a page: create the `.mdx` file and
+add one line to the nav. Interactive examples are React islands under
+`src/components/docs/` embedded directly in MDX (like the
+[curve visualizer](/docs/concepts/invariant-curve)).

@@ -1,0 +1,55 @@
+---
+title: Why it's different
+description: Built for desks and treasuries that need predictable execution, not another volatile-pair DEX.
+---
+
+import Callout from "../../components/docs/Callout.astro";
+
+Most decentralized exchanges are optimised for speculation on volatile,
+uncorrelated pairs. If your job is moving stablecoins predictably — a trading
+desk rebalancing inventory, a treasury settling in a different unit, a fintech
+routing payouts — that machinery works against you. Spreadless is built for the
+other case.
+
+## The problem, in one sentence
+
+> Every trade has two prices: the quote you see and the amount you receive.
+
+On a constant-product AMM those two numbers diverge quickly with size, and the
+divergence is hard to predict before you commit. For a desk clearing six or seven
+figures of stablecoins, that unpredictability *is* the cost.
+
+## What Spreadless does about it
+
+| Concern | Conventional DEX | Spreadless |
+| --- | --- | --- |
+| **Pricing curve** | Constant product, curved everywhere | StableSwap invariant, flat near parity |
+| **Slippage on size** | Grows steeply | Stays minimal while the pool is balanced |
+| **Liquidity provision** | Two-sided, manual 50/50 split | Single-asset deposit |
+| **Execution preview** | Often opaque | Rate, price impact, network fee, and minimum-received shown before signing |
+| **Settlement** | Varies | Stellar finality in ~5 seconds, fees a fraction of a cent |
+
+## Why Stellar
+
+Stellar was designed for moving money, not for maximally-general computation. For
+a stablecoin venue that means fast, cheap, deterministic settlement, native
+issuance of regulated assets, and a smart-contract layer (Soroban) capable enough
+to run the invariant on-chain while staying inexpensive to interact with.
+
+## Transparency as a feature
+
+Before you sign anything, Spreadless shows you the exchange rate, the price
+impact, the estimated network fee, and the exact **minimum you will receive** —
+the same floor that gets enforced on-chain (see
+[Slippage & Safety](/docs/protocol/slippage-and-safety)). Nothing about the trade
+economics is hidden until after the fact.
+
+<Callout kind="warning" title="Not financial advice">
+  This documentation explains how the protocol works. It is not investment,
+  legal, or tax advice, and nothing here is a solicitation to trade. Stablecoins
+  can and do de-peg; smart contracts carry risk. See
+  [Slippage & Safety](/docs/protocol/slippage-and-safety) for the risk surface.
+</Callout>
+
+Ready to see it move? The **[Quickstart](/docs/quickstart)** gets you from an
+empty wallet to a completed swap in a few minutes.

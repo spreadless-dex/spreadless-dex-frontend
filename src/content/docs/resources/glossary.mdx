@@ -1,0 +1,75 @@
+---
+title: Glossary
+description: The vocabulary used across Spreadless, defined in one place.
+---
+
+**AMM (Automated Market Maker)** — a smart contract that quotes and settles trades
+from a pool of reserves using a fixed pricing rule, instead of matching buyers and
+sellers in an order book.
+
+**Amplification factor (A)** — the tunable coefficient in the StableSwap invariant
+that sets how flat the curve is near parity. Higher `A` means less slippage while
+balanced and a sharper penalty when imbalanced. See
+[Amplification Factor](/docs/concepts/amplification).
+
+**Constant-product curve** — the `x · y = k` pricing rule used by conventional
+AMMs. Curved everywhere, so every trade has price impact. StableSwap approaches it
+as `A → 0`.
+
+**Constant-sum line** — the flat `x + y = D` rule: a perfect 1:1 exchange with zero
+slippage but no defence against imbalance. StableSwap approaches it as `A → ∞`.
+
+**D (invariant total)** — the invariant's measure of total pool value; roughly the
+sum of reserves when balanced. Held constant (per the formula) through each trade.
+
+**De-peg** — when a stablecoin trades away from its intended value. The main risk to
+a liquidity position, since the pool accumulates the weaker asset.
+
+**Horizon** — Stellar's classic-layer API. Used for classic operations like
+[trustlines](/docs/guides/trustlines), which live outside Soroban.
+
+**Invariant** — the mathematical rule relating a pool's reserves that must stay
+constant across trades. Its shape determines all pricing. See
+[The Invariant Curve](/docs/concepts/invariant-curve).
+
+**LP (Liquidity Provider)** — someone who deposits assets into a pool to earn a
+share of its trading fees.
+
+**LP shares / `SLP`** — the token representing a claim on a pool. On Spreadless the
+pool contract *is* the LP token; `SLP` uses 9 decimals.
+
+**Minimum received / `min_out`** — the on-chain floor a write enforces: quote minus
+tolerance. The transaction reverts rather than filling below it. See
+[Slippage & Safety](/docs/protocol/slippage-and-safety).
+
+**Price impact** — how much your own trade moves the price against you, from walking
+along the curve as you trade.
+
+**Raw units** — on-chain integer amounts in a token's smallest unit. Scale by the
+token's decimals to get human values.
+
+**SAC (Stellar Asset Contract)** — a Soroban contract wrapping a *classic* Stellar
+asset. Holding one requires a [trustline](/docs/guides/trustlines); only its issuer
+can mint it.
+
+**Single-sided liquidity** — depositing one asset into a multi-asset pool without
+pairing. Possible because the invariant assumes correlated assets. See
+[Single-Sided Liquidity](/docs/concepts/single-sided).
+
+**Slippage** — the gap between the price you expected and the price you executed at;
+price impact plus any quote-to-settlement drift.
+
+**Soroban** — Stellar's smart-contract platform, where the pool contract runs.
+
+**StableSwap** — the invariant (originating with Curve) that blends constant-sum and
+constant-product behaviour, staying flat near parity and steepening off it. The core
+of Spreadless pricing.
+
+**Tolerance** — the slippage allowance you accept, subtracted from the quote to set
+the on-chain floor. Swaps use parts-per-million; deposits/withdrawals use basis
+points.
+
+**Trustline** — a Stellar account's explicit opt-in to hold a specific classic
+asset. See [Trustlines](/docs/guides/trustlines).
+
+**TVL (Total Value Locked)** — the total value of reserves held across pools.

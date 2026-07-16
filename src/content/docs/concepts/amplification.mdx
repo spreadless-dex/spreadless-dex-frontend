@@ -1,0 +1,68 @@
+---
+title: Amplification Factor (A)
+description: The single dial that decides how flat the curve is — and therefore how little your trades move the price.
+---
+
+import Callout from "../../../components/docs/Callout.astro";
+import CurveVisualizer from "../../../components/docs/CurveVisualizer.tsx";
+
+The **amplification factor**, written `A`, is the one tunable number in the
+StableSwap invariant. It controls how strongly the curve is pulled toward a flat,
+1:1 exchange near the balance point. Everything users feel about the pool —
+slippage, capital efficiency, how hard it is to drain — traces back to this
+number.
+
+## Turn the dial
+
+Move the **A** slider and watch the solid curve. At low `A` it hugs the curved
+constant-product line; as you raise `A` it flattens toward a straight 1:1
+exchange, and the same trade returns visibly more.
+
+<CurveVisualizer client:visible />
+
+## What A means, intuitively
+
+Think of `A` as **how confident the pool is that the two assets are worth the
+same**.
+
+- **Low A** (near 1): the pool barely assumes correlation. It behaves like an
+  ordinary constant-product AMM — safe for loosely-related assets, but with real
+  price impact on every trade.
+- **High A** (hundreds to low thousands): the pool assumes tight correlation. It
+  keeps the price glued near 1:1 across a wide range of trade sizes — excellent
+  for stablecoins that hold their peg, and very capital-efficient.
+
+<Callout kind="math" title="Where A sits in the formula">
+  For a two-coin pool: `A · 4 · (x + y) + D = A · D · 4 + D³ / (4·x·y)`.
+
+  `A` multiplies the constant-sum term `(x + y)`. The larger it is, the more the
+  invariant behaves like the flat line `x + y = D`. As `A → 0`, that term
+  vanishes and you're left with constant product `x·y = k`. So `A` literally
+  weights how much "flat 1:1 line" versus "curved x·y=k" the pool is.
+</Callout>
+
+## The trade-off
+
+A higher `A` is not free. The flatter the curve near balance, the **more
+violently it steepens once the pool goes off-balance**. That is by design — it
+concentrates liquidity where the assets trade near parity and withdraws it fast
+if one asset starts to fail — but it means a high-`A` pool punishes imbalance
+harder. Choosing `A` is choosing where on that spectrum a pool should live:
+maximum efficiency at peg, versus resilience when a peg breaks.
+
+## Reading a pool's A
+
+Every pool exposes its effective amplification on-chain via `get_amp()`, and the
+front-end surfaces it on each pool's detail page under **Parameters & Health**.
+The value can change over time: contracts can *ramp* `A` gradually between two
+values, and `get_amp()` always returns the current effective figure, ramp
+included.
+
+<Callout kind="note" title="Effective, not nominal">
+  If a pool is mid-ramp, the `A` you read is the interpolated value for the
+  current ledger — the number the curve is actually being priced with right now,
+  not the start or target.
+</Callout>
+
+Next: how this curvature turns into the number you care about at trade time —
+[Slippage & Price Impact](/docs/concepts/slippage).

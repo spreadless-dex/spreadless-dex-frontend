@@ -1,0 +1,54 @@
+---
+title: Portfolio & Activity
+description: See your positions, balances, and a verifiable history of everything you've done.
+---
+
+import Figure from "../../../components/docs/Figure.astro";
+import Callout from "../../../components/docs/Callout.astro";
+
+Once you're trading and providing liquidity, two views keep track of it: your
+**positions** and your **activity history**.
+
+## Your positions
+
+The portfolio view shows the pools you're in, your `SLP` share balance, what it's
+currently worth, and quick access to deposit more or withdraw.
+
+<Figure
+  src="/docs/screenshots/pools.png"
+  alt="The pools list showing each pool with its assets, TVL and APY"
+  caption="The pools list — assets, TVL, and APY at a glance. Open one for the full breakdown."
+/>
+
+Each pool also has its own detail page with a **Parameters & Health** panel —
+the pool's amplification `A`, type, status, LP supply — and a **composition** bar
+showing how balanced the reserves currently are. That balance is what determines
+your [slippage](/docs/concepts/slippage) and the cost of single-sided
+deposits/withdrawals.
+
+<Figure
+  src="/docs/screenshots/pool-detail.png"
+  alt="A pool detail page with composition bar and a Parameters and Health panel"
+  caption="A pool's detail page: composition across all four assets, plus amplification, status, and LP supply."
+/>
+
+## Activity history
+
+The **[Activity](/activity)** page lists your swaps, deposits, and withdrawals,
+each linking out to the transaction on a block explorer so anything can be
+independently verified.
+
+<Figure
+  alt="An activity feed of swaps, deposits and withdrawals with explorer links"
+  caption="Every action, with a link to verify it on-chain."
+/>
+
+<Callout kind="note" title="Everything is verifiable">
+  Spreadless is non-custodial and on-chain. Every position and every history entry
+  corresponds to a real Stellar transaction you can inspect on
+  [Stellar Expert](https://stellar.expert/explorer/testnet) — the app is a view
+  onto the chain, not the source of truth.
+</Callout>
+
+That's the full user journey. To go deeper into how it all works on-chain, read
+the [Protocol](/docs/protocol/architecture) section.

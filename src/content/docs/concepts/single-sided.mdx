@@ -1,0 +1,63 @@
+---
+title: Single-Sided Liquidity
+description: Why you can deposit just one stablecoin into a multi-asset pool — and what you actually receive.
+---
+
+import Callout from "../../../components/docs/Callout.astro";
+
+On a classic two-sided AMM you must supply *both* assets of a pair in the right
+ratio. If you only hold one, you first have to sell half of it — paying fees and
+price impact — just to provide liquidity. Spreadless removes that step: you
+deposit **one** asset and the pool handles the rest.
+
+## Why it works here
+
+Single-sided deposits are only sane because the invariant already **assumes the
+assets are close to parity**. The pool can accept an imbalanced contribution and
+value it fairly against the curve, because near the peg all the assets are worth
+almost the same. On a volatile-pair AMM the same move would be a large, lossy
+swap; on a stablecoin pool near balance it's a minor, well-priced rebalance.
+
+## What you receive: LP shares
+
+When you deposit, the pool mints you **LP shares** — a token (`SLP`, 9 decimals)
+representing your fractional claim on the pool. The pool contract *is* the LP
+token: it implements the standard fungible-token interface alongside the swap
+logic, so your share balance is read the same way as any token balance.
+
+Your shares entitle you to:
+
+- a proportional slice of the pool's reserves, and
+- a proportional slice of the [trading fees](/docs/concepts/fees-yield) the pool
+  earns while you're in it.
+
+## The deposit has its own price impact
+
+A single-sided deposit *does* nudge the pool off balance, so it carries a small
+price impact of its own — exactly the same curve mechanics as a swap. Depositing
+the asset a pool is already short of can even earn a small bonus; depositing the
+asset it's already heavy in costs a little. The app quotes the LP you'll receive
+by simulating the real deposit, so the number you see is the number the contract
+computes.
+
+<Callout kind="tip" title="Balanced pools, cheaper deposits">
+  Because the deposit walks the same curve as a trade, adding the *scarcer* side
+  of an imbalanced pool is cheaper (sometimes rewarded) and adding the *abundant*
+  side is slightly costlier. The pool composition bar shows which is which.
+</Callout>
+
+## Exiting
+
+You are never locked into the mix. Burning your LP shares can pay out into **any
+single** supported asset in the pool via `withdraw_one_token` — so you can enter
+with `USDx` and leave entirely in `PYUSD` if you want. Withdrawing one token also
+walks the curve, so the same price-impact rules apply.
+
+<Callout kind="note" title="On-chain floor here too">
+  Both deposit and withdrawal enforce a minimum-out on-chain (`min_lp_out` when
+  depositing, `min_amount_out` when withdrawing), so a moving pool can't fill you
+  below the amount you accepted. See
+  [Slippage & Safety](/docs/protocol/slippage-and-safety).
+</Callout>
+
+Next: where the yield actually comes from — [Fees & Yield](/docs/concepts/fees-yield).
