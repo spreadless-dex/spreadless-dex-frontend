@@ -43,7 +43,11 @@ const mapY = (v: number) => M.t + PH - (v / DOMAIN) * PH;
 const A_MIN = 1;
 const A_MAX = 2000;
 const idxToA = (idx: number) =>
-  Math.round(Math.exp(Math.log(A_MIN) + (Math.log(A_MAX) - Math.log(A_MIN)) * (idx / 100)));
+  Math.round(
+    Math.exp(
+      Math.log(A_MIN) + (Math.log(A_MAX) - Math.log(A_MIN)) * (idx / 100),
+    ),
+  );
 
 function fmt(n: number, dp = 2): string {
   return n.toLocaleString("en-US", {
@@ -111,7 +115,11 @@ export default function CurveVisualizer() {
   };
 
   const ampLabel =
-    A <= 3 ? "≈ constant product" : A >= 1200 ? "≈ constant sum (flat)" : "stableswap";
+    A <= 3
+      ? "≈ constant product"
+      : A >= 1200
+        ? "≈ constant sum (flat)"
+        : "stableswap";
 
   return (
     <div
@@ -206,7 +214,12 @@ export default function CurveVisualizer() {
                 strokeWidth={1}
               />
               {/* constant-product landing point for the same trade */}
-              <circle cx={data.markerCP.x} cy={data.markerCP.y} r={3} fill={c.faint} />
+              <circle
+                cx={data.markerCP.x}
+                cy={data.markerCP.y}
+                r={3}
+                fill={c.faint}
+              />
               {/* start + end points on the stableswap curve */}
               <circle cx={mapX(X0)} cy={mapY(X0)} r={3} fill={c.muted} />
               <circle
@@ -220,7 +233,13 @@ export default function CurveVisualizer() {
             </g>
 
             {/* axis labels */}
-            <text x={M.l + PW / 2} y={H - 6} textAnchor="middle" fontSize={10} fill={c.faint}>
+            <text
+              x={M.l + PW / 2}
+              y={H - 6}
+              textAnchor="middle"
+              fontSize={10}
+              fill={c.faint}
+            >
               reserve of USDC →
             </text>
             <text
@@ -236,14 +255,33 @@ export default function CurveVisualizer() {
           </svg>
 
           {/* legend */}
-          <div style={{ display: "flex", gap: "1.25rem", marginTop: "0.4rem", flexWrap: "wrap" }}>
-            <Legend color={c.text} dash={false} label="StableSwap (A adjustable)" />
+          <div
+            style={{
+              display: "flex",
+              gap: "1.25rem",
+              marginTop: "0.4rem",
+              flexWrap: "wrap",
+            }}
+          >
+            <Legend
+              color={c.text}
+              dash={false}
+              label="StableSwap (A adjustable)"
+            />
             <Legend color={c.faint} dash label="Constant product (x·y=k)" />
           </div>
         </div>
 
         {/* ── Controls + readout ── */}
-        <div style={{ flex: "1 1 240px", minWidth: 0, display: "flex", flexDirection: "column", gap: "1.1rem" }}>
+        <div
+          style={{
+            flex: "1 1 240px",
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: "1.1rem",
+          }}
+        >
           <Control
             label="Amplification (A)"
             value={`${A.toLocaleString("en-US")}`}
@@ -278,21 +316,29 @@ export default function CurveVisualizer() {
           >
             <Readout
               title="StableSwap"
-              out={`${fmt(data.outSS, 3)} USDT`}
+              out={`${fmt(data.outSS, 3)} PYUSD`}
               slip={pct(data.slipSS)}
               strong
               color={c}
             />
             <Readout
               title="Constant product"
-              out={`${fmt(data.outCP, 3)} USDT`}
+              out={`${fmt(data.outCP, 3)} PYUSD`}
               slip={pct(data.slipCP)}
               color={c}
             />
-            <p style={{ fontSize: "0.75rem", lineHeight: 1.5, color: c.muted, margin: 0 }}>
-              Same trade, same reserves. The gap between the two slippage figures
-              is exactly what the amplification factor buys you — drag <strong style={{ color: c.text }}>A</strong> up
-              and watch the StableSwap curve flatten toward 1:1.
+            <p
+              style={{
+                fontSize: "0.75rem",
+                lineHeight: 1.5,
+                color: c.muted,
+                margin: 0,
+              }}
+            >
+              Same trade, same reserves. The gap between the two slippage
+              figures is exactly what the amplification factor buys you — drag{" "}
+              <strong style={{ color: c.text }}>A</strong> up and watch the
+              StableSwap curve flatten toward 1:1.
             </p>
           </div>
         </div>
@@ -301,9 +347,25 @@ export default function CurveVisualizer() {
   );
 }
 
-function Legend({ color, dash, label }: { color: string; dash: boolean; label: string }) {
+function Legend({
+  color,
+  dash,
+  label,
+}: {
+  color: string;
+  dash: boolean;
+  label: string;
+}) {
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.45rem", fontSize: "0.75rem", color: "var(--c-text-muted)" }}>
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.45rem",
+        fontSize: "0.75rem",
+        color: "var(--c-text-muted)",
+      }}
+    >
       <svg width="22" height="8" aria-hidden="true">
         <line
           x1="0"
@@ -343,11 +405,32 @@ function Control({
 }) {
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.35rem" }}>
-        <span style={{ fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.08em", color: color.faint }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          marginBottom: "0.35rem",
+        }}
+      >
+        <span
+          style={{
+            fontSize: "0.7rem",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            color: color.faint,
+          }}
+        >
           {label}
         </span>
-        <span style={{ fontSize: "0.95rem", fontWeight: 700, color: color.text, fontVariantNumeric: "tabular-nums" }}>
+        <span
+          style={{
+            fontSize: "0.95rem",
+            fontWeight: 700,
+            color: color.text,
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
           {value}
         </span>
       </div>
@@ -358,10 +441,22 @@ function Control({
         step={step}
         value={val}
         onChange={(e) => onChange(Number(e.target.value))}
-        style={{ width: "100%", accentColor: color.text as string, cursor: "pointer" }}
+        style={{
+          width: "100%",
+          accentColor: color.text as string,
+          cursor: "pointer",
+        }}
         aria-label={label}
       />
-      <p style={{ fontSize: "0.72rem", color: color.faint, margin: "0.2rem 0 0" }}>{sub}</p>
+      <p
+        style={{
+          fontSize: "0.72rem",
+          color: color.faint,
+          margin: "0.2rem 0 0",
+        }}
+      >
+        {sub}
+      </p>
     </div>
   );
 }
@@ -380,11 +475,31 @@ function Readout({
   color: Record<string, string>;
 }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "0.5rem" }}>
-      <span style={{ fontSize: "0.8rem", color: strong ? color.text : color.muted, fontWeight: strong ? 600 : 400 }}>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        gap: "0.5rem",
+      }}
+    >
+      <span
+        style={{
+          fontSize: "0.8rem",
+          color: strong ? color.text : color.muted,
+          fontWeight: strong ? 600 : 400,
+        }}
+      >
         {title}
       </span>
-      <span style={{ display: "flex", gap: "0.75rem", alignItems: "baseline", fontVariantNumeric: "tabular-nums" }}>
+      <span
+        style={{
+          display: "flex",
+          gap: "0.75rem",
+          alignItems: "baseline",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
         <span style={{ fontSize: "0.8rem", color: color.muted }}>{out}</span>
         <span
           style={{
