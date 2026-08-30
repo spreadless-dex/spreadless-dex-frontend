@@ -13,6 +13,8 @@ export type TxUiStatus =
 interface TxStatusProps {
   phase: TxPhase | null
   status: TxUiStatus
+  /** Replaces the per-phase hint while in flight, e.g. for a routed swap. */
+  hint?: Partial<Record<TxPhase, string>>
 }
 
 const STEPS = ['Confirm in wallet', 'Submitting', 'Confirmed'] as const
@@ -27,7 +29,7 @@ const ACTIVE_STEP: Record<TxPhase, number> = {
 
 const PHASE_HINT: Record<TxPhase, string> = {
   preparing: 'Preparing the transaction…',
-  signing: 'Your wallet is open — review and approve the transaction.',
+  signing: 'Your wallet is open. Review and approve the transaction.',
   submitting: 'Waiting for the network to confirm…',
 }
 
@@ -79,13 +81,13 @@ function Stepper({ activeStep, allDone }: { activeStep: number; allDone: boolean
   )
 }
 
-export default function TxStatus({ phase, status }: TxStatusProps) {
+export default function TxStatus({ phase, status, hint }: TxStatusProps) {
   if (phase) {
     return (
       <div className="mt-4 animate-fade-up">
         <Stepper activeStep={ACTIVE_STEP[phase]} allDone={false} />
         <p className="text-[11px] text-center mt-2" style={{ color: 'var(--c-text-faint)' }}>
-          {PHASE_HINT[phase]}
+          {hint?.[phase] ?? PHASE_HINT[phase]}
         </p>
       </div>
     )

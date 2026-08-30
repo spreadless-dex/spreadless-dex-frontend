@@ -51,6 +51,7 @@ export const DOCS_NAV: DocSection[] = [
       { slug: "protocol/architecture", label: "Architecture" },
       { slug: "protocol/pool-contract", label: "Pool Contract Reference" },
       { slug: "protocol/slippage-and-safety", label: "Slippage & Safety" },
+      { slug: "protocol/routing", label: "Routing" },
       { slug: "protocol/deployments", label: "Deployments & Network" },
     ],
   },

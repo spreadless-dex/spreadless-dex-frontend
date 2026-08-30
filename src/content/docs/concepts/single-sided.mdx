@@ -1,13 +1,13 @@
 ---
 title: Single-Sided Liquidity
-description: Why you can deposit just one stablecoin into a multi-asset pool — and what you actually receive.
+description: Why you can deposit just one stablecoin into a multi-asset pool, and what you actually receive.
 ---
 
 import Callout from "../../../components/docs/Callout.astro";
 
 On a classic two-sided AMM you must supply *both* assets of a pair in the right
-ratio. If you only hold one, you first have to sell half of it — paying fees and
-price impact — just to provide liquidity. Spreadless removes that step: you
+ratio. If you only hold one, you first have to sell half of it, paying fees and
+price impact, just to provide liquidity. Spreadless removes that step: you
 deposit **one** asset and the pool handles the rest.
 
 ## Why it works here
@@ -20,7 +20,7 @@ swap; on a stablecoin pool near balance it's a minor, well-priced rebalance.
 
 ## What you receive: LP shares
 
-When you deposit, the pool mints you **LP shares** — a token (`SLP`, 9 decimals)
+When you deposit, the pool mints you **LP shares**: a token (`SLP`, 9 decimals)
 representing your fractional claim on the pool. The pool contract *is* the LP
 token: it implements the standard fungible-token interface alongside the swap
 logic, so your share balance is read the same way as any token balance.
@@ -34,7 +34,7 @@ Your shares entitle you to:
 ## The deposit has its own price impact
 
 A single-sided deposit *does* nudge the pool off balance, so it carries a small
-price impact of its own — exactly the same curve mechanics as a swap. Depositing
+price impact of its own, exactly the same curve mechanics as a swap. Depositing
 the asset a pool is already short of can even earn a small bonus; depositing the
 asset it's already heavy in costs a little. The app quotes the LP you'll receive
 by simulating the real deposit, so the number you see is the number the contract
@@ -49,7 +49,7 @@ computes.
 ## Exiting
 
 You are never locked into the mix. Burning your LP shares can pay out into **any
-single** supported asset in the pool via `withdraw_one_token` — so you can enter
+single** supported asset in the pool via `withdraw_one_token`, so you can enter
 with `USDx` and leave entirely in `PYUSD` if you want. Withdrawing one token also
 walks the curve, so the same price-impact rules apply.
 
@@ -60,4 +60,4 @@ walks the curve, so the same price-impact rules apply.
   [Slippage & Safety](/docs/protocol/slippage-and-safety).
 </Callout>
 
-Next: where the yield actually comes from — [Fees & Yield](/docs/concepts/fees-yield).
+Next: where the yield actually comes from, in [Fees & Yield](/docs/concepts/fees-yield).

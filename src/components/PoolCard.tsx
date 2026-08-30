@@ -28,7 +28,7 @@ export const POOL_COPY: Record<string, { eyebrow: string; blurb: string }> = {
   SUSD: {
     eyebrow: 'For early adopters',
     blurb:
-      'The pool’s native, scarcest stable — highest preview yield, but it leans hardest on pool health in rough times.',
+      'The pool’s native, scarcest stable: highest preview yield, but it leans hardest on pool health in rough times.',
   },
   sUSDC: {
     eyebrow: 'For cautious depositors',
@@ -98,7 +98,7 @@ export default function PoolCard({ token, onAction, index = 0 }: PoolCardProps) 
           <div
             key={label}
             className="px-3 py-2.5"
-            title={isPreview ? 'Preview data — live metrics coming soon' : undefined}
+            title={isPreview ? 'Preview data, live metrics coming soon' : undefined}
             style={{ borderLeft: i > 0 ? '1px solid var(--c-border)' : 'none' }}
           >
             <p className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: 'var(--c-text-faint)' }}>

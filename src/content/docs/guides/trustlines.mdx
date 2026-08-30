@@ -15,8 +15,8 @@ that asset into your account simply fails.
 
 Most test tokens here are native Soroban tokens and need no trustline. The
 exception in the current deployment is **`SUSD`**, which is a Stellar Asset
-Contract wrapping a classic asset. If you try to receive `SUSD` — for example by
-swapping into it or withdrawing a pool into it — without a trustline, the transfer
+Contract wrapping a classic asset. If you try to receive `SUSD` without a
+trustline, for example by swapping into it or withdrawing a pool into it, the transfer
 can't land.
 
 Spreadless detects this and offers to add the trustline first, inline, before the
@@ -33,7 +33,7 @@ swap or withdrawal:
 1. Attempt the action that needs the asset (swap into it, or withdraw into it).
 2. When the trustline notice appears, click to **add the trustline**.
 3. Approve the transaction in your wallet.
-4. Retry the original action — it now goes through.
+4. Retry the original action. It now goes through.
 
 <Callout kind="note" title="It's a classic-layer transaction">
   Trustlines live on the classic Stellar account, not inside Soroban, so adding
@@ -43,7 +43,7 @@ swap or withdrawal:
 </Callout>
 
 <Callout kind="tip" title="Native tokens skip all this">
-  `USDx`, `PYUSD`, and `sUSDC` are native and need no trustline — you can swap and
+  `USDx`, `PYUSD`, and `sUSDC` are native and need no trustline, so you can swap and
   deposit them immediately after [minting](/docs/guides/faucet).
 </Callout>
 

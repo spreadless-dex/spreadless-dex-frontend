@@ -1,7 +1,19 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAppStore, type PoolToken } from '../store/useAppStore'
 import { fromRawUnits, toRawUnits } from '../lib/stellar/units'
-import { quoteSwapExactIn, swapExactIn } from '../lib/stellar/pool'
+import { swapExactIn } from '../lib/stellar/pool'
+import { routeLabel } from '../lib/stellar/router'
+import {
+  ROUTE_DEADLINE_SECS,
+  RouteExecutionError,
+  canExecuteRoute,
+  executeRoute,
+  isDemoRoute,
+} from '../lib/stellar/routerContract'
+import { useRoutingDemo } from '../lib/stellar/demo'
+import { useRouteQuotes } from '../hooks/useRouteQuotes'
+import RoutePanel from './RoutePanel'
+import type { ExecutionView } from './RouteGraph'
 import { getTokenBalance } from '../lib/stellar/token'
 import { refetchUntilChanged } from '../lib/stellar/refetch'
 import { mapTxError } from '../lib/stellar/errors'
@@ -24,11 +36,6 @@ const MIN_PPM = 1n
 const MAX_PPM = 500_000n // 50%
 const AUTO_PPM = 10_000n // 1%
 const PPM_PER_PCT = 10_000
-
-// How long an accepted quote may stay on screen before we refresh it. The quote
-// is the baseline for the on-chain floor, so a stale one means the swap reverts
-// on price moves the user never saw.
-const QUOTE_REFRESH_MS = 20_000
 
 // Converts the UI selection to ppm for swapExactIn's tolerancePpm. Clamped so a
 // fat-fingered custom value can't zero out slippage protection (0 or negative)
@@ -153,7 +160,7 @@ function TransactionSettings({
             </div>
           </div>
           <p className="text-[11px] mt-3 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
-            Applied on-chain as your minimum received, measured against the quote you see — the trade
+            Applied on-chain as your minimum received, measured against the quote you see. The trade
             reverts instead of settling below it. Down to {formatPpmPct(MIN_PPM)}%.
           </p>
           {tightTolerance && (
@@ -203,9 +210,11 @@ export default function SwapWidget() {
   // screen replaces the swap form entirely (cleared to go back to swapping).
   const [confirmedSwap, setConfirmedSwap] = useState<ActivityRecord | null>(null)
   const [detailActivity, setDetailActivity] = useState<ActivityRecord | null>(null)
-  const [quoting, setQuoting] = useState(false)
   const [status, setStatus] = useState<TxUiStatus>({ kind: 'idle' })
   const [txPhase, setTxPhase] = useState<TxPhase | null>(null)
+  // Non-null from the moment the user commits to a route until they touch the
+  // form again. Drives the graph's in-flight / settled / rolled-back views.
+  const [execution, setExecution] = useState<ExecutionView | null>(null)
   const [fromBalance, setFromBalance] = useState<bigint | null>(null)
   const [toBalance, setToBalance] = useState<bigint | null>(null)
 
@@ -224,75 +233,54 @@ export default function SwapWidget() {
     setToToken(poolState.tokens[1] ?? poolState.tokens[0] ?? null)
   }, [poolState, fromToken, toToken])
 
-  // Live quote, debounced — swap_exact_in must be simulated against the
-  // connected wallet's account, so there's nothing to quote until it's connected.
+  // Amount in raw units — the input to both the route search and the on-chain
+  // floor, so it is computed once, here, and never re-parsed downstream.
+  const amountInRaw = fromToken && fromAmount ? toRawUnits(fromAmount, fromToken.decimals) : 0n
+
+  // Every candidate route between these two tokens, quoted in parallel. With a
+  // single vault deployed this finds exactly one route and costs exactly the one
+  // simulation the old direct quote did; the Factory turns the same call into a
+  // real comparison without touching this component.
+  const routes = useRouteQuotes({
+    walletAddress,
+    tokenIn: fromToken?.address,
+    tokenOut: toToken?.address,
+    amountIn: amountInRaw,
+    // Freeze from the moment they commit: the displayed quote is the baseline
+    // the on-chain min_out was derived from and must not move under a tx being
+    // signed, and after a revert the graph keeps showing what was rolled back.
+    hold: txPhase !== null || execution !== null,
+  })
+  const quoting = routes.phase === 'discovering' || routes.phase === 'quoting'
+  const bestRouteResult = routes.best
+
+  // Touching the form ends the executed/rolled-back view and re-searches.
   useEffect(() => {
-    if (!walletAddress || !fromToken || !toToken || !fromAmount) {
+    setExecution(null)
+  }, [amountInRaw, fromToken, toToken])
+
+  // Flipping the demo vaults in or out changes the graph, so re-search.
+  const demoEnabled = useRoutingDemo((s) => s.enabled)
+  const refreshRoutes = routes.refresh
+  useEffect(() => {
+    refreshRoutes()
+  }, [demoEnabled, refreshRoutes])
+
+  // The winning route is what the rest of the widget prices against.
+  useEffect(() => {
+    if (!bestRouteResult || !fromToken || !toToken) {
       setQuote(null)
       setNetworkFee(null)
       return
     }
-    const amountIn = toRawUnits(fromAmount, fromToken.decimals)
-    if (amountIn <= 0n) {
-      setQuote(null)
-      setNetworkFee(null)
-      return
-    }
-
-    let cancelled = false
-    setQuoting(true)
-    const timer = setTimeout(async () => {
-      try {
-        const { amountOut, networkFeeXlm } = await quoteSwapExactIn({
-          to: walletAddress,
-          tokenIn: fromToken.address,
-          tokenOut: toToken.address,
-          amountIn,
-        })
-        if (!cancelled) {
-          setQuote({ tokenIn: fromToken.address, tokenOut: toToken.address, amountIn, amountOut })
-          setNetworkFee(networkFeeXlm)
-        }
-      } catch (err) {
-        console.error('Quote failed:', err)
-        if (!cancelled) {
-          setQuote(null)
-          setNetworkFee(null)
-        }
-      } finally {
-        if (!cancelled) setQuoting(false)
-      }
-    }, 400)
-
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [walletAddress, fromToken, toToken, fromAmount])
-
-  // Silent re-quote on a timer. The displayed quote is the baseline for the
-  // on-chain floor, so letting it sit while the pool moves would revert swaps
-  // against a price the user never agreed to. No spinner: the numbers refresh,
-  // the form stays usable. Paused mid-transaction so the baseline can't shift
-  // out from under a tx that's already being signed.
-  useEffect(() => {
-    if (!walletAddress || !quote || txPhase !== null) return
-    const { tokenIn, tokenOut, amountIn } = quote
-    const timer = setInterval(async () => {
-      try {
-        const { amountOut, networkFeeXlm } = await quoteSwapExactIn({ to: walletAddress, tokenIn, tokenOut, amountIn })
-        setQuote((prev) =>
-          prev && prev.tokenIn === tokenIn && prev.tokenOut === tokenOut && prev.amountIn === amountIn
-            ? { ...prev, amountOut }
-            : prev,
-        )
-        setNetworkFee(networkFeeXlm)
-      } catch (err) {
-        console.error('Quote refresh failed:', err)
-      }
-    }, QUOTE_REFRESH_MS)
-    return () => clearInterval(timer)
-  }, [walletAddress, quote, txPhase])
+    setQuote({
+      tokenIn: fromToken.address,
+      tokenOut: toToken.address,
+      amountIn: amountInRaw,
+      amountOut: bestRouteResult.quote.amountOut,
+    })
+    setNetworkFee(bestRouteResult.quote.networkFeeXlm)
+  }, [bestRouteResult, fromToken, toToken, amountInRaw])
 
   // Real wallet balances for whichever tokens are currently selected.
   useEffect(() => {
@@ -325,7 +313,6 @@ export default function SwapWidget() {
     return () => { cancelled = true }
   }, [walletAddress, toToken])
 
-  const amountInRaw = fromToken && fromAmount ? toRawUnits(fromAmount, fromToken.decimals) : 0n
   // Only a quote produced for exactly these inputs may be displayed or signed
   // against — anything else is a leftover from the previous form state.
   const liveQuote =
@@ -360,28 +347,63 @@ export default function SwapWidget() {
     // on-chain floor is measured against, so signing without one would enforce a
     // minimum the user never saw.
     if (!liveQuote || liveQuote.amountIn <= 0n) return
+    // A multi-hop route needs the Router contract to hold the intermediate
+    // token inside one transaction. Without it, signing the legs separately
+    // would leave the user holding the middle token when leg two reverts.
+    if (routeNeedsRouter) return
     const amountIn = liveQuote.amountIn
 
     const tolerancePpm = slippageToPpm(slippage, customSlippage)
     const slippagePct = `${formatPpmPct(tolerancePpm)}%`
+    const candidate = bestRouteResult?.candidate
+    const routed = (candidate?.hops.length ?? 1) > 1
+    const routeInfo = routed && candidate
+      ? { route: routeLabel(candidate), hops: candidate.hops.length }
+      : {}
 
     setStatus({ kind: 'idle' })
+    if (routed) setExecution({ state: 'running' })
     try {
-      const { result, hash } = await swapExactIn({
-        to: walletAddress,
-        tokenIn: fromToken.address,
-        tokenOut: toToken.address,
-        amountIn,
-        tolerancePpm,
-        quotedOut: liveQuote.amountOut,
-        onPhase: setTxPhase,
-      })
+      let result: bigint
+      let hash: string
+      if (routed && candidate) {
+        // One Router call for the whole route. The floor is on the final
+        // output only, measured against the quote on screen.
+        const minOut = liveQuote.amountOut - (liveQuote.amountOut * tolerancePpm) / 1_000_000n
+        ;({ result, hash } = await executeRoute({
+          user: walletAddress,
+          candidate,
+          amountIn,
+          minOut,
+          onPhase: setTxPhase,
+        }))
+      } else {
+        ;({ result, hash } = await swapExactIn({
+          to: walletAddress,
+          tokenIn: fromToken.address,
+          tokenOut: toToken.address,
+          amountIn,
+          tolerancePpm,
+          quotedOut: liveQuote.amountOut,
+          onPhase: setTxPhase,
+          // Sign against the vault the pathfinder actually picked, not whichever
+          // pool happens to be in config.
+          poolId: candidate?.hops[0]?.vault,
+        }))
+      }
       const receivedAmount = fromRawUnits(result, toToken.decimals)
       setStatus({
         kind: 'success',
         message: `Exchanged ✓ Received ${receivedAmount} ${toToken.symbol}`,
         hash,
       })
+      if (routed) {
+        // Let the graph settle green before the confirmation takes over: the
+        // moment every leg turns solid is the payoff of the whole picture.
+        setTxPhase(null)
+        setExecution({ state: 'done' })
+        await new Promise((r) => setTimeout(r, 1400))
+      }
       recordSwap({
         walletAddress,
         status: 'completed',
@@ -392,6 +414,7 @@ export default function SwapWidget() {
         effectiveRate: Number(receivedAmount) / Number(fromAmount),
         slippage: slippagePct,
         txHash: hash,
+        ...routeInfo,
       })
         .then(setConfirmedSwap)
         .catch((err) => console.error('Failed to record activity:', err))
@@ -410,6 +433,12 @@ export default function SwapWidget() {
       console.error('Swap failed:', err)
       const mapped = mapTxError(err, { spend: fromToken.symbol, receive: toToken.symbol })
       setStatus({ kind: 'error', ...mapped })
+      if (routed) {
+        setExecution({
+          state: 'reverted',
+          failedHop: err instanceof RouteExecutionError ? err.failedHop : null,
+        })
+      }
       recordSwap({
         walletAddress,
         status: 'failed',
@@ -418,6 +447,7 @@ export default function SwapWidget() {
         sentAmount: fromAmount,
         slippage: slippagePct,
         detail: mapped.message,
+        ...routeInfo,
       }).catch((e) => console.error('Failed to record activity:', e))
     } finally {
       setTxPhase(null)
@@ -431,6 +461,13 @@ export default function SwapWidget() {
   // All pool tokens are ~$1 stablecoins, so a 1:1 comparison is an honest
   // proxy for price impact — same peg assumption pool.ts uses for TVL.
   const priceImpact = hasAmount ? ((fromNum - toNum) / fromNum) * 100 : 0
+
+  // Multi-hop routes can be quoted today — each leg simulates fine on its own
+  // pool — but not signed until the atomic Router is deployed (or, for the
+  // team's evaluation, unless the route runs through the local demo vaults).
+  const bestHopCount = bestRouteResult?.candidate.hops.length ?? 1
+  const routeNeedsRouter = bestRouteResult ? !canExecuteRoute(bestRouteResult.candidate) : false
+  const bestIsDemo = bestRouteResult ? isDemoRoute(bestRouteResult.candidate) : false
 
   const insufficientBalance =
     walletConnected && fromBalance !== null && amountInRaw > fromBalance
@@ -488,7 +525,14 @@ export default function SwapWidget() {
             Exchange Confirmed!
           </h3>
           <p className="text-sm mb-8 leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
-            The conversion of {fromToken.symbol} to {toToken.symbol} was completed successfully.
+            {confirmedSwap.route
+              ? `Routed ${confirmedSwap.route} in one atomic transaction.`
+              : `The conversion of ${fromToken.symbol} to ${toToken.symbol} was completed successfully.`}
+            {confirmedSwap.route && !confirmedSwap.txHash && (
+              <span className="block mt-1 text-xs" style={{ color: 'var(--c-text-faint)' }}>
+                Routing demo: no transaction was signed or sent.
+              </span>
+            )}
           </p>
 
           <div className="space-y-2">
@@ -628,10 +672,10 @@ export default function SwapWidget() {
             className="w-full py-3.5 text-sm font-semibold rounded-xl opacity-50 cursor-not-allowed"
             style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
           >
-            Place Limit Order — Coming Soon
+            Place Limit Order (Coming Soon)
           </button>
           <p className="text-[11px] mt-3 leading-relaxed text-center" style={{ color: 'var(--c-text-faint)' }}>
-            Limit orders aren't live yet — this is a preview of what's coming.
+            Limit orders aren't live yet. This is a preview of what's coming.
           </p>
         </div>
       ) : (
@@ -732,18 +776,25 @@ export default function SwapWidget() {
         </div>
       </div>
 
+      {/* The pathfinder's working: every candidate route, the one that won, and
+          what the others would have paid. Collapses to a single line while
+          there is only one route to take. */}
+      {walletConnected && amountEntered && (
+        <RoutePanel
+          results={routes.results}
+          bestId={bestRouteResult?.candidate.id ?? null}
+          searching={quoting}
+          error={routes.error}
+          execution={execution}
+        />
+      )}
+
       {/* Swap details — live values from the current quote */}
       {hasAmount && (
         <div
           className="rounded-xl p-4 mb-4 space-y-2"
           style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border)' }}
         >
-          <div className="flex items-center justify-between">
-            <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>Route</span>
-            <span className="text-xs" style={{ color: 'var(--c-text-muted)' }}>
-              {fromToken.symbol} → {toToken.symbol}
-            </span>
-          </div>
           <div className="flex items-center justify-between">
             <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>Exchange rate</span>
             <button
@@ -795,6 +846,22 @@ export default function SwapWidget() {
                 {fromRawUnits(minReceived, toToken.decimals)} {toToken.symbol}
               </span>
             </div>
+            {bestHopCount > 1 && (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>Execution</span>
+                  <span className="text-xs" style={{ color: 'var(--c-text-muted)' }}>
+                    {bestHopCount} legs, one transaction
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>Route deadline</span>
+                  <span className="text-xs" style={{ color: 'var(--c-text-muted)' }}>
+                    {Math.round(ROUTE_DEADLINE_SECS / 60)} min after signing
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -811,7 +878,7 @@ export default function SwapWidget() {
           walletConnected &&
           (trustline.needed
             ? trustline.adding
-            : !hasAmount || quoting || insufficientBalance || insufficientLiquidity)
+            : !hasAmount || quoting || insufficientBalance || insufficientLiquidity || routeNeedsRouter)
         }
         className="w-full py-3.5 text-sm font-semibold rounded-xl btn-lift disabled:opacity-50 disabled:cursor-not-allowed"
         style={{
@@ -829,10 +896,28 @@ export default function SwapWidget() {
                 ? `Insufficient ${fromToken.symbol} balance`
                 : insufficientLiquidity
                   ? 'Insufficient liquidity'
-                  : `Exchange ${fromToken.symbol} → ${toToken.symbol}`}
+                  : routeNeedsRouter
+                    ? 'Best route needs the multi-hop Router'
+                    : bestHopCount > 1
+                      ? `Exchange via ${bestHopCount} hops${bestIsDemo ? ' (demo)' : ''}`
+                      : `Exchange ${fromToken.symbol} → ${toToken.symbol}`}
       </RainButton>
 
-      <TxStatus phase={txPhase} status={status} />
+      <TxStatus
+        phase={txPhase}
+        status={status}
+        hint={
+          bestHopCount > 1
+            ? {
+                preparing: 'Simulating the full route and collecting authorizations…',
+                signing: bestIsDemo
+                  ? 'Demo route: this is where your wallet would open. Nothing is signed.'
+                  : `Your wallet is open. One signature covers all ${bestHopCount} legs.`,
+                submitting: 'Waiting for the network. Every leg settles in the same ledger, or none does…',
+              }
+            : undefined
+        }
+      />
       </>
       )}
     </div>

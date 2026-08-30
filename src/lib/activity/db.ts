@@ -26,6 +26,10 @@ export interface ActivityRecord {
   explorerUrl?: string;
   /** Truncated raw error text, only set on failed entries with no clean message. */
   detail?: string;
+  /** For routed swaps: the token path, e.g. "USDx → sUSDC → PYUSD". */
+  route?: string;
+  /** For routed swaps: number of legs executed in the one transaction. */
+  hops?: number;
 }
 
 const DB_NAME = "spreadless-activity";

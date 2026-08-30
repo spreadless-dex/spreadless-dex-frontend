@@ -16,7 +16,7 @@ export function getStaticPaths() {
 const { symbol } = Astro.props
 ---
 
-<Layout title={`${symbol} pool — Spreadless`}>
+<Layout title={`${symbol} pool · Spreadless`}>
   <Header client:load currentPage="pools" />
   <div class="min-h-screen pt-16">
     <PoolDetailPage client:load symbol={symbol} />

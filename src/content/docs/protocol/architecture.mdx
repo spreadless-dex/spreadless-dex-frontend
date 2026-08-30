@@ -1,6 +1,6 @@
 ---
 title: Architecture
-description: How the on-chain pieces fit together — the pool contract, the LP token, and the assets it holds.
+description: How the on-chain pieces fit together, from the pool contract to the LP token and the assets it holds.
 ---
 
 import Callout from "../../../components/docs/Callout.astro";
@@ -11,13 +11,13 @@ surface is deliberately small: a pool contract that prices and settles trades an
 
 ## The pieces
 
-- **Pool contract** — implements the StableSwap logic (`swap`, `deposit`,
+- **Pool contract**: implements the StableSwap logic (`swap`, `deposit`,
   `withdraw`) and, at the same time, the standard fungible-token interface for its
   own LP share token (`SLP`). One contract, two roles.
-- **LP token (`SLP`)** — not a separate deployment. Because the pool contract
+- **LP token (`SLP`)**: not a separate deployment. Because the pool contract
   implements the token trait, your LP balance is queried via the pool's own
   `balance(account)` method, exactly like any token. 9 decimals.
-- **Pool assets** — the stablecoins the pool holds. Some are native Soroban
+- **Pool assets**: the stablecoins the pool holds. Some are native Soroban
   tokens; some are **Stellar Asset Contracts (SACs)** wrapping a classic asset
   (which is why [trustlines](/docs/guides/trustlines) enter the picture).
 
@@ -31,14 +31,14 @@ surface is deliberately small: a pool contract that prices and settles trades an
 ## How a trade flows
 
 1. The front-end builds the call and **simulates** it against the RPC to get an
-   exact quote (no signature needed — view calls just simulate).
+   exact quote (no signature needed, since view calls just simulate).
 2. It derives an on-chain floor (`min_out`) from that quote minus your tolerance.
 3. It resubmits the real call carrying the floor; your wallet signs it.
 4. The contract recomputes against current reserves and either settles at or above
    your floor, or **reverts**.
 
 This simulate-then-submit pattern is why the quote you see and the amount you
-receive line up — and why a moving pool can never silently fill you worse. It's
+receive line up, and why a moving pool can never silently fill you worse. It's
 detailed under [Slippage & Safety](/docs/protocol/slippage-and-safety).
 
 ## Canonical token order
@@ -50,19 +50,19 @@ and never hard-codes it.
 <Callout kind="warning" title="Don't assume token order">
   Reserves, per-index deposits, and shares all follow the pool's canonical order
   from `get_tokens()`. The [config's](/docs/protocol/deployments) token list is for
-  display metadata and the faucet — not a source of on-chain ordering.
+  display metadata and the faucet, not a source of on-chain ordering.
 </Callout>
 
 ## Read vs write
 
-- **Read (view) calls** — `get_tokens`, `get_reserves`, `get_amp`, `paused`,
+- **Read (view) calls**: `get_tokens`, `get_reserves`, `get_amp`, `paused`,
   `total_supply`, `balance`, `get_owner`. No wallet required; they only ever
   simulate.
-- **Quotes** — there is no separate `quote_*` method on-chain. A quote is the real
+- **Quotes**: there is no separate `quote_*` method on-chain. A quote is the real
   write call (`swap_exact_in` / `deposit` / `withdraw_one_token`) run in simulation
   with the floor set to `0`. Because it simulates against a source account, it needs
-  a connected wallet — but it never signs or settles.
-- **Write calls** — `swap_exact_in`, `deposit`, `withdraw_one_token`. These need a
+  a connected wallet, but it never signs or settles.
+- **Write calls**: `swap_exact_in`, `deposit`, `withdraw_one_token`. These need a
   connected wallet as both the simulation source account and the signer.
 
 Continue to the full [Pool Contract Reference](/docs/protocol/pool-contract).

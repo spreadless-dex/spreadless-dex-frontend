@@ -28,7 +28,7 @@ export function mapTxError(err: unknown, ctx: TxErrorContext = {}): MappedTxErro
 
   // The user closed or declined the wallet prompt — nothing was sent.
   if (/reject|declin|denied|cancel/i.test(raw)) {
-    return { message: "Request declined in your wallet — nothing was submitted." };
+    return { message: "Request declined in your wallet. Nothing was submitted." };
   }
 
   // Missing trustline. We can't build the trustline-add operation ourselves
@@ -53,11 +53,37 @@ export function mapTxError(err: unknown, ctx: TxErrorContext = {}): MappedTxErro
     };
   }
 
+  // Router: a hop inside an atomic route failed. The whole invocation is
+  // rolled back, so the message leads with what matters: nothing moved. The
+  // Router's error enum is not final; the hop index is read from the text.
+  const hop = /route reverted at hop\s*#?(\d+)/i.exec(raw);
+  if (hop) {
+    return {
+      message: `Leg ${hop[1]} of the route could not fill, so the whole route was rolled back. Nothing was executed and no intermediate token was left behind.`,
+    };
+  }
+  if (/DeadlineExpired|deadline/i.test(raw)) {
+    return {
+      message:
+        "The route's deadline passed before the network included it, so it was rolled back. Nothing was executed. Try again for a fresh quote.",
+    };
+  }
+  if (/PoolNotRegistered|NotRegistered|UnknownPool/i.test(raw)) {
+    return {
+      message: "One vault on this route is not in the Factory registry, so the Router refused it. Nothing was executed.",
+    };
+  }
+  if (/RouteTooLong|TokenMismatch|InvalidRoute|TokenContinuity/i.test(raw)) {
+    return {
+      message: "The Router rejected the route as invalid. Nothing was executed. Refresh the quote and try again.",
+    };
+  }
+
   // Pool #14 — the on-chain minimum-received floor kicked in.
   if (contractCode(raw, 14) || /SlippageExceeded/i.test(raw)) {
     return {
       message:
-        "The price moved more than your slippage tolerance allows — nothing was executed. Try again, or raise the tolerance in settings.",
+        "The price moved more than your slippage tolerance allows, so nothing was executed. Try again, or raise the tolerance in settings.",
     };
   }
 
@@ -68,7 +94,7 @@ export function mapTxError(err: unknown, ctx: TxErrorContext = {}): MappedTxErro
 
   // Pausable #1000 — the pool is paused by its owner.
   if (contractCode(raw, 1000) || /EnforcedPause/i.test(raw)) {
-    return { message: "The pool is paused right now — transactions are disabled until it's unpaused." };
+    return { message: "The pool is paused right now. Transactions are disabled until it's unpaused." };
   }
 
   // Pool #10 InvalidAmount / #11 ZeroDeposit — the contract rejected the value.
@@ -79,25 +105,25 @@ export function mapTxError(err: unknown, ctx: TxErrorContext = {}): MappedTxErro
   // Classic Stellar "underfunded" — the account can't cover the XLM fee.
   if (/underfunded|insufficient.*fee|tx_?insufficient/i.test(raw)) {
     return {
-      message: "Not enough XLM to cover network fees — top up your wallet with testnet XLM and retry.",
+      message: "Not enough XLM to cover network fees. Top up your wallet with testnet XLM and retry.",
     };
   }
 
   if (/timeout|timed out|TRY_AGAIN_LATER|txTooLate/i.test(raw)) {
     return {
       message:
-        "The network didn't confirm in time. The transaction may still land — check the explorer before retrying.",
+        "The network didn't confirm in time. The transaction may still land, so check the explorer before retrying.",
     };
   }
 
   if (/failed to fetch|fetch failed|networkerror|econn|load failed/i.test(raw)) {
-    return { message: "Couldn't reach the Stellar testnet — check your connection and try again." };
+    return { message: "Couldn't reach the Stellar testnet. Check your connection and try again." };
   }
 
   // No rule matched: keep the honest generic line, but carry a truncated raw
   // detail so a testnet user can still report what actually happened.
   return {
-    message: "Transaction failed — nothing was executed.",
+    message: "Transaction failed. Nothing was executed.",
     detail: raw.length > 160 ? `${raw.slice(0, 160)}…` : raw || undefined,
   };
 }

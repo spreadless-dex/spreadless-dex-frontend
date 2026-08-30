@@ -29,6 +29,9 @@ interface RecordSwapArgs {
   slippage?: string;
   txHash?: string;
   detail?: string;
+  /** Token path for a routed swap; omitted for a direct one. */
+  route?: string;
+  hops?: number;
 }
 
 // Returns the record that was saved — callers that need to jump straight to
@@ -36,6 +39,7 @@ interface RecordSwapArgs {
 // without a round-trip back through IndexedDB.
 export async function recordSwap(args: RecordSwapArgs): Promise<ActivityRecord> {
   const failed = args.status === "failed";
+  const routed = (args.hops ?? 1) > 1;
   const record = build({
     walletAddress: args.walletAddress,
     type: "swap",
@@ -44,8 +48,12 @@ export async function recordSwap(args: RecordSwapArgs): Promise<ActivityRecord> 
     subtitle: failed
       ? (args.detail ?? "No assets exchanged")
       : args.effectiveRate !== undefined
-        ? `Rate ${args.effectiveRate.toFixed(4)}`
+        ? routed
+          ? `Rate ${args.effectiveRate.toFixed(4)} · ${args.hops} hops, atomic`
+          : `Rate ${args.effectiveRate.toFixed(4)}`
         : "",
+    route: args.route,
+    hops: args.hops,
     assetPool: `${args.fromSymbol}/${args.toSymbol}`,
     amount: `${args.sentAmount} ${args.fromSymbol}`,
     sent: `${args.sentAmount} ${args.fromSymbol}`,

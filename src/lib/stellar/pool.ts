@@ -44,10 +44,12 @@ async function loadSdk() {
 }
 
 // Read-only client: no publicKey/signer needed, view calls just simulate.
-async function readClient() {
+// `poolId` defaults to the configured pool; the router passes a vault address
+// from the Factory registry so the same helpers work across many pools.
+async function readClient(poolId: string = POOL_CONTRACT_ID) {
   const sdk = await loadSdk();
   return new sdk.Client({
-    contractId: POOL_CONTRACT_ID,
+    contractId: poolId,
     rpcUrl: RPC_URL,
     networkPassphrase: NETWORK_PASSPHRASE,
   });
@@ -58,11 +60,15 @@ async function readClient() {
 // so callers can surface the tx lifecycle: signTransaction being invoked is
 // the moment the wallet pops up ("signing"); it resolving means the signed tx
 // is on its way to the network ("submitting").
-async function writeClient(to: string, onPhase?: OnPhase) {
+async function writeClient(
+  to: string,
+  onPhase?: OnPhase,
+  poolId: string = POOL_CONTRACT_ID,
+) {
   const sdk = await loadSdk();
   const signer = await getWalletSigner();
   return new sdk.Client({
-    contractId: POOL_CONTRACT_ID,
+    contractId: poolId,
     rpcUrl: RPC_URL,
     networkPassphrase: NETWORK_PASSPHRASE,
     publicKey: to,
@@ -243,6 +249,12 @@ interface SwapArgs {
   quotedOut?: bigint;
   /** Called as the tx moves through its lifecycle (preparing → signing → submitting). */
   onPhase?: OnPhase;
+  /**
+   * Which pool to route through. Defaults to the configured single pool; the
+   * router passes a vault address so one leg of a multi-hop route can be
+   * simulated against the vault that actually holds the pair.
+   */
+  poolId?: string;
 }
 
 export interface SwapQuote {
@@ -260,12 +272,13 @@ export async function quoteSwapExactIn({
   tokenIn,
   tokenOut,
   amountIn,
+  poolId,
 }: Omit<
   SwapArgs,
   "tolerancePpm" | "quotedOut" | "onPhase"
 >): Promise<SwapQuote> {
   if (amountIn <= 0n) return { amountOut: 0n, networkFeeXlm: null };
-  const pool = await writeClient(to);
+  const pool = await writeClient(to, undefined, poolId);
   const quote = await pool.swap_exact_in({
     to,
     token_in: tokenIn,
@@ -295,9 +308,10 @@ export async function swapExactIn({
   tolerancePpm = 10_000n,
   quotedOut,
   onPhase,
+  poolId,
 }: SwapArgs): Promise<TxResult<bigint>> {
   onPhase?.("preparing");
-  const pool = await writeClient(to, onPhase);
+  const pool = await writeClient(to, onPhase, poolId);
 
   // The tolerance is only meaningful against the price the user agreed to, so
   // the baseline is their quote — not a fresh simulation taken a moment before

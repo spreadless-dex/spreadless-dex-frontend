@@ -488,7 +488,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
                     ))}
                   </div>
                   <p className="text-[11px] mt-2 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
-                    Automatic {sparFrequency} deposits are coming soon — for now this
+                    Automatic {sparFrequency} deposits are coming soon. For now this
                     places a single deposit.
                   </p>
                 </div>
@@ -592,7 +592,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
           className="text-[11px] mt-4 pt-3 text-center leading-relaxed"
           style={{ borderTop: '1px solid var(--c-border)', color: 'var(--c-text-faint)' }}
         >
-          No lockup — deposits and withdrawals are instant. Single-sided amounts
+          No lockup: deposits and withdrawals are instant. Single-sided amounts
           can shift slightly with pool balance (1% slippage guard). Stellar
           network fees apply.
         </p>

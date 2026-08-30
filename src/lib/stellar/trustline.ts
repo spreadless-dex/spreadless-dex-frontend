@@ -39,7 +39,7 @@ export async function addTrustline(
   const account = await fetchAccount(address);
   if (!account) {
     throw new Error(
-      "This account isn't funded on Stellar yet — it needs XLM before it can add a trustline.",
+      "This account isn't funded on Stellar yet. It needs XLM before it can add a trustline.",
     );
   }
 

@@ -1,0 +1,91 @@
+---
+title: Routing
+description: How the pathfinder compares routes across vaults and how the Router executes a multi-hop swap as one atomic transaction.
+---
+
+import Callout from "../../../components/docs/Callout.astro";
+
+With more than one vault, the same pair can be traded along more than one path.
+Spreadless splits that problem in two: an **off-chain pathfinder** that finds and
+prices candidate routes in the browser, and an **on-chain Router** that executes
+the chosen route as a single Soroban transaction.
+
+<Callout kind="note" title="Tranche 2 status">
+  The pathfinder and the swap UI are live. The Router contract and the Vault
+  Factory are not deployed yet, so a multi-hop route can be quoted but not
+  signed. The swap page includes a routing demo with two local vaults so the
+  full flow, including the atomic rollback, can be evaluated before deployment.
+</Callout>
+
+## The pathfinder
+
+1. **Read the registry.** The set of vaults comes from the Factory registry, or
+   from the single configured pool while the Factory is not deployed.
+2. **Build the graph.** Tokens are nodes, vaults are edges, keyed by contract id.
+   Symbols are display labels only and never take part in the search.
+3. **Enumerate candidates.** A bounded depth-first search with a maximum of
+   three hops. A token never repeats along a route, and neither does a vault:
+   routing through the same pool twice moves its reserves against you on the
+   second leg, and it is the case the Router rejects on-chain.
+4. **Quote every candidate.** Each leg is simulated against the vault that holds
+   the pair, feeding one leg's output into the next. Results stream into the
+   graph as they land, so a fast route never waits behind a slow one.
+5. **Pick the best.** The route with the highest final output wins. The others
+   stay on screen with their shortfall in basis points, so the choice is
+   auditable, not asserted.
+
+Only the final output is protected. Intermediate amounts are simulations and
+are shown as such.
+
+## The Router
+
+A multi-hop swap is one call to the Router with the user, the recipient, the
+input token and amount, the final output token, a minimum final output, a
+deadline, and the ordered list of hops.
+
+Inside that one call the Router:
+
+- takes the input token from the user under the user's authorization,
+- checks the deadline, the route length, token continuity and that every pool is
+  registered with the Factory,
+- executes each leg in order, holding the intermediate token itself,
+- transfers the final output to the recipient,
+- enforces the minimum final output.
+
+If any of those steps fails, the whole invocation reverts. There is no state in
+which the user holds an intermediate token they did not ask for.
+
+## What the interface shows
+
+- **Route graph.** Source and destination once, every candidate fanned out
+  between them. Dashed edges are being simulated, the heavy edge is the winner,
+  a red dashed edge is a leg that reverted in simulation.
+- **In flight.** One dot travels the winning route for as long as the
+  transaction is pending. It is the only moving element, because it is the only
+  thing happening: one value crossing several pools in one transaction.
+- **Settled.** Every leg of the winner turns solid green together.
+- **Rolled back.** The failing leg turns red, the legs before it return to
+  dashed, and the message says that nothing was executed.
+
+## Deadline and minimum
+
+The route carries a deadline of three minutes from signing. The transaction's
+own time bounds use the same number, so the contract and the network can never
+disagree about whether a signed route is still valid.
+
+The minimum final output is the quote the user saw minus their slippage
+tolerance, exactly as for a direct swap. See
+[Slippage & Safety](/docs/protocol/slippage-and-safety).
+
+## Testing locally
+
+Open the swap page with `?routing=demo` or use the **Routing demo** strip under
+the route panel. It adds Vault A (USDx / sUSDC) and Vault B (sUSDC / PYUSD) as
+local pools priced with the same StableSwap math, next to the live pool.
+
+- Small trades favour the direct route through the live pool; large trades
+  favour the two-hop route through A and B, and the crossover is visible.
+- With a multi-hop route selected, **fail at leg N** makes the next execution
+  revert at that leg, which shows the all-or-nothing rollback.
+- Demo routes walk through the same phases as a real transaction but nothing is
+  signed or sent, and every screen says so.

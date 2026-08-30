@@ -19,7 +19,7 @@ economics of the trade before you commit.
 ## Steps
 
 1. Open **[Swap](/swap)**.
-2. In **You pay**, pick the token you're selling and enter an amount — or use the
+2. In **You pay**, pick the token you're selling and enter an amount, or use the
    **25 / 50 / 75 / Max** shortcuts to fill from your balance.
 3. In **You receive**, pick the token you want. The quote fills in automatically.
 4. Review the detail rows (below).
@@ -27,17 +27,17 @@ economics of the trade before you commit.
 
 ## Reading the quote
 
-- **Exchange rate** — the effective rate for this trade. Tap it to invert the
+- **Exchange rate**: the effective rate for this trade. Tap it to invert the
   direction it's displayed in.
-- **Price impact** — how much your trade moves the price, shown as `<0.01%` when
+- **Price impact**: how much your trade moves the price, shown as `<0.01%` when
   tiny and flagged in red past ~1%. On balanced stablecoin pools it stays very
-  small (this is the whole point — see [Slippage](/docs/concepts/slippage)).
-- **Network fee** — the estimated Stellar fee, read from the simulation.
-- **Execution protection → Minimum received** — the hard floor enforced on-chain.
+  small (this is the whole point; see [Slippage](/docs/concepts/slippage)).
+- **Network fee**: the estimated Stellar fee, read from the simulation.
+- **Execution protection → Minimum received**: the hard floor enforced on-chain.
   If the pool can't deliver at least this, the transaction reverts.
 
 <Callout kind="tip" title="The minimum is real">
-  *Minimum received* isn't a display estimate — it's the exact `min_out` the
+  *Minimum received* isn't a display estimate. It's the exact `min_out` the
   contract enforces. Your quote minus your slippage tolerance. You will never be
   filled below it.
 </Callout>
@@ -46,11 +46,11 @@ economics of the trade before you commit.
 
 The action button tells you what's blocking a trade before you try:
 
-- **Connect Wallet to Exchange** — no wallet connected yet.
-- **Enter an amount** — no input amount.
-- **Insufficient {"{token}"} balance** — you don't hold enough of the pay token.
-- **Insufficient liquidity** — the pool can't support a trade this large.
-- **Exchange {"{from}"} → {"{to}"}** — good to go.
+- **Connect Wallet to Exchange**: no wallet connected yet.
+- **Enter an amount**: no input amount.
+- **Insufficient {"{token}"} balance**: you don't hold enough of the pay token.
+- **Insufficient liquidity**: the pool can't support a trade this large.
+- **Exchange {"{from}"} → {"{to}"}**: good to go.
 
 <Callout kind="note" title="Quotes need a connected wallet">
   The quote is a live on-chain simulation run against your account, so the rate,

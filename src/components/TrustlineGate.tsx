@@ -94,7 +94,7 @@ export function TrustlineNotice({
       </p>
       <p className="text-[11px] leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
         {symbol} is a Stellar asset, so your wallet has to trust it once before it can hold any.
-        One signature, and it stays enabled — you'll only ever do this again for a different asset.
+        One signature, and it stays enabled. You'll only ever do this again for a different asset.
       </p>
       {state.error && (
         <p className="text-[11px] leading-relaxed mt-2" style={{ color: '#ef4444' }}>

@@ -41,6 +41,9 @@ export default function TxDetailDrawer({ activity, onClose }: TxDetailDrawerProp
   const rows: { label: string; value: string }[] = [
     { label: 'Action', value: activity.type[0].toUpperCase() + activity.type.slice(1) },
     { label: 'Pair', value: activity.assetPool },
+    ...(activity.route
+      ? [{ label: 'Route', value: `${activity.route} · ${activity.hops} hops, one tx` }]
+      : []),
     { label: 'Sent', value: activity.sent ?? '—' },
     { label: 'Received', value: activity.received ?? '—' },
     { label: 'Effective rate', value: activity.effectiveRate !== undefined ? activity.effectiveRate.toFixed(5) : '—' },

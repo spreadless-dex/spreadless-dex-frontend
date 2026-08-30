@@ -7,7 +7,7 @@ import Callout from "../../../components/docs/Callout.astro";
 
 This is a practical reference to the pool contract methods the app uses, grouped
 by read and write. Types are shown as the front-end sees them through the SDK
-(`bigint` for on-chain integer amounts). Amounts are always in **raw units** —
+(`bigint` for on-chain integer amounts). Amounts are always in **raw units**,
 scale by the token's decimals to get human values.
 
 <Callout kind="note" title="Raw units">
@@ -17,7 +17,7 @@ scale by the token's decimals to get human values.
 
 ## Read methods
 
-These simulate only — no signature, no state change.
+These simulate only: no signature, no state change.
 
 | Method | Returns | Purpose |
 | --- | --- | --- |
@@ -44,7 +44,7 @@ swap_exact_in({
   token_in,    // address of token being sold
   token_out,   // address of token being bought
   amount_in,   // bigint, raw units of token_in
-  min_out,     // bigint, on-chain floor — revert if output < this
+  min_out,     // bigint, on-chain floor; revert if output < this
 }) // → bigint  (token_out received)
 ```
 
@@ -57,7 +57,7 @@ means one non-zero slot and zeros elsewhere.
 deposit({
   to,          // recipient of LP + signer
   amounts_in,  // bigint[], one entry per pool token
-  min_lp_out,  // bigint, floor on LP minted — revert if fewer
+  min_lp_out,  // bigint, floor on LP minted; revert if fewer
 }) // → bigint  (SLP shares minted)
 ```
 
@@ -70,7 +70,7 @@ withdraw_one_token({
   to,             // recipient of token_out + signer
   lp_amount,      // bigint, SLP to burn (9 decimals)
   token_out,      // address of asset to receive
-  min_amount_out, // bigint, floor on payout — revert if less
+  min_amount_out, // bigint, floor on payout; revert if less
 }) // → bigint  (token_out received)
 ```
 
@@ -89,7 +89,7 @@ this:
   On a failed simulation the SDK returns a Rust-style `Err` object rather than
   throwing. The app normalises these (`unwrapResult`) so a failed quote surfaces a
   real error instead of leaking `[object Object]` into the UI. If you integrate
-  directly, handle the `Result` type — don't assume `.result` is always a value.
+  directly, handle the `Result` type; don't assume `.result` is always a value.
 </Callout>
 
 For how the floors are computed and enforced, see

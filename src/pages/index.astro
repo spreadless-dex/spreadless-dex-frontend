@@ -4,7 +4,7 @@ import Header from '../components/Header'
 import SwapWidget from '../components/SwapWidget'
 ---
 
-<Layout title="Spreadless — Stablecoin AMM on Stellar">
+<Layout title="Spreadless · Stablecoin AMM on Stellar">
   <Header client:load currentPage="home" />
 
   <!-- Hero -->
@@ -81,7 +81,7 @@ import SwapWidget from '../components/SwapWidget'
             ))}
           </div>
           <p class="text-[10px] mt-4" style="color: var(--c-text-faint);">
-            * Not live data — oriented on current 7-day stats of a comparable protocol on{' '}
+            * Not live data. Oriented on current 7-day stats of a comparable protocol on{' '}
             <a href="https://stabble.org" target="_blank" rel="noopener noreferrer" class="underline hover:opacity-80">Solana</a>.
           </p>
         </div>
@@ -149,7 +149,7 @@ import SwapWidget from '../components/SwapWidget'
         </h2>
         <p class="text-base leading-relaxed mb-8 max-w-lg" style="color: var(--c-text-muted);">
           Spreadless prices trades with the StableSwap invariant, a curve designed
-          for assets that are expected to trade near the same value — like
+          for assets that are expected to trade near the same value, like
           stablecoins. Instead of the constant-product curve regular AMMs use
           (which gets expensive fast as trade size grows), StableSwap stays flat
           near the 1:1 price and only curves sharply once a pool's balance gets
@@ -171,19 +171,19 @@ import SwapWidget from '../components/SwapWidget'
         {[
           {
             title: 'Amplification factor (A)',
-            body: 'A tunable coefficient that controls how "flat" the curve is. A higher A means trades near the peg move the price less — tighter, more efficient pricing for correlated assets.',
+            body: 'A tunable coefficient that controls how "flat" the curve is. A higher A means trades near the peg move the price less, giving tighter, more efficient pricing for correlated assets.',
           },
           {
             title: 'Why it lowers slippage',
-            body: 'Because the curve stays flat near 1:1, swapping one stablecoin for another moves the effective price only slightly, even for larger orders — as long as the pool stays reasonably balanced.',
+            body: 'Because the curve stays flat near 1:1, swapping one stablecoin for another moves the effective price only slightly, even for larger orders, as long as the pool stays reasonably balanced.',
           },
           {
             title: 'What happens off-peg',
-            body: 'If a pool tilts heavily toward one asset, the curve steepens and slippage increases — the same mechanism that protects LPs also discourages draining an imbalanced pool.',
+            body: 'If a pool tilts heavily toward one asset, the curve steepens and slippage increases. The same mechanism that protects LPs also discourages draining an imbalanced pool.',
           },
           {
             title: 'Single-sided by design',
-            body: "Because the invariant already assumes correlated assets, you can deposit just one token — the pool handles balancing across all the others.",
+            body: "Because the invariant already assumes correlated assets, you can deposit just one token, and the pool handles balancing across all the others.",
           },
         ].map(({ title, body }) => (
           <div

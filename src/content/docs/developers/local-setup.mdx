@@ -1,6 +1,6 @@
 ---
 title: Run it Locally
-description: Clone, install, and run the front-end — plus the one deployment gotcha worth knowing.
+description: Clone, install, and run the front-end, plus the one deployment gotcha worth knowing.
 ---
 
 import Callout from "../../../components/docs/Callout.astro";
@@ -49,7 +49,7 @@ Testnet contract IDs, the RPC/Horizon URLs, and the token set live in
 
 <Callout kind="warning" title="The macOS lockfile trap on Cloudflare">
   `package-lock.json` resolved on **macOS** drops Linux-only optional native deps
-  (`utf-8-validate`, `bufferutil` — optional peers of `ws`). Cloudflare builds on
+  (`utf-8-validate` and `bufferutil`, optional peers of `ws`). Cloudflare builds on
   Linux, where `npm ci` then fails with *"Missing: utf-8-validate from lock file"*.
   If you add or change a dependency on a Mac, regenerate the lockfile inside a
   Linux container before pushing:

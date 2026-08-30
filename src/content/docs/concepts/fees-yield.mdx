@@ -6,7 +6,7 @@ description: Where an LP's return comes from, how APY is framed, and what the ri
 import Callout from "../../../components/docs/Callout.astro";
 
 Liquidity providers earn because **traders pay a fee on every swap**, and that fee
-accrues to the pool's reserves — which LP shares have a proportional claim on. No
+accrues to the pool's reserves, which LP shares have a proportional claim on. No
 external emissions are required for the base return; it's the pool's own trading
 activity.
 
@@ -15,23 +15,23 @@ activity.
 Each swap leaves a small fee behind in the pool. Because your LP shares represent a
 fixed fraction of the pool, and the pool's reserves grow as fees accumulate, the
 value each share can redeem slowly increases. You don't claim fees as a separate
-action — they compound into the reserves, and you realise them when you withdraw.
+action. They compound into the reserves, and you realise them when you withdraw.
 
 Your return therefore scales with:
 
-- **Volume** — more trades, more fees.
-- **Your share of the pool** — a bigger slice earns a bigger cut.
-- **Time in the pool** — fees accrue continuously while you're providing.
+- **Volume**: more trades, more fees.
+- **Your share of the pool**: a bigger slice earns a bigger cut.
+- **Time in the pool**: fees accrue continuously while you're providing.
 
 ## How APY is shown
 
-Where the interface shows an APY figure — and it's the **one place the design uses
-its purple accent** — it is an *annualised projection* from recent activity, not a
+Where the interface shows an APY figure (and it's the **one place the design uses
+its purple accent**) it is an *annualised projection* from recent activity, not a
 guaranteed or fixed rate. It moves with volume and liquidity and can fall as well
 as rise.
 
 <Callout kind="warning" title="Illustrative figures on testnet">
-  TVL, volume, and APY numbers shown in the testnet app are illustrative — several
+  TVL, volume, and APY numbers shown in the testnet app are illustrative. Several
   are oriented on the recent stats of a comparable production protocol rather than
   live on-chain data. Treat them as design placeholders, not a forecast.
 </Callout>
@@ -51,11 +51,11 @@ An LP's net result is fees earned minus a few frictions:
 
 <Callout kind="note" title="The real risk is the peg">
   The invariant's high amplification is what keeps trading efficient, but it also
-  means a pool will keep quoting near 1:1 well into a de-peg — accumulating the
+  means a pool will keep quoting near 1:1 well into a de-peg, accumulating the
   weak asset. The health of an LP position ultimately rests on the assets in the
   pool actually holding their peg.
 </Callout>
 
 That completes the concepts. To put them to use, start the
-**[Guides](/docs/guides/connect-wallet)** — or read how it's all enforced
+**[Guides](/docs/guides/connect-wallet)**, or read how it's all enforced
 on-chain in [Protocol](/docs/protocol/architecture).

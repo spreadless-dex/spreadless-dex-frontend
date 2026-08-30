@@ -24,13 +24,13 @@ for the interactive parts, deployed to Cloudflare.
 ## Why static + islands
 
 Most pages are content or read-mostly views, so they ship as static HTML and
-hydrate only the interactive components — the swap widget, faucet, deposit forms.
+hydrate only the interactive components: the swap widget, faucet, deposit forms.
 This keeps the site fast and cheap to serve while still supporting rich,
 wallet-driven interactivity where it's needed.
 
 <Callout kind="note" title="The SDK is browser-only">
   `@stellar/stellar-sdk` is heavy and not SSR-friendly, so the pool library imports
-  it **dynamically** — it only ever loads in the browser. Contract calls never run
+  it **dynamically**, so it only ever loads in the browser. Contract calls never run
   during the static build.
 </Callout>
 
@@ -53,7 +53,7 @@ src/
 
 ## Design system
 
-The visual language is strictly **monochrome** — black and white with grey — with
+The visual language is strictly **monochrome**, black and white with grey, with
 a **single purple accent reserved for yield (APY) figures only**. Everything else,
 including all buttons and CTAs, stays black/white. Theming is a set of CSS custom
 properties on `:root` with a `html.dark` override, applied before first paint to

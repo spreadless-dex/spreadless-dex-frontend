@@ -336,7 +336,7 @@ export default function CurveVisualizer() {
               }}
             >
               Same trade, same reserves. The gap between the two slippage
-              figures is exactly what the amplification factor buys you — drag{" "}
+              figures is exactly what the amplification factor buys you. Drag{" "}
               <strong style={{ color: c.text }}>A</strong> up and watch the
               StableSwap curve flatten toward 1:1.
             </p>

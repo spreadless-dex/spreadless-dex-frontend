@@ -23,6 +23,19 @@ export interface ClassicAsset {
 export const POOL_CONTRACT_ID =
   "CCAD3EH4P74PVYL3IC6ND7RSV6NYYOMUMNKRNVBJYOVIZP7Z2QS5XTSN";
 
+// TRANCHE 2 / D1 — the Vault Factory. While this is null the app runs in
+// single-vault mode: the registry reports POOL_CONTRACT_ID and the router finds
+// exactly one route, which is today's behaviour. Setting it switches the whole
+// swap path onto the registry without any other change here.
+export const FACTORY_CONTRACT_ID: string | null = null;
+
+// TRANCHE 2 / D2 — the atomic multi-hop Router. Until this is deployed a
+// multi-hop route can be *quoted* (each leg simulates fine on its own pool) but
+// must never be signed: without the Router there is no single transaction that
+// holds the intermediate token, so a failing second leg would leave the user
+// holding it. The swap CTA enforces this.
+export const ROUTER_CONTRACT_ID: string | null = null;
+
 export interface TokenInfo {
   /** Canonical index in the pool's token order (from get_tokens()). */
   index: number;

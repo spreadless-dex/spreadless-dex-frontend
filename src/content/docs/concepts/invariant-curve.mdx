@@ -1,6 +1,6 @@
 ---
 title: The Invariant Curve
-description: The single rule that decides every price — and why its shape matters more than anything else in the protocol.
+description: The single rule that decides every price, and why its shape matters more than anything else in the protocol.
 ---
 
 import Callout from "../../../components/docs/Callout.astro";
@@ -16,7 +16,7 @@ rate. Understanding its *shape* is understanding the whole protocol.
 Drag the sliders. The solid line is the StableSwap curve Spreadless uses; the
 dashed line is the constant-product curve (`x · y = k`) that a conventional AMM
 like Uniswap uses. Both pools hold the same reserves and both price the same
-trade — the only difference is the shape of the rule.
+trade. The only difference is the shape of the rule.
 
 <CurveVisualizer client:visible />
 
@@ -24,10 +24,10 @@ The two curves pass through the same balanced point in the middle, but they
 behave completely differently around it:
 
 - **Constant product** (dashed) is curved *everywhere*. Even a small trade slides
-  you along a bend, so you always pay some price impact — and it grows steeply.
+  you along a bend, so you always pay some price impact, and it grows steeply.
 - **StableSwap** (solid) is deliberately **flat near the middle**. Around the 1:1
-  point it behaves almost like a straight line — trade in, get nearly the same
-  amount out — and only curves sharply once the pool becomes badly imbalanced.
+  point it behaves almost like a straight line: trade in, get nearly the same
+  amount out. It only curves sharply once the pool becomes badly imbalanced.
 
 ## Why "flat" is the whole point
 
@@ -47,7 +47,7 @@ That is exactly what the flat middle section does:
   `A · 4 · (x + y) + D = A · D · 4 + D³ / (4 · x · y)`
 
   When `A → 0` this collapses to the constant-product curve `x · y = k`. When
-  `A → ∞` it becomes the constant-sum line `x + y = D` — a perfectly flat 1:1
+  `A → ∞` it becomes the constant-sum line `x + y = D`, a perfectly flat 1:1
   exchange. Every real pool lives between those two extremes, and the
   [amplification factor](/docs/concepts/amplification) is the dial that places it.
 </Callout>
@@ -55,10 +55,10 @@ That is exactly what the flat middle section does:
 ## What sets the amount you receive
 
 The curve is fixed the instant a trade is simulated, so the output is fully
-determined — there is no hidden spread and no order book. What you receive is
+determined. There is no hidden spread and no order book. What you receive is
 simply the vertical distance you travel along the curve when you push the pool's
 reserves sideways by your input amount. A flatter curve means a shorter drop,
 which means more tokens out. That single geometric fact is the entire pitch.
 
-Next: the one number that controls how flat the curve is — the
+Next: the one number that controls how flat the curve is, the
 **[amplification factor](/docs/concepts/amplification)**.

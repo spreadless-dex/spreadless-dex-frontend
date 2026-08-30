@@ -244,7 +244,7 @@ export default function ActivityPage() {
         >
           <p className="text-sm" style={{ color: 'var(--c-text-muted)' }}>
             {activities.length === 0
-              ? 'No activity yet — swaps, deposits, and withdrawals you make will show up here.'
+              ? 'No activity yet. Swaps, deposits, and withdrawals you make will show up here.'
               : 'No activity matches these filters.'}
           </p>
         </div>

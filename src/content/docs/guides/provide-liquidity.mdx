@@ -7,12 +7,12 @@ import Callout from "../../../components/docs/Callout.astro";
 import Figure from "../../../components/docs/Figure.astro";
 
 Providing liquidity earns you a share of every swap fee the pool collects. On
-Spreadless you do it with **one** asset — no pairing, no manual split (see
+Spreadless you do it with **one** asset: no pairing, no manual split (see
 [Single-Sided Liquidity](/docs/concepts/single-sided) for why that's possible).
 
 <Figure
   alt="The deposit panel: a single-asset amount field, projected APY and estimated returns"
-  caption="Depositing a single asset — projected APY and LP received shown before you sign."
+  caption="Depositing a single asset, with projected APY and LP received shown before you sign."
 />
 
 ## Steps
@@ -20,7 +20,7 @@ Spreadless you do it with **one** asset — no pairing, no manual split (see
 1. Open **[Earn](/earn)** and choose a pool.
 2. On the **Deposit** tab, pick the asset you want to contribute and enter an
    amount (the **25 / 50 / Max** shortcuts pull from your balance).
-3. Review the projected **APY** and the **LP shares** you'll receive — both quoted
+3. Review the projected **APY** and the **LP shares** you'll receive, both quoted
    from a live simulation of the real deposit.
 4. Click deposit and approve in your wallet.
 
@@ -33,7 +33,7 @@ can be redeemed for any single asset in the pool when you
 
 <Callout kind="tip" title="Which asset to deposit">
   Because a deposit walks the same curve as a trade, adding the asset a pool is
-  *short* of is cheaper — occasionally even rewarded — while adding the asset it's
+  *short* of is cheaper, occasionally even rewarded, while adding the asset it's
   already heavy in costs a little. The pool's composition bar shows the current
   balance.
 </Callout>
@@ -41,15 +41,15 @@ can be redeemed for any single asset in the pool when you
 <Callout kind="note" title="Slippage protection on deposits too">
   The deposit submits with a `min_lp_out` floor derived from your quote minus
   tolerance. If the pool moves and can't mint at least that many shares, the
-  contract reverts — you're never given fewer shares than you accepted. See
+  contract reverts. You're never given fewer shares than you accepted. See
   [Slippage & Safety](/docs/protocol/slippage-and-safety).
 </Callout>
 
 <Callout kind="warning" title="The main risk is a de-peg">
   Your position's value rests on the pool's assets holding their peg. If one
   de-pegs, the pool accumulates the weak asset and your redeemable value shifts
-  toward it. This is the stablecoin form of impermanent loss —
-  [Fees & Yield](/docs/concepts/fees-yield) covers it.
+  toward it. This is the stablecoin form of impermanent loss, which
+  [Fees & Yield](/docs/concepts/fees-yield) covers.
 </Callout>
 
 Next: [Withdraw Liquidity](/docs/guides/withdraw).

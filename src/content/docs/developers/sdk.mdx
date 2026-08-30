@@ -70,7 +70,7 @@ See [Slippage & Safety](/docs/protocol/slippage-and-safety) for why the baseline
 the *user-accepted* quote, not a fresh pre-submit simulation.
 
 <Callout kind="warning" title="Always unwrap Results">
-  A failed simulation returns a Rust-style `Err` object instead of throwing —
+  A failed simulation returns a Rust-style `Err` object instead of throwing, and
   `String(it)` is `"[object Object]"`. Wrap every `.result` with an `unwrapResult`
   helper that unwraps `Result`-likes so callers get a real value or a real throw:
 

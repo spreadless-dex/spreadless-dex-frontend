@@ -164,7 +164,7 @@ export default function PoolOverviewPage() {
               borderLeft: i % 4 !== 0 ? '1px solid var(--c-border)' : 'none',
               borderTop: i >= 2 ? '1px solid var(--c-border)' : 'none',
             }}
-            title={isPreview ? 'Preview data — live metrics coming soon' : undefined}
+            title={isPreview ? 'Preview data, live metrics coming soon' : undefined}
           >
             <p className="text-[11px] uppercase tracking-wider mb-1" style={{ color: 'var(--c-text-faint)' }}>
               {label}{isPreview ? '*' : ''}
@@ -274,7 +274,7 @@ export default function PoolOverviewPage() {
       </div>
 
       <p className="text-[11px] mt-6 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
-        * APY, holder count and 24h volume are preview figures — the contract doesn't expose these
+        * APY, holder count and 24h volume are preview figures. The contract doesn't expose these
         yet. Reserves, TVL, pool share, amplification and LP supply are read live from the chain.
       </p>
     </div>

@@ -5,7 +5,7 @@ description: Network parameters, the pool contract address, and the current test
 
 import Callout from "../../../components/docs/Callout.astro";
 
-<Callout kind="warning" title="Testnet — values change on redeploy">
+<Callout kind="warning" title="Testnet: values change on redeploy">
   Everything below is **Stellar Testnet**. These addresses change whenever the pool
   is redeployed. The contract team treats `deployments/testnet.json` in the
   contract repo as the source of truth; always read live on-chain values rather
@@ -22,7 +22,7 @@ import Callout from "../../../components/docs/Callout.astro";
 | Horizon (classic) | `https://horizon-testnet.stellar.org` |
 | Explorer | [stellar.expert · testnet](https://stellar.expert/explorer/testnet) |
 
-Horizon is used for the classic layer — [trustlines](/docs/guides/trustlines) live
+Horizon is used for the classic layer, where [trustlines](/docs/guides/trustlines) live
 on the classic account, not in Soroban, so changing one goes through Horizon.
 
 ## Pool contract
@@ -31,7 +31,7 @@ on the classic account, not in Soroban, so changing one goes through Horizon.
 | --- | --- |
 | Pool / LP token | `CCAD3EH4P74PVYL3IC6ND7RSV6NYYOMUMNKRNVBJYOVIZP7Z2QS5XTSN` |
 
-The same address is both the pool and its `SLP` LP token (9 decimals) — see
+The same address is both the pool and its `SLP` LP token (9 decimals). See
 [Architecture](/docs/protocol/architecture).
 
 ## Tokens (current testnet set)
@@ -43,13 +43,13 @@ metadata and faucet configuration.
 | --- | --- | --- | --- |
 | `USDx` | 7 | Yes | Native open-mint test token |
 | `PYUSD` | 7 | Yes | Native open-mint test token |
-| `SUSD` | 7 | No | Stellar Asset Contract — issuer-only mint, needs a [trustline](/docs/guides/trustlines) |
+| `SUSD` | 7 | No | Stellar Asset Contract, issuer-only mint, needs a [trustline](/docs/guides/trustlines) |
 | `sUSDC` | 7 | Yes | Native open-mint test token |
 
 <Callout kind="note" title="SAC vs native">
   A **Stellar Asset Contract** wraps a *classic* asset, so it can only be held by
   an account with a trustline for it, and only its issuer can mint it. Native
-  Soroban test tokens have neither constraint — anyone can mint them from the
+  Soroban test tokens have neither constraint; anyone can mint them from the
   faucet and hold them without a trustline. This is why `SUSD` behaves differently
   from the other three throughout the app.
 </Callout>
@@ -57,7 +57,7 @@ metadata and faucet configuration.
 ## Verifying an address
 
 For any Stellar Asset Contract, `Asset(code, issuer).contractId(passphrase)` must
-equal the token's contract address — a check you can run yourself to confirm a SAC
+equal the token's contract address, a check you can run yourself to confirm a SAC
 wraps the classic asset it claims to. Contract and transaction links throughout the
 app point at Stellar Expert on this network so anything can be independently
 inspected.
