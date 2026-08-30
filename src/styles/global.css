@@ -37,6 +37,19 @@
   to { stroke-dashoffset: 0; }
 }
 
+/* Pool builder: a chip refused at the four-asset limit shakes sideways. */
+@keyframes chipShake {
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
+/* Status dot on the pool builder's preview card: a ring that expands and
+   fades, like a sonar ping. Runs 3x on go-live, loops while deploying. */
+@keyframes pulseRing {
+  0%   { box-shadow: 0 0 0 0 currentColor; }
+  100% { box-shadow: 0 0 0 8px transparent; }
+}
+
 @layer utilities {
   .animate-bounce-in {
     animation: bounceIn 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;

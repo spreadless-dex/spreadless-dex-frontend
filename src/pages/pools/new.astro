@@ -1,0 +1,12 @@
+---
+import Layout from '../../layouts/Layout.astro'
+import Header from '../../components/Header'
+import CreatePoolPage from '../../components/create/CreatePoolPage'
+---
+
+<Layout title="Create a pool · Spreadless">
+  <Header client:load currentPage="pools" />
+  <div class="min-h-screen pt-16">
+    <CreatePoolPage client:load />
+  </div>
+</Layout>

@@ -79,6 +79,23 @@ export function mapTxError(err: unknown, ctx: TxErrorContext = {}): MappedTxErro
     };
   }
 
+  // Pool creation. The Factory's error enum is not final; match by name.
+  if (/DuplicateVault|AlreadyExists|VaultExists/i.test(raw)) {
+    return { message: "A pool with exactly these assets already exists. Open it instead." };
+  }
+  if (/InvalidFee|FeeOutOfRange|FeeTooHigh/i.test(raw)) {
+    return { message: "The contract rejected this fee. Pick a value inside the allowed range." };
+  }
+  if (/InvalidAmp|AmpOutOfRange/i.test(raw)) {
+    return { message: "The contract rejected this amplification. Pick a value inside the allowed range." };
+  }
+  if (contractCode(raw, 107) || /InvalidCap/i.test(raw)) {
+    return { message: "The contract rejected a cap value. Lower it or leave it unset." };
+  }
+  if (/wasm|WasmHash|not installed|MissingValue/i.test(raw)) {
+    return { message: "The pool code is not installed on this network. Check POOL_WASM_HASH." };
+  }
+
   // Pool #14 — the on-chain minimum-received floor kicked in.
   if (contractCode(raw, 14) || /SlippageExceeded/i.test(raw)) {
     return {

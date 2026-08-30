@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import PoolsRegister from './PoolsRegister'
+import { Plus } from 'lucide-react'
 
 // The "Pools" header destination (issue #28): a register of the protocol's
 // pools. Today that's the single StableSwap pool; PoolsRegister renders it as
@@ -16,13 +17,23 @@ export default function PoolsListPage() {
   return (
     <div className="min-h-screen pt-16">
       <div className="max-w-7xl mx-auto px-6 py-10">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--c-text)' }}>
-            Pools
-          </h1>
-          <p className="text-sm" style={{ color: 'var(--c-text)', opacity: 0.72 }}>
-            Every deposit flows into these StableSwap pools. Open one for its full breakdown.
-          </p>
+        <div className="mb-6 flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--c-text)' }}>
+              Pools
+            </h1>
+            <p className="text-sm" style={{ color: 'var(--c-text)', opacity: 0.72 }}>
+              Every deposit flows into these StableSwap pools. Open one for its full breakdown.
+            </p>
+          </div>
+          <a
+            href="/pools/new"
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl btn-lift"
+            style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
+          >
+            <Plus size={16} strokeWidth={2.2} />
+            Create pool
+          </a>
         </div>
 
         {poolStatus === 'error' ? (
@@ -45,7 +56,15 @@ export default function PoolsListPage() {
             </button>
           </div>
         ) : poolStatus === 'ready' ? (
-          <PoolsRegister />
+          <>
+            <PoolsRegister />
+            <p className="text-[13px] mt-4" style={{ color: 'var(--c-text-faint)' }}>
+              Missing a pair?{' '}
+              <a href="/pools/new" className="underline underline-offset-2" style={{ color: 'var(--c-text-muted)' }}>
+                Create your own pool.
+              </a>
+            </p>
+          </>
         ) : (
           <div
             className="rounded-2xl animate-shimmer"

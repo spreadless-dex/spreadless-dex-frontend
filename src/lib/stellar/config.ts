@@ -36,6 +36,16 @@ export const FACTORY_CONTRACT_ID: string | null = null;
 // holding it. The swap CTA enforces this.
 export const ROUTER_CONTRACT_ID: string | null = null;
 
+// POOL CREATION, before the Factory: the pool contract's WASM hash as
+// installed on testnet. With it set, "Create pool" deploys a vault directly
+// through the SDK's Client.deploy(); with both this and the Factory null the
+// builder runs in demo mode (the pool is created locally, nothing is signed).
+// Ask the contract team for the hash from deployments/testnet.json.
+export const POOL_WASM_HASH: string | null = null;
+
+/** What a stablecoin tracks. StableSwap only makes sense within one peg. */
+export type Peg = "USD" | "EUR";
+
 export interface TokenInfo {
   /** Canonical index in the pool's token order (from get_tokens()). */
   index: number;
@@ -56,6 +66,8 @@ export interface TokenInfo {
    * this token's contractId.
    */
   classicAsset?: ClassicAsset;
+  /** Peg the asset tracks. Used to warn when a pool mixes pegs. */
+  peg: Peg;
 }
 
 // TRANCHE 2 RELABEL: the contract's index-0/1 tokens are still deployed as
@@ -71,6 +83,7 @@ export const TOKENS: TokenInfo[] = [
     contractId: "CBXN4CMLFVDNVFSGNXFGP5EWI77ISC5KH5UXSDBQETZCJHYHA3KEP4JJ",
     decimals: 7,
     openMint: true,
+    peg: "USD",
   },
   {
     index: 1,
@@ -78,6 +91,7 @@ export const TOKENS: TokenInfo[] = [
     contractId: "CB2NS6KYG5ZBHHVKXCHYWLRRH4AKFXNWRYNSQTKNFW23CAY4SGSQVG75",
     decimals: 7,
     openMint: true,
+    peg: "USD",
   },
   {
     index: 2,
@@ -85,6 +99,7 @@ export const TOKENS: TokenInfo[] = [
     contractId: "CDDE66QMXWVUVEHLA5IRUJBHPJK3RFH6JIXCIJ5S6HOAXAPYR2AIZUWD",
     decimals: 7,
     openMint: false, // Stellar Asset Contract — only the issuer can mint.
+    peg: "USD",
     classicAsset: {
       code: "SUSD",
       issuer: "GCYFVS3J6JNJLJZ6JVPFCW7IGILIWEFGFPUAFBOBR4PQARR6OIBZHOAU",
@@ -96,6 +111,7 @@ export const TOKENS: TokenInfo[] = [
     contractId: "CDKFYHC3EPRCZY4DIMCIBQ3PO5QPD6KZFFXNMLS4XENY2QNTZN2KLMRM",
     decimals: 7,
     openMint: true,
+    peg: "USD",
   },
 ];
 

@@ -103,8 +103,8 @@ function unwrapResult<T>(value: T | { unwrap(): T }): T {
 // The pool contract IS the LP token (SLP, 9 decimals) — it implements the
 // fungible token trait alongside the StableSwap logic, so its balance is
 // read the same way as any token's, via the pool's own client.
-export async function getLpBalance(address: string): Promise<bigint> {
-  const pool = await readClient();
+export async function getLpBalance(address: string, poolId?: string): Promise<bigint> {
+  const pool = await readClient(poolId);
   const { result } = await pool.balance({ account: address });
   return unwrapResult(result);
 }
@@ -119,8 +119,8 @@ function metaFor(address: string) {
   };
 }
 
-export async function readPoolState(): Promise<PoolState> {
-  const pool = await readClient();
+export async function readPoolState(poolId?: string): Promise<PoolState> {
+  const pool = await readClient(poolId);
 
   // Each call returns an AssembledTransaction; .result holds the simulated view.
   const [tokens, reserves, amp, paused, lpSupply, owner] = await Promise.all([
@@ -180,6 +180,8 @@ interface DepositArgs {
   toleranceBps?: bigint;
   /** Called as the tx moves through its lifecycle (preparing → signing → submitting). */
   onPhase?: OnPhase;
+  /** Which pool to deposit into. Defaults to the configured single pool. */
+  poolId?: string;
 }
 
 /** Simulate-only: how many LP shares this single-sided deposit would mint right now. */
@@ -187,9 +189,10 @@ export async function quoteDepositSingleSided({
   to,
   tokenIndex,
   amount,
+  poolId,
 }: Omit<DepositArgs, "toleranceBps" | "onPhase">): Promise<bigint> {
   if (amount <= 0n) return 0n;
-  const pool = await writeClient(to);
+  const pool = await writeClient(to, undefined, poolId);
   const tokens = (await pool.get_tokens()).result;
   const amounts_in = tokens.map((_, i) => (i === tokenIndex ? amount : 0n));
   const quote = await pool.deposit({ to, amounts_in, min_lp_out: 0n });
@@ -203,9 +206,10 @@ export async function depositSingleSided({
   amount,
   toleranceBps = 100n,
   onPhase,
+  poolId,
 }: DepositArgs): Promise<TxResult<bigint>> {
   onPhase?.("preparing");
-  const pool = await writeClient(to, onPhase);
+  const pool = await writeClient(to, onPhase, poolId);
 
   // amounts_in is indexed by canonical token order; single-sided means our
   // amount at this token's slot and 0 everywhere else.
@@ -354,6 +358,8 @@ interface WithdrawArgs {
   toleranceBps?: bigint;
   /** Called as the tx moves through its lifecycle (preparing → signing → submitting). */
   onPhase?: OnPhase;
+  /** Which pool to withdraw from. Defaults to the configured single pool. */
+  poolId?: string;
 }
 
 /** Simulate-only: how much of tokenOut burning lpAmount shares would pay out. */
@@ -361,9 +367,10 @@ export async function quoteWithdrawOneToken({
   to,
   tokenOut,
   lpAmount,
+  poolId,
 }: Omit<WithdrawArgs, "toleranceBps" | "onPhase">): Promise<bigint> {
   if (lpAmount <= 0n) return 0n;
-  const pool = await writeClient(to);
+  const pool = await writeClient(to, undefined, poolId);
   const quote = await pool.withdraw_one_token({
     to,
     lp_amount: lpAmount,
@@ -380,9 +387,10 @@ export async function withdrawOneToken({
   lpAmount,
   toleranceBps = 100n,
   onPhase,
+  poolId,
 }: WithdrawArgs): Promise<TxResult<bigint>> {
   onPhase?.("preparing");
-  const pool = await writeClient(to, onPhase);
+  const pool = await writeClient(to, onPhase, poolId);
 
   // Same two-phase pattern as deposit/swap: simulate for the quote, then
   // submit for real with an on-chain slippage floor.

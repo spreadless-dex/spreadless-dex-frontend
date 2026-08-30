@@ -8,6 +8,7 @@
 
 import { FACTORY_CONTRACT_ID, POOL_CONTRACT_ID, RPC_URL, NETWORK_PASSPHRASE, TOKENS } from "./config";
 import { DEMO_VAULTS, isRoutingDemo } from "./demo";
+import { listLocalPools } from "./localPools";
 
 export interface VaultInfo {
   /** Pool contract address: the id every swap simulation is sent to. */
@@ -50,7 +51,7 @@ export function invalidateVaults(): void {
 }
 
 export async function listVaults(): Promise<VaultInfo[]> {
-  const live = await listLiveVaults();
+  const live = [...(await listLiveVaults()), ...listDeployedLocally()];
   // Demo vaults are appended, never cached: flipping the switch has to show
   // up on the next keystroke, and they cost nothing to build.
   if (!isRoutingDemo()) return live;
@@ -72,6 +73,19 @@ async function listLiveVaults(): Promise<VaultInfo[]> {
     : await readSingleVault();
   cache = { at: Date.now(), vaults };
   return vaults;
+}
+
+// Pools this browser deployed straight through the SDK (see factory.ts).
+// Real contracts, so they belong in the routing set; the Factory registry
+// takes over the moment it exists. Demo-created pools are deliberately not
+// here: nothing is on chain for them to quote against.
+function listDeployedLocally(): VaultInfo[] {
+  return listLocalPools("deploy").map((p) => ({
+    address: p.address,
+    tokens: p.tokens,
+    label: p.label,
+    feeBps: p.feeBps,
+  }));
 }
 
 // Today's world: one pool, its token order read live from the contract rather

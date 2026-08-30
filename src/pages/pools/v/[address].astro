@@ -1,0 +1,19 @@
+---
+// Address-based vault pages can't be prerendered: the address space is
+// whatever the Factory (or the builder) creates at runtime. Rendered on the
+// Worker; all pool data loads client-side in the island anyway.
+export const prerender = false
+
+import Layout from '../../../layouts/Layout.astro'
+import Header from '../../../components/Header'
+import VaultDetailPage from '../../../components/VaultDetailPage'
+
+const { address } = Astro.params
+---
+
+<Layout title="Pool · Spreadless">
+  <Header client:load currentPage="pools" />
+  <div class="min-h-screen pt-16">
+    <VaultDetailPage client:load address={address ?? ''} />
+  </div>
+</Layout>

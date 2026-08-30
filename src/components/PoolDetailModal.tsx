@@ -27,11 +27,17 @@ interface PoolDetailModalProps {
   defaultMode?: Mode
   /** Hide the "View full pool details" link — e.g. when already on that page. */
   hideDetailsLink?: boolean
+  /**
+   * Which pool this deposit/withdraw targets. Defaults to the configured
+   * single pool; the vault detail page passes a Factory/deploy vault address
+   * so the same modal seeds any pool.
+   */
+  poolId?: string
 }
 
 type Mode = 'deposit' | 'withdraw'
 
-export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit', hideDetailsLink = false }: PoolDetailModalProps) {
+export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit', hideDetailsLink = false, poolId }: PoolDetailModalProps) {
   const {
     walletConnected,
     walletAddress,
@@ -85,13 +91,13 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
       return
     }
     let cancelled = false
-    getLpBalance(walletAddress).then((bal) => {
+    getLpBalance(walletAddress, poolId).then((bal) => {
       if (!cancelled) setLpBalance(bal)
     })
     return () => {
       cancelled = true
     }
-  }, [walletAddress])
+  }, [walletAddress, poolId])
 
   // The deposit token's wallet balance — drives the Balance readout, the
   // percent shortcuts and the insufficient-balance CTA state.
@@ -135,6 +141,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
           to: walletAddress,
           tokenIndex: token.index,
           amount: amountRaw,
+          poolId,
         })
         if (!cancelled) setDepositQuote(fromRawUnits(lp, LP_DECIMALS))
       } catch (err) {
@@ -151,7 +158,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
       cancelled = true
       clearTimeout(timer)
     }
-  }, [mode, walletAddress, amount, token.index, token.decimals])
+  }, [mode, walletAddress, amount, token.index, token.decimals, poolId])
 
   // Live withdraw quote, debounced.
   useEffect(() => {
@@ -173,6 +180,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
           to: walletAddress,
           tokenOut: token.address,
           lpAmount: lpRaw,
+          poolId,
         })
         if (!cancelled) setWithdrawQuote(fromRawUnits(out, token.decimals))
       } catch (err) {
@@ -187,7 +195,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
       cancelled = true
       clearTimeout(timer)
     }
-  }, [mode, walletAddress, lpAmount, token.address, token.decimals])
+  }, [mode, walletAddress, lpAmount, token.address, token.decimals, poolId])
 
   const preview = getPoolPreviewStats(token.symbol)
 
@@ -214,6 +222,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
         tokenIndex: token.index,
         amount: toRawUnits(amount, token.decimals),
         onPhase: setTxPhase,
+        poolId,
       })
       const lpReceived = fromRawUnits(result, LP_DECIMALS)
       setStatus({ kind: 'success', message: `Deposited ✓ Received ${lpReceived} LP shares`, hash })
@@ -226,10 +235,10 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
         txHash: hash,
       }).catch((err) => console.error('Failed to record activity:', err))
       setAmount('')
-      loadPoolState() // refresh reserves after the deposit lands
+      if (!poolId) loadPoolState() // refresh reserves after the deposit lands (configured pool only)
       // Poll instead of a one-shot refetch — the RPC can briefly serve the
       // pre-tx snapshot right after the tx confirms.
-      refetchUntilChanged(() => getLpBalance(walletAddress), lpBalance)
+      refetchUntilChanged(() => getLpBalance(walletAddress, poolId), lpBalance)
         .then(setLpBalance)
         .catch(() => {})
       refetchUntilChanged(() => getTokenBalance(token.address, walletAddress, token.decimals), tokenBalance)
@@ -260,6 +269,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
         tokenOut: token.address,
         lpAmount: toRawUnits(lpAmount, LP_DECIMALS),
         onPhase: setTxPhase,
+        poolId,
       })
       const amountReceived = fromRawUnits(result, token.decimals)
       setStatus({ kind: 'success', message: `Withdrawn ✓ Received ${amountReceived} ${token.symbol}`, hash })
@@ -273,8 +283,8 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
       }).catch((err) => console.error('Failed to record activity:', err))
       setLpAmount('')
       setWithdrawQuote('')
-      loadPoolState() // refresh reserves after the withdrawal lands
-      refetchUntilChanged(() => getLpBalance(walletAddress), lpBalance)
+      if (!poolId) loadPoolState() // refresh reserves after the withdrawal lands (configured pool only)
+      refetchUntilChanged(() => getLpBalance(walletAddress, poolId), lpBalance)
         .then(setLpBalance)
         .catch(() => {})
       refetchUntilChanged(() => getTokenBalance(token.address, walletAddress, token.decimals), tokenBalance)

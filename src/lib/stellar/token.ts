@@ -25,3 +25,26 @@ export async function getTokenBalance(
   const { result } = await (token as any).balance({ account: address });
   return result;
 }
+
+/**
+ * On-chain display metadata for an arbitrary token contract — the "Add by
+ * address" path in the pool builder. SACs have no WASM spec for Client.from,
+ * so their classic code is used as the symbol.
+ */
+export async function getTokenMeta(
+  tokenId: string,
+): Promise<{ symbol: string; decimals: number }> {
+  const asset = classicAssetOf(tokenId);
+  if (asset) return { symbol: asset.code, decimals: 7 };
+  const sdk = await import("@spreadless-dex/sdk");
+  const token = await sdk.contract.Client.from({
+    contractId: tokenId,
+    rpcUrl: RPC_URL,
+    networkPassphrase: NETWORK_PASSPHRASE,
+  });
+  const [symbol, decimals] = await Promise.all([
+    (token as any).symbol().then((t: any) => t.result),
+    (token as any).decimals().then((t: any) => t.result),
+  ]);
+  return { symbol: String(symbol), decimals: Number(decimals) };
+}
