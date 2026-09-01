@@ -58,7 +58,7 @@ export default function CurveSketch({ amp, className }: CurveSketchProps) {
   const [cx, cy] = toSvg([100, 100])
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className={className} aria-label={`StableSwap curve at A ${amp}`} role="img">
+    <svg viewBox={`0 0 ${W} ${H}`} className={className} style={{ overflow: 'hidden' }} aria-label={`StableSwap curve at A ${amp}`} role="img">
       <path d={CP_PATH} fill="none" stroke="var(--c-border-2)" strokeDasharray="3 4" strokeWidth={1.2} />
       <path ref={pathRef} d={pathFrom(current.current)} fill="none" stroke="var(--c-accent)" strokeWidth={2.2} strokeLinecap="round" />
       <circle cx={cx} cy={cy} r={3} fill="var(--c-text)" />

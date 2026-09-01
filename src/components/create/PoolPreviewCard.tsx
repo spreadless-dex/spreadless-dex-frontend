@@ -1,4 +1,4 @@
-import { lpEarnPerMillion, priceImpactPct, type TokenMeta } from '../../lib/stellar/poolParams'
+import { impactMeterPct, lpEarnPerMillion, priceImpactPct, type TokenMeta } from '../../lib/stellar/poolParams'
 import { shortenAddress } from '../../lib/utils'
 import TokenIcon from '../TokenIcon'
 import Tooltip from '../Tooltip'
@@ -99,7 +99,7 @@ export default function PoolPreviewCard({
         <div className="col-span-2 h-1 rounded-full overflow-hidden -mt-0.5 mb-1" style={{ backgroundColor: 'var(--c-surface-2)' }}>
           <div
             className="h-full rounded-full transition-all duration-500"
-            style={{ width: `${Math.min(100, (impact / 0.05) * 100)}%`, backgroundColor: 'var(--c-accent)', transitionTimingFunction: 'cubic-bezier(0.2,0.8,0.2,1)' }}
+            style={{ width: `${impactMeterPct(impact)}%`, backgroundColor: 'var(--c-accent)', transitionTimingFunction: 'cubic-bezier(0.2,0.8,0.2,1)' }}
           />
         </div>
         <span>LPs earn per $1M daily volume</span>

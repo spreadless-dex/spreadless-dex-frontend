@@ -298,6 +298,24 @@ export function lpEarnPerMillion(feePct: number, sharePct = PROTOCOL_SHARE_PCT):
 }
 
 /**
+ * Meter width, 0..100, for the price impact bar. Log scale from the flattest
+ * reachable curve (~A 1000) to the constant-product baseline for the same
+ * swap, so a full bar means "as steep as constant product"; a linear scale
+ * saturates for every A below ~66.
+ */
+export function impactMeterPct(impactPct: number): number {
+  const floor = 0.0005;
+  const ceil = 0.99;
+  const v = (Math.log(Math.max(impactPct, floor) / floor) / Math.log(ceil / floor)) * 100;
+  return Math.min(100, Math.max(0, v));
+}
+
+// Curves are clamped well above the sketch's 0..200 viewBox instead of at
+// its edge: at low amp the visible run-off stays steep rather than folding
+// into a flat plateau with a corner. The SVG hides everything above y=200.
+const CURVE_Y_CLIP = 400;
+
+/**
  * Curve sample points on a fixed 0..200 domain (balanced pool at 100/100),
  * as [x, y] pairs. Same x for every amp, so two curves can be tweened.
  */
@@ -306,7 +324,7 @@ export function stableCurvePoints(amp: number, samples = 80): [number, number][]
   const pts: [number, number][] = [];
   for (let i = 0; i <= samples; i++) {
     const x = 6 + (194 * i) / samples;
-    pts.push([x, Math.min(getY(x, amp, D), 200)]);
+    pts.push([x, Math.min(getY(x, amp, D), CURVE_Y_CLIP)]);
   }
   return pts;
 }
@@ -315,7 +333,7 @@ export function constantProductPoints(samples = 80): [number, number][] {
   const pts: [number, number][] = [];
   for (let i = 0; i <= samples; i++) {
     const x = 6 + (194 * i) / samples;
-    pts.push([x, Math.min(10_000 / x, 200)]);
+    pts.push([x, Math.min(10_000 / x, CURVE_Y_CLIP)]);
   }
   return pts;
 }
