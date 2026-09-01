@@ -5,6 +5,8 @@ import { explorerContractUrl } from '../../lib/stellar/config'
 import { shortenAddress } from '../../lib/utils'
 import {
   poolName,
+  PROTOCOL_SHARE_PCT,
+  formatSharePct,
   type DraftIssue,
   type PoolDraft,
   type TokenMeta,
@@ -141,7 +143,7 @@ export default function ReviewDeploy({
         <dt style={{ color: 'var(--c-text-muted)' }}>Amplification</dt>
         <dd style={{ color: 'var(--c-text)' }}>A = {draft.amp}</dd>
         <dt style={{ color: 'var(--c-text-muted)' }}>Swap fee</dt>
-        <dd style={{ color: 'var(--c-text)' }}>{draft.feePct}% · {draft.protocolSharePct}% to protocol</dd>
+        <dd style={{ color: 'var(--c-text)' }}>{draft.feePct}% · {formatSharePct(PROTOCOL_SHARE_PCT)}% to the protocol</dd>
         <dt style={{ color: 'var(--c-text-muted)' }}>Caps</dt>
         <dd style={{ color: 'var(--c-text)' }}>
           {tokens.some((t) => draft.caps[t.address]?.trim()) || draft.lpMaxSupply.trim() ? 'Custom' : 'None'}

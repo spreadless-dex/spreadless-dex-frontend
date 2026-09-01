@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { shortenAddress } from '../../lib/utils'
 import type { PoolDraft, TokenMeta } from '../../lib/stellar/poolParams'
 import Tooltip from '../Tooltip'
+import CapSlider from './CapSlider'
 import { ChevronRight } from 'lucide-react'
 
 // Step 4: the settings most creators never touch, folded shut but readable
@@ -14,17 +15,10 @@ interface AdvancedSectionProps {
   owner: string | null
   onCap: (address: string, value: string) => void
   onLpCap: (value: string) => void
-  onBeneficiary: (value: string) => void
 }
 
-export default function AdvancedSection({ draft, tokens, owner, onCap, onLpCap, onBeneficiary }: AdvancedSectionProps) {
+export default function AdvancedSection({ draft, tokens, owner, onCap, onLpCap }: AdvancedSectionProps) {
   const [open, setOpen] = useState(false)
-
-  const inputStyle = {
-    backgroundColor: 'var(--c-surface)',
-    border: '1px solid var(--c-border-2)',
-    color: 'var(--c-text)',
-  } as const
 
   return (
     <div>
@@ -37,7 +31,7 @@ export default function AdvancedSection({ draft, tokens, owner, onCap, onLpCap, 
       >
         <span>
           Advanced{' '}
-          <span style={{ color: 'var(--c-text-faint)' }}>caps · LP cap · beneficiary · owner</span>
+          <span style={{ color: 'var(--c-text-faint)' }}>caps · LP cap · owner</span>
         </span>
         <ChevronRight
           size={16}
@@ -56,48 +50,23 @@ export default function AdvancedSection({ draft, tokens, owner, onCap, onLpCap, 
               <FragmentRow key={t.address}>
                 <span className="flex items-center">
                   {t.symbol} cap
-                  <Tooltip text="Max reserve for this token. Protects LPs if one asset floods the pool." label={`About the ${t.symbol} cap`} />
+                  <Tooltip text="Max reserve for this token. Protects LPs if one asset floods the pool. Drag to set it, or click the number to type one." label={`About the ${t.symbol} cap`} />
                 </span>
-                <input
+                <CapSlider
                   value={draft.caps[t.address] ?? ''}
-                  onChange={(e) => onCap(t.address, e.target.value)}
-                  placeholder="No cap"
-                  inputMode="decimal"
-                  aria-label={`${t.symbol} cap`}
-                  className="w-36 px-2.5 py-1.5 rounded-lg text-[13px] text-right tabular-nums outline-none"
-                  style={inputStyle}
+                  onChange={(v) => onCap(t.address, v)}
+                  label={`${t.symbol} cap`}
                 />
               </FragmentRow>
             ))}
             <span className="flex items-center">
               LP supply cap
-              <Tooltip text="Ceiling on total LP shares. Caps how large the pool can grow." label="About the LP supply cap" />
+              <Tooltip text="Ceiling on total LP shares. Caps how large the pool can grow. Drag to set it, or click the number to type one." label="About the LP supply cap" />
             </span>
-            <input
-              value={draft.lpMaxSupply}
-              onChange={(e) => onLpCap(e.target.value)}
-              placeholder="No cap"
-              inputMode="decimal"
-              aria-label="LP supply cap"
-              className="w-36 px-2.5 py-1.5 rounded-lg text-[13px] text-right tabular-nums outline-none"
-              style={inputStyle}
-            />
-            <span className="flex items-center">
-              Beneficiary
-              <Tooltip text="Receives the protocol share of fees. Defaults to you." label="About the beneficiary" />
-            </span>
-            <input
-              value={draft.beneficiary}
-              onChange={(e) => onBeneficiary(e.target.value)}
-              placeholder={owner ? shortenAddress(owner) : 'Your address'}
-              spellCheck={false}
-              aria-label="Beneficiary address"
-              className="w-44 px-2.5 py-1.5 rounded-lg text-[12px] font-mono text-right outline-none"
-              style={inputStyle}
-            />
+            <CapSlider value={draft.lpMaxSupply} onChange={onLpCap} label="LP supply cap" />
             <span className="flex items-center">
               Owner
-              <Tooltip text="Can pause the pool, change fees and ramp A. Fixed to your wallet." label="About the owner" />
+              <Tooltip text="Fixed to your wallet. The owner is the only address that can pause the pool, ramp A and change the swap fee after launch, and can hand that right to the protocol." label="About the owner" />
             </span>
             <span className="font-medium tabular-nums text-right" style={{ color: 'var(--c-text)' }}>
               {owner ? `${shortenAddress(owner)} · you` : 'Connect wallet'}

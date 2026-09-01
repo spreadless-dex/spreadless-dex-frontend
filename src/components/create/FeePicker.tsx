@@ -2,26 +2,26 @@ import {
   FEE_MAX_PCT,
   FEE_MIN_PCT,
   FEE_PRESETS,
-  SHARE_PRESETS,
+  PROTOCOL_SHARE_PCT,
+  formatSharePct,
   logToSlider,
   sliderToLog,
 } from '../../lib/stellar/poolParams'
 import SegmentedControl from './SegmentedControl'
+import HairlineSlider from './HairlineSlider'
 import Tooltip from '../Tooltip'
 
-// Step 3: the swap fee and how it is split. Presets first; Custom opens a
-// log slider spanning 0.001% to 1%. Protocol share is a small inline control
-// because for most creators the default is right.
+// Step 3: the swap fee. Presets first; Custom opens a log slider spanning
+// 0.001% to 1%. How the fee splits is fixed by the protocol, so it is stated
+// here rather than offered as a choice.
 
 interface FeePickerProps {
   feePct: number
   custom: boolean
-  sharePct: number
   onFee: (pct: number, custom: boolean) => void
-  onShare: (pct: number) => void
 }
 
-export default function FeePicker({ feePct, custom, sharePct, onFee, onShare }: FeePickerProps) {
+export default function FeePicker({ feePct, custom, onFee }: FeePickerProps) {
   const value = custom ? 'custom' : (FEE_PRESETS.find((p) => p.pct === feePct) ? String(feePct) : 'custom')
 
   return (
@@ -40,16 +40,17 @@ export default function FeePicker({ feePct, custom, sharePct, onFee, onShare }: 
       />
       {custom && (
         <div className="flex items-center gap-3 mt-3 animate-fade-up">
-          <input
-            type="range"
+          <HairlineSlider
             min={0}
             max={100}
             step={1}
             value={logToSlider(feePct, FEE_MIN_PCT, FEE_MAX_PCT)}
-            onChange={(e) => onFee(Number(sliderToLog(Number(e.target.value), FEE_MIN_PCT, FEE_MAX_PCT).toPrecision(2)), true)}
-            aria-label="Swap fee"
+            onChange={(v) => onFee(Number(sliderToLog(v, FEE_MIN_PCT, FEE_MAX_PCT).toPrecision(2)), true)}
+            ariaLabel="Swap fee"
+            ariaValueText={`${feePct}%`}
+            marks={[0, 1 / 3, 2 / 3, 1]}
+            ticks={49}
             className="flex-1"
-            style={{ accentColor: 'var(--c-accent)' }}
           />
           <div className="relative">
             <input
@@ -67,18 +68,14 @@ export default function FeePicker({ feePct, custom, sharePct, onFee, onShare }: 
           </div>
         </div>
       )}
-      <div className="flex items-center flex-wrap gap-2 mt-3 text-[12px]" style={{ color: 'var(--c-text-muted)' }}>
+      <div className="flex items-center flex-wrap gap-x-1 gap-y-1 mt-3 text-[12px]" style={{ color: 'var(--c-text-muted)' }}>
         <span className="flex items-center">
-          Protocol share
-          <Tooltip text="Part of the swap fee sent to the beneficiary. The rest stays with LPs." label="About protocol share" />
+          A fixed {formatSharePct(PROTOCOL_SHARE_PCT)}% of the fee goes to the protocol, the rest to LPs.
+          <Tooltip
+            text="Every pool splits the same way and the creator gets no cut for deploying it. You set the swap fee, not the split, and you can change the fee after launch."
+            label="About the fee split"
+          />
         </span>
-        <SegmentedControl
-          size="sm"
-          ariaLabel="Protocol share"
-          options={SHARE_PRESETS.map((s) => ({ key: s, label: `${s}%` }))}
-          value={SHARE_PRESETS.includes(sharePct) ? sharePct : SHARE_PRESETS[0]}
-          onChange={(s) => onShare(s)}
-        />
       </div>
     </div>
   )

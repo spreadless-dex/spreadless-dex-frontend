@@ -6,6 +6,7 @@ import { getLpBalance, readPoolState, LP_DECIMALS, type PoolState, type PoolToke
 import { tokenSymbol, tokenDecimals } from '../lib/stellar/registry'
 import { useLocalPools, type LocalPool } from '../lib/stellar/localPools'
 import { explorerContractUrl } from '../lib/stellar/config'
+import { formatSharePct } from '../lib/stellar/poolParams'
 import PoolDetailModal from './PoolDetailModal'
 import TokenIcon from './TokenIcon'
 import Tooltip from './Tooltip'
@@ -218,7 +219,7 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <Stat label="TVL" value={empty ? 'Empty' : formatCurrency(tvl)} />
         <Stat label="Amplification" value={amp !== undefined ? `A = ${amp}` : '—'} tip="Higher A keeps the price closer to 1:1 but reacts harder if a peg breaks." />
-        <Stat label="Swap fee" value={feePct ? `${feePct}%` : '—'} tip={feePct ? `${localPool!.protocolSharePct}% of it goes to the protocol, the rest to LPs.` : 'The current contract exposes no fee getter, so unknown fees stay unlabeled.'} />
+        <Stat label="Swap fee" value={feePct ? `${feePct}%` : '—'} tip={feePct ? `${formatSharePct(localPool!.protocolSharePct)}% of it goes to the protocol, the rest to LPs.` : 'The current contract exposes no fee getter, so unknown fees stay unlabeled.'} />
         <Stat label="LP supply" value={state ? state.lpSupplyHuman.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '0'} />
       </div>
 

@@ -27,6 +27,7 @@ import {
 } from "./localPools";
 import {
   percentToBps,
+  PROTOCOL_SHARE_PCT,
   toConstructorArgs,
   type PoolDraft,
   type TokenMeta,
@@ -60,7 +61,7 @@ export async function createPool(args: CreatePoolArgs): Promise<CreatePoolResult
   const ctor = toConstructorArgs(args.draft, args.owner, args.metaFor);
   const meta = {
     feeBps: percentToBps(args.draft.feePct),
-    protocolSharePct: args.draft.protocolSharePct,
+    protocolSharePct: PROTOCOL_SHARE_PCT,
   };
 
   let result: CreatePoolResult;

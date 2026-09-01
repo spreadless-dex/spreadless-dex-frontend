@@ -14,7 +14,6 @@ interface PoolPreviewCardProps {
   name: string
   amp: number
   feePct: number
-  protocolSharePct: number
   owner: string | null
   state: 'draft' | 'deploying' | 'live'
   /** Set when live: labels the pool as demo or on-chain. */
@@ -29,13 +28,12 @@ export default function PoolPreviewCard({
   name,
   amp,
   feePct,
-  protocolSharePct,
   owner,
   state,
   backendLabel,
 }: PoolPreviewCardProps) {
   const impact = priceImpactPct(amp)
-  const earn = lpEarnPerMillion(feePct, protocolSharePct)
+  const earn = lpEarnPerMillion(feePct)
   const live = state === 'live'
 
   return (

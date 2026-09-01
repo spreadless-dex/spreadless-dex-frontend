@@ -6,7 +6,7 @@
 // design/pool-creation-plan.md, section 5). Each one is a single constant so
 // a confirmed number is a one-line change.
 
-import { TOKENS, type Peg } from "./config";
+import { PROTOCOL_BENEFICIARY, TOKENS, type Peg } from "./config";
 import { toRawUnits } from "./units";
 
 // ── Limits ───────────────────────────────────────────────────────────────
@@ -60,9 +60,17 @@ export const FEE_PRESETS: FeePreset[] = [
 
 export const DEFAULT_FEE_PCT = 0.04;
 
-/** Share of the swap fee routed to the beneficiary, in percent. */
-export const SHARE_PRESETS = [0, 10, 20];
-export const DEFAULT_SHARE_PCT = 20;
+/**
+ * Share of the swap fee routed to the protocol, in percent; the rest stays
+ * with the LPs. Fixed by the protocol: a pool creator sets the swap fee, not
+ * how it is split, and gets no cut for having deployed the pool.
+ */
+export const PROTOCOL_SHARE_PCT = 100 / 3;
+
+/** Share percent for UI copy; the exact value repeats, so round to one decimal. */
+export function formatSharePct(pct: number): string {
+  return `${Number(pct.toFixed(1))}`;
+}
 
 // ── Draft ────────────────────────────────────────────────────────────────
 
@@ -72,13 +80,10 @@ export interface PoolDraft {
   tokens: string[];
   amp: number;
   feePct: number;
-  protocolSharePct: number;
   /** Per-token cap in human units, keyed by address. Empty string: no cap. */
   caps: Record<string, string>;
   /** LP supply cap in human units. Empty string: no cap. */
   lpMaxSupply: string;
-  /** Receives the protocol share. Empty: defaults to the owner at deploy. */
-  beneficiary: string;
 }
 
 export function emptyDraft(): PoolDraft {
@@ -86,10 +91,8 @@ export function emptyDraft(): PoolDraft {
     tokens: [],
     amp: DEFAULT_AMP,
     feePct: DEFAULT_FEE_PCT,
-    protocolSharePct: DEFAULT_SHARE_PCT,
     caps: {},
     lpMaxSupply: "",
-    beneficiary: "",
   };
 }
 
@@ -135,7 +138,7 @@ export function findDuplicate<V extends { tokens: string[] }>(
 
 // ── Validation ───────────────────────────────────────────────────────────
 
-export type DraftField = "tokens" | "amp" | "fee" | "share" | "caps" | "lpMaxSupply" | "beneficiary";
+export type DraftField = "tokens" | "amp" | "fee" | "caps" | "lpMaxSupply";
 
 export interface DraftIssue {
   field: DraftField;
@@ -194,10 +197,6 @@ export function validateDraft(
     issues.push({ field: "fee", message: `Fee must be between ${FEE_MIN_PCT}% and ${FEE_MAX_PCT}%.`, severity: "error" });
   }
 
-  if (!(draft.protocolSharePct >= 0 && draft.protocolSharePct <= 100)) {
-    issues.push({ field: "share", message: "Protocol share must be 0% to 100%.", severity: "error" });
-  }
-
   for (const address of draft.tokens) {
     const cap = draft.caps[address]?.trim();
     if (cap && !(Number(cap) > 0)) {
@@ -209,11 +208,6 @@ export function validateDraft(
   const lp = draft.lpMaxSupply.trim();
   if (lp && !(Number(lp) > 0)) {
     issues.push({ field: "lpMaxSupply", message: "LP supply cap must be a positive number.", severity: "error" });
-  }
-
-  const ben = draft.beneficiary.trim();
-  if (ben && !isAccountAddress(ben) && !isContractAddress(ben)) {
-    issues.push({ field: "beneficiary", message: "Beneficiary must be a Stellar address (G… or C…).", severity: "error" });
   }
 
   return issues;
@@ -253,8 +247,9 @@ export function toConstructorArgs(
     // Read as "share of the swap fee that goes to the beneficiary", in the
     // same 1e9 scale as swap_fee. The contract doc says the protocol's cut of
     // the fee is routed to the beneficiary; confirm the scale before mainnet.
-    protocol_fee: percentToFeeScale(draft.protocolSharePct),
-    beneficiary: draft.beneficiary.trim() || owner,
+    protocol_fee: percentToFeeScale(PROTOCOL_SHARE_PCT),
+    // Always the protocol's address, never the creator's.
+    beneficiary: PROTOCOL_BENEFICIARY ?? owner,
     max_caps: tokens.map((address) => {
       const cap = draft.caps[address]?.trim();
       if (!cap) return NO_CAP;
@@ -298,8 +293,8 @@ export function priceImpactPct(amp: number, reserve = 1_000_000, amount = 10_000
 }
 
 /** What LPs keep of the swap fee on $1M of daily volume, in dollars. */
-export function lpEarnPerMillion(feePct: number, protocolSharePct: number): number {
-  return 1_000_000 * (feePct / 100) * (1 - protocolSharePct / 100);
+export function lpEarnPerMillion(feePct: number, sharePct = PROTOCOL_SHARE_PCT): number {
+  return 1_000_000 * (feePct / 100) * (1 - sharePct / 100);
 }
 
 /**

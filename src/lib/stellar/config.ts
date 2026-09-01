@@ -43,6 +43,13 @@ export const ROUTER_CONTRACT_ID: string | null = null;
 // Ask the contract team for the hash from deployments/testnet.json.
 export const POOL_WASM_HASH: string | null = null;
 
+// POOL CREATION — the protocol's fee beneficiary, the same for every pool.
+// The fee split is protocol policy, not a creator's choice, and deploying a
+// pool earns no share of it: the deployer is the owner, nothing more. Null
+// until the multisig address is handed over; the builder then falls back to
+// the deployer, which in practice only happens in demo mode.
+export const PROTOCOL_BENEFICIARY: string | null = null;
+
 /** What a stablecoin tracks. StableSwap only makes sense within one peg. */
 export type Peg = "USD" | "EUR";
 

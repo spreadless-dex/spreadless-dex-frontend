@@ -145,15 +145,13 @@ export default function CreatePoolPage() {
           </Step>
 
           <Step n={3} title="Fee" done={unlocked} locked={!unlocked} delay={60}
-            tooltip="Charged on every swap. Most of it stays in the pool for liquidity providers."
-            value={`${draft.feePct}% · ${draft.protocolSharePct}% protocol`}
+            tooltip="Charged on every swap. Most of it stays in the pool for liquidity providers, and you can change it after launch."
+            value={`${draft.feePct}%`}
           >
             <FeePicker
               feePct={draft.feePct}
               custom={feeCustom}
-              sharePct={draft.protocolSharePct}
               onFee={(pct, custom) => { setFeeCustom(custom); set({ feePct: pct }) }}
-              onShare={(pct) => set({ protocolSharePct: pct })}
             />
           </Step>
 
@@ -164,7 +162,6 @@ export default function CreatePoolPage() {
               owner={walletAddress}
               onCap={(address, value) => set({ caps: { ...draft.caps, [address]: value } })}
               onLpCap={(value) => set({ lpMaxSupply: value })}
-              onBeneficiary={(value) => set({ beneficiary: value })}
             />
           </Step>
 
@@ -193,7 +190,6 @@ export default function CreatePoolPage() {
             name={name}
             amp={draft.amp}
             feePct={draft.feePct}
-            protocolSharePct={draft.protocolSharePct}
             owner={walletAddress}
             state={created ? 'live' : deploying ? 'deploying' : 'draft'}
             backendLabel={created?.backend === 'demo' ? 'Demo' : undefined}

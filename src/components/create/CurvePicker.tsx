@@ -7,6 +7,7 @@ import {
   sliderToLog,
 } from '../../lib/stellar/poolParams'
 import SegmentedControl from './SegmentedControl'
+import HairlineSlider from './HairlineSlider'
 
 // Step 2: amplification. Three named presets carry the decision; Custom
 // reveals a log slider plus a typed field. The hint line translates A into
@@ -39,16 +40,17 @@ export default function CurvePicker({ amp, custom, onChange }: CurvePickerProps)
       />
       {custom && (
         <div className="flex items-center gap-3 mt-3 animate-fade-up">
-          <input
-            type="range"
+          <HairlineSlider
             min={0}
             max={100}
             step={1}
             value={logToSlider(amp, AMP_MIN, AMP_MAX)}
-            onChange={(e) => onChange(Math.round(sliderToLog(Number(e.target.value), AMP_MIN, AMP_MAX)), true)}
-            aria-label="Amplification"
+            onChange={(v) => onChange(Math.round(sliderToLog(v, AMP_MIN, AMP_MAX)), true)}
+            ariaLabel="Amplification"
+            ariaValueText={`A ${amp}`}
+            marks={[0, 1 / 3, 2 / 3, 1]}
+            ticks={49}
             className="flex-1"
-            style={{ accentColor: 'var(--c-accent)' }}
           />
           <input
             value={amp}
