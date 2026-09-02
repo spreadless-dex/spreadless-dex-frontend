@@ -24,6 +24,7 @@ import RainButton from './RainButton'
 import TxStatus, { type TxUiStatus } from './TxStatus'
 import TxDetailDrawer from './TxDetailDrawer'
 import TokenSelectModal from './TokenSelectModal'
+import Tooltip from './Tooltip'
 import { TrustlineNotice, trustlineCtaLabel, useTrustline } from './TrustlineGate'
 
 type Slippage = 'auto' | '0.1' | '0.5' | '1' | 'custom'
@@ -795,6 +796,26 @@ export default function SwapWidget() {
           className="rounded-xl p-4 mb-4 space-y-2"
           style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border)' }}
         >
+          {/* The one number that is a guarantee, not an estimate: the on-chain
+              floor. It leads the card and is the only figure set in the
+              primary text colour, so it reads before the rate and the fee. */}
+          <div
+            className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 pb-2.5 mb-0.5"
+            style={{ borderBottom: '1px solid var(--c-border)' }}
+          >
+            <span className="flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap" style={{ color: 'var(--c-text-muted)' }}>
+              Minimum received
+              <Tooltip
+                text="The hard floor enforced on-chain: the quote minus your slippage tolerance. If the pool would pay less than this by the time the transaction settles, the swap fails instead of filling worse."
+                label="About minimum received"
+              />
+            </span>
+            {/* Amount and symbol stay on one line; on a narrow card the whole
+                figure drops under the label, still right-aligned. */}
+            <span className="ml-auto text-sm font-semibold tabular-nums whitespace-nowrap" style={{ color: 'var(--c-text)' }}>
+              {fromRawUnits(minReceived, toToken.decimals)} {toToken.symbol}
+            </span>
+          </div>
           <div className="flex items-center justify-between">
             <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>Exchange rate</span>
             <button
@@ -838,12 +859,6 @@ export default function SwapWidget() {
               <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>Slippage tolerance</span>
               <span className="text-xs" style={{ color: 'var(--c-text-muted)' }}>
                 {slippagePct}%{slippage === 'auto' ? ' (auto)' : ''}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>Minimum received</span>
-              <span className="text-xs font-semibold" style={{ color: 'var(--c-text)' }}>
-                {fromRawUnits(minReceived, toToken.decimals)} {toToken.symbol}
               </span>
             </div>
             {bestHopCount > 1 && (
