@@ -283,8 +283,11 @@ export default function Header({ currentPage = "home" }: HeaderProps) {
               >
                 <button
                   onClick={() => {
-                    walletConnected ? disconnectWallet() : connectWallet();
                     closeMenu();
+                    // Let the drawer slide out first (see closeMenu's 250ms)
+                    // so the connect surface doesn't open on top of it.
+                    const next = walletConnected ? disconnectWallet : connectWallet;
+                    window.setTimeout(() => void next(), 260);
                   }}
                   className="w-full py-3 text-sm font-semibold rounded-xl transition-all"
                   style={{

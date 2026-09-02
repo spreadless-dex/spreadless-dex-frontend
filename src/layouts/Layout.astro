@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css'
+import WalletBridge from '../components/WalletBridge'
 
 interface Props {
   title?: string
@@ -48,5 +49,7 @@ const {
     <div id="content">
       <slot />
     </div>
+    <!-- Wallet backends (Privy login + connect chooser). client:only: Privy is browser-only. -->
+    <WalletBridge client:only="react" />
   </body>
 </html>

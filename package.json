@@ -18,6 +18,7 @@
     "@astrojs/mdx": "^7.0.3",
     "@astrojs/react": "^6.0.0",
     "@creit-tech/stellar-wallets-kit": "npm:@jsr/creit-tech__stellar-wallets-kit@^2.5.0",
+    "@privy-io/react-auth": "^3.39.0",
     "@spreadless-dex/sdk": "^0.0.1",
     "@stellar/stellar-base": "^14.1.0",
     "@tailwindcss/vite": "^4.3.2",

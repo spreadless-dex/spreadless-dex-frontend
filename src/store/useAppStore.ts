@@ -6,6 +6,45 @@ export type { PoolState, PoolToken } from "../lib/stellar/pool";
 
 type PoolStatus = "idle" | "loading" | "ready" | "error";
 
+/**
+ * Which backend holds the connected account.
+ *  - "extension": a wallet reached through the Stellar Wallets Kit (Freighter,
+ *    xBull, Albedo, ...). The user keeps their own keys.
+ *  - "privy": an embedded wallet created by Privy after an email or Google
+ *    login. No extension needed, which is the only way in on a phone today.
+ */
+export type WalletKind = "extension" | "privy";
+
+/** Kit-shaped signer. Both backends produce exactly this. */
+export interface WalletSigner {
+  signTransaction: (
+    xdr: string,
+    opts?: { networkPassphrase?: string; address?: string; path?: string },
+  ) => Promise<{ signedTxXdr: string; signerAddress?: string }>;
+  signAuthEntry: (
+    authEntry: string,
+    opts?: { networkPassphrase?: string; address?: string; path?: string },
+  ) => Promise<{ signedAuthEntry: string; signerAddress?: string }>;
+}
+
+/**
+ * What the Privy bridge island (WalletBridge.tsx) registers with the store.
+ * Astro islands don't share a React tree, so Privy's hooks can't be used from
+ * the header or the swap widget directly: the bridge distills them into plain
+ * functions and pushes them here.
+ */
+export interface PrivyBackend extends WalletSigner {
+  /** Privy's SDK has booted and restored (or ruled out) a prior session. */
+  ready: boolean;
+  /** The embedded wallet's G… address once login + creation are done. */
+  address: string | null;
+  authenticated: boolean;
+  login: () => void;
+  logout: () => Promise<void>;
+  /** Privy's own key-reveal modal. The key never passes through app code. */
+  exportWallet: () => Promise<void>;
+}
+
 interface AppState {
   poolState: PoolState | null;
   poolStatus: PoolStatus;
@@ -15,8 +54,22 @@ interface AppState {
   setSelectedToken: (token: PoolToken | null) => void;
   walletConnected: boolean;
   walletAddress: string | null;
+  /** Backend of the current (or last chosen) connection. */
+  walletKind: WalletKind;
+  /** True once the bridge has mounted with a Privy app id configured. */
+  privyEnabled: boolean;
+  /** The "how do you want to connect?" chooser, rendered by WalletBridge. */
+  walletChooserOpen: boolean;
+  setWalletChooserOpen: (open: boolean) => void;
+  /** Opens the chooser when Privy is available, else the kit modal directly. */
   connectWallet: () => Promise<void>;
+  connectExtension: () => Promise<void>;
+  connectPrivy: () => void;
   disconnectWallet: () => Promise<void>;
+  /** Reveal the Privy embedded wallet's secret key. No-op for extensions. */
+  exportPrivyWallet: () => Promise<void>;
+  /** Called by WalletBridge whenever Privy's state changes. */
+  setPrivyBackend: (backend: PrivyBackend | null) => void;
   theme: "light" | "dark";
   toggleTheme: () => void;
 }
@@ -28,6 +81,35 @@ const storedTheme =
   typeof window !== "undefined"
     ? (localStorage.getItem("spreadless-theme") as "light" | "dark" | null)
     : null;
+
+// Persisted backend choice so a Privy user stays logged on across reloads
+// (Privy restores its own session; this tells us to trust it over the kit).
+const MODE_KEY = "spreadless-wallet-mode";
+// Only honoured while Privy is configured: if the app id is ever removed, a
+// stale "privy" mode must not hide the kit's restored session forever.
+const storedMode: WalletKind =
+  typeof window !== "undefined" &&
+  Boolean(import.meta.env.PUBLIC_PRIVY_APP_ID) &&
+  localStorage.getItem(MODE_KEY) === "privy"
+    ? "privy"
+    : "extension";
+
+function persistMode(kind: WalletKind) {
+  if (typeof window === "undefined") return;
+  if (kind === "privy") localStorage.setItem(MODE_KEY, "privy");
+  else localStorage.removeItem(MODE_KEY);
+}
+
+// The bridge's latest snapshot. Kept outside React state on purpose: the
+// signer functions are consumed by plain lib code (pool.ts, router.ts, ...)
+// through getWalletSigner(), not by components.
+let privyBackend: PrivyBackend | null = null;
+// True between "user picked Email or Google" and Privy reporting a session,
+// so a not-yet-authenticated Privy is read as "modal open", not "logged out".
+let privyPending = false;
+// The kit's own idea of the connected account, kept even while Privy is the
+// chosen backend so we can fall back to it if the Privy session is gone.
+let kitAddress: string | null = null;
 
 export const useAppStore = create<AppState>((set, get) => ({
   poolState: null,
@@ -52,23 +134,99 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSelectedToken: (token) => set({ selectedToken: token }),
   walletConnected: false,
   walletAddress: null,
+  walletKind: storedMode,
+  // Known from the build, so the chooser opens on the first click even while
+  // the Privy island is still downloading; the bridge confirms it on mount.
+  privyEnabled: Boolean(import.meta.env.PUBLIC_PRIVY_APP_ID),
+  walletChooserOpen: false,
+  setWalletChooserOpen: (open) => set({ walletChooserOpen: open }),
   connectWallet: async () => {
+    if (get().privyEnabled) {
+      set({ walletChooserOpen: true });
+      return;
+    }
+    await get().connectExtension();
+  },
+  connectExtension: async () => {
+    set({ walletChooserOpen: false });
     const { kit, darkTheme, lightTheme } = await loadWalletKit();
     // Match the modal's theme to the app's current theme.
     const { theme } = useAppStore.getState();
     kit.setTheme(theme === "dark" ? darkTheme : lightTheme);
     try {
-      // Opens the wallet picker and requests the address. State is applied
-      // by the STATE_UPDATED listener registered in loadWalletKit().
-      await kit.authModal();
+      // Opens the wallet picker and requests the address. Later account
+      // switches arrive through the STATE_UPDATED listener in loadWalletKit().
+      const { address } = await kit.authModal();
+      if (!address) return;
+      // Picking an extension wallet replaces a Privy session, if one exists.
+      if (get().walletKind === "privy") await privyBackend?.logout();
+      privyPending = false;
+      persistMode("extension");
+      set({ walletKind: "extension", walletConnected: true, walletAddress: address });
     } catch {
-      // User dismissed the modal or picked no wallet — nothing to do.
+      // User dismissed the modal or picked no wallet. Nothing to do.
     }
   },
+  connectPrivy: () => {
+    set({ walletChooserOpen: false });
+    if (!privyBackend) {
+      throw new Error("Email login is not configured (PUBLIC_PRIVY_APP_ID unset)");
+    }
+    // Not persisted yet: that happens once Privy reports a session, so a
+    // dismissed login modal doesn't strand the next page load in Privy mode.
+    privyPending = true;
+    set({ walletKind: "privy", walletConnected: false, walletAddress: null });
+    privyBackend.login();
+  },
   disconnectWallet: async () => {
+    if (get().walletKind === "privy") {
+      privyPending = false;
+      await privyBackend?.logout();
+      persistMode("extension");
+      set({ walletKind: "extension", walletConnected: false, walletAddress: null });
+      return;
+    }
     const { kit } = await loadWalletKit();
     await kit.disconnect();
     set({ walletConnected: false, walletAddress: null });
+  },
+  exportPrivyWallet: async () => {
+    if (get().walletKind !== "privy" || !privyBackend) return;
+    await privyBackend.exportWallet();
+  },
+  setPrivyBackend: (backend) => {
+    privyBackend = backend;
+    const enabled = backend !== null || Boolean(import.meta.env.PUBLIC_PRIVY_APP_ID);
+    if (get().walletKind !== "privy") {
+      set({ privyEnabled: enabled });
+      return;
+    }
+    // Privy mode: the connection state mirrors Privy's auth state.
+    if (backend?.ready && backend.authenticated && backend.address) {
+      privyPending = false;
+      persistMode("privy");
+      set({
+        privyEnabled: enabled,
+        walletConnected: true,
+        walletAddress: backend.address,
+      });
+      return;
+    }
+    // Privy is up but holds no session and nobody is mid-login: the session
+    // expired or was ended elsewhere. Hand control back to the kit so a
+    // restored extension session isn't hidden behind a stale mode.
+    if (backend?.ready && !backend.authenticated && !privyPending) {
+      persistMode("extension");
+      set({
+        privyEnabled: enabled,
+        walletKind: "extension",
+        walletConnected: Boolean(kitAddress),
+        walletAddress: kitAddress,
+      });
+      return;
+    }
+    // Still booting, wallet still being created, or the login modal is open.
+    set({ privyEnabled: enabled, walletConnected: false, walletAddress: null });
   },
   theme: storedTheme ?? "light",
   toggleTheme: () =>
@@ -104,8 +262,13 @@ async function bootWalletKit() {
 
   // Fires on connect, account switch, and once at launch (restores a prior
   // session from storage). address is undefined when no wallet is active.
+  // While Privy is the chosen backend the kit's restored session is ignored:
+  // the user explicitly picked the other way in, and connectExtension()
+  // applies a fresh pick itself.
   StellarWalletsKit.on(KitEventType.STATE_UPDATED, (event) => {
     const address = event.payload.address;
+    kitAddress = address ?? null;
+    if (useAppStore.getState().walletKind === "privy") return;
     useAppStore.setState({
       walletConnected: Boolean(address),
       walletAddress: address ?? null,
@@ -113,6 +276,8 @@ async function bootWalletKit() {
   });
 
   StellarWalletsKit.on(KitEventType.DISCONNECT, () => {
+    kitAddress = null;
+    if (useAppStore.getState().walletKind === "privy") return;
     useAppStore.setState({ walletConnected: false, walletAddress: null });
   });
 
@@ -131,11 +296,21 @@ function loadWalletKit() {
 // Boot on load in the browser so a previously connected session is restored.
 if (typeof window !== "undefined") void loadWalletKit();
 
-// Bridges the connected wallet to the Spreadless/Stellar SDK. The kit's
-// signTransaction/signAuthEntry already match the SDK's expected signatures
-// exactly, so any SDK Client can sign through the browser wallet by spreading
-// this into its constructor options alongside `publicKey`.
-export async function getWalletSigner() {
+// Bridges the connected wallet to the Spreadless/Stellar SDK. Both backends
+// expose the kit's signTransaction/signAuthEntry signatures, which already
+// match the SDK's expected ones exactly, so any SDK Client can sign through
+// the active wallet by spreading this into its constructor options alongside
+// `publicKey`.
+export async function getWalletSigner(): Promise<WalletSigner> {
+  if (useAppStore.getState().walletKind === "privy") {
+    if (!privyBackend?.authenticated || !privyBackend.address) {
+      throw new Error("Not signed in. Connect a wallet first.");
+    }
+    return {
+      signTransaction: privyBackend.signTransaction,
+      signAuthEntry: privyBackend.signAuthEntry,
+    };
+  }
   const { kit } = await loadWalletKit();
   return {
     signTransaction: kit.signTransaction.bind(kit),

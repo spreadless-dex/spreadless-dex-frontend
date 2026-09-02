@@ -138,6 +138,40 @@
     transform: translateY(-1px) scale(0.98);
     box-shadow: var(--c-lift-shadow-press);
   }
+
+  /* Connect chooser rows: a quieter lift than the CTA, plus a chevron that
+     eases in so the row reads as "leads somewhere", not as a static card. */
+  .wallet-option {
+    transition:
+      transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
+      border-color 0.2s ease,
+      background-color 0.2s ease;
+  }
+  .wallet-option:hover {
+    transform: translateY(-1px);
+    border-color: var(--c-border-2) !important;
+    background-color: var(--c-surface-3) !important;
+  }
+  .wallet-option:active {
+    transform: translateY(0) scale(0.99);
+  }
+  .wallet-option .chev {
+    opacity: 0;
+    transform: translateX(-4px);
+    transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .wallet-option:hover .chev,
+  .wallet-option:focus-visible .chev {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  /* No hover on touch: the affordance has to be visible from the start. */
+  @media (hover: none) {
+    .wallet-option .chev {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
 }
 
 /* ─── Theme tokens — light is default ─────────────────── */

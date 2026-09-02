@@ -13,8 +13,14 @@ without your explicit approval.
 
 ## Connect
 
-Click **Connect Wallet** in the top-right of the header. A wallet picker appears,
-listing the Stellar wallets available in your browser.
+Click **Connect Wallet** in the top-right of the header. You are asked how you
+want to connect:
+
+- **Browser wallet**: a wallet picker appears, listing the Stellar wallets
+  available in your browser. You keep your own keys.
+- **Email or Google**: sign in with an email address or a Google account. A
+  Stellar account is created for you and funded with test XLM automatically.
+  Nothing to install, so this is the way to use Spreadless on a phone.
 
 <Figure
   alt="The wallet selection dialog with available Stellar wallets"
@@ -23,13 +29,20 @@ listing the Stellar wallets available in your browser.
 
 Pick your wallet and approve the connection in its popup. Once connected, the
 header button shows your account address, shortened (e.g. `GABC…7XYZ`). Clicking
-it again disconnects.
+it again disconnects. With the email login, transactions are approved through
+your login session instead of a wallet popup.
 
 ## Supported wallets
 
 Spreadless uses the Stellar Wallets Kit, so it works with the common Stellar
 wallets. [**Freighter**](https://www.freighter.app/) is the simplest browser
 extension to start with.
+
+<Callout kind="note" title="Freighter on a phone">
+  The Freighter mobile app cannot connect to Spreadless yet: it talks to sites
+  through WalletConnect, which Spreadless does not offer at the moment. On a
+  phone, use the **Email or Google** option instead.
+</Callout>
 
 <Callout kind="tip" title="First time on testnet">
   A brand-new testnet account needs a little test XLM to pay transaction fees.
