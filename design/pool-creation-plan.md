@@ -142,4 +142,4 @@ Die Preview-Kurve (aus `CurveVisualizer` extrahiert, 2-Coin-Fall) zeigt die Kurv
 3. Werte von Vault C für `protocol_fee` und `beneficiary`, damit die Defaults dazu passen.
 4. Factory: Methodenname und Signatur für Create und Registry-Read, und ob Create permissionless ist.
 
-Annahmen bis dahin: Fee 0.001 % bis 1 %, A 1 bis 1000, 2 bis 4 Tokens, permissionless.
+Annahmen bis dahin: Fee 0.001 % bis 1 %, 2 bis 4 Tokens, permissionless. A 1 bis 50 000 ist bestätigt (DEX-61).

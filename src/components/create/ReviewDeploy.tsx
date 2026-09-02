@@ -4,6 +4,7 @@ import { mapTxError } from '../../lib/stellar/errors'
 import { explorerContractUrl } from '../../lib/stellar/config'
 import { shortenAddress } from '../../lib/utils'
 import {
+  fmtAmp,
   poolName,
   PROTOCOL_SHARE_PCT,
   formatSharePct,
@@ -141,7 +142,7 @@ export default function ReviewDeploy({
         <dt style={{ color: 'var(--c-text-muted)' }}>Assets</dt>
         <dd style={{ color: 'var(--c-text)' }}>{tokens.map((t) => t.symbol).join(', ') || '—'}</dd>
         <dt style={{ color: 'var(--c-text-muted)' }}>Amplification</dt>
-        <dd style={{ color: 'var(--c-text)' }}>A = {draft.amp}</dd>
+        <dd style={{ color: 'var(--c-text)' }}>A = {fmtAmp(draft.amp)}</dd>
         <dt style={{ color: 'var(--c-text-muted)' }}>Swap fee</dt>
         <dd style={{ color: 'var(--c-text)' }}>{draft.feePct}% · {formatSharePct(PROTOCOL_SHARE_PCT)}% to the protocol</dd>
         <dt style={{ color: 'var(--c-text-muted)' }}>Caps</dt>

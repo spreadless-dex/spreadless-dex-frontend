@@ -15,7 +15,8 @@ export const MIN_TOKENS = 2;
 /** Vault C has four, so four is known to work. */
 export const MAX_TOKENS = 4;
 export const AMP_MIN = 1;
-export const AMP_MAX = 1000;
+/** Raised from 1 000 to 50 000 per DEX-61. */
+export const AMP_MAX = 50_000;
 /** Swap fee bounds in percent. Contract says "within the configured fee range". */
 export const FEE_MIN_PCT = 0.001;
 export const FEE_MAX_PCT = 1;
@@ -66,6 +67,11 @@ export const DEFAULT_FEE_PCT = 0.04;
  * how it is split, and gets no cut for having deployed the pool.
  */
 export const PROTOCOL_SHARE_PCT = 100 / 3;
+
+/** A for UI copy: "50,000" rather than "50000". */
+export function fmtAmp(a: number): string {
+  return a.toLocaleString("en-US");
+}
 
 /** Share percent for UI copy; the exact value repeats, so round to one decimal. */
 export function formatSharePct(pct: number): string {
@@ -190,7 +196,7 @@ export function validateDraft(
   }
 
   if (!Number.isInteger(draft.amp) || draft.amp < AMP_MIN || draft.amp > AMP_MAX) {
-    issues.push({ field: "amp", message: `A must be a whole number from ${AMP_MIN} to ${AMP_MAX}.`, severity: "error" });
+    issues.push({ field: "amp", message: `A must be a whole number from ${AMP_MIN} to ${fmtAmp(AMP_MAX)}.`, severity: "error" });
   }
 
   if (!(draft.feePct >= FEE_MIN_PCT && draft.feePct <= FEE_MAX_PCT)) {
@@ -299,12 +305,12 @@ export function lpEarnPerMillion(feePct: number, sharePct = PROTOCOL_SHARE_PCT):
 
 /**
  * Meter width, 0..100, for the price impact bar. Log scale from the flattest
- * reachable curve (~A 1000) to the constant-product baseline for the same
+ * reachable curve (~A 50 000) to the constant-product baseline for the same
  * swap, so a full bar means "as steep as constant product"; a linear scale
  * saturates for every A below ~66.
  */
 export function impactMeterPct(impactPct: number): number {
-  const floor = 0.0005;
+  const floor = 0.00001;
   const ceil = 0.99;
   const v = (Math.log(Math.max(impactPct, floor) / floor) / Math.log(ceil / floor)) * 100;
   return Math.min(100, Math.max(0, v));

@@ -2,6 +2,7 @@ import {
   AMP_MAX,
   AMP_MIN,
   AMP_PRESETS,
+  fmtAmp,
   logToSlider,
   priceImpactPct,
   sliderToLog,
@@ -30,7 +31,7 @@ export default function CurvePicker({ amp, custom, onChange }: CurvePickerProps)
         ariaLabel="Amplification preset"
         options={[
           ...AMP_PRESETS.map((p) => ({ key: p.key, label: p.label, hint: p.hint })),
-          { key: 'custom', label: 'Custom', hint: `${AMP_MIN} to ${AMP_MAX}` },
+          { key: 'custom', label: 'Custom', hint: `${AMP_MIN} to ${fmtAmp(AMP_MAX)}` },
         ]}
         value={value}
         onChange={(key) => {
@@ -47,7 +48,7 @@ export default function CurvePicker({ amp, custom, onChange }: CurvePickerProps)
             value={logToSlider(amp, AMP_MIN, AMP_MAX)}
             onChange={(v) => onChange(Math.round(sliderToLog(v, AMP_MIN, AMP_MAX)), true)}
             ariaLabel="Amplification"
-            ariaValueText={`A ${amp}`}
+            ariaValueText={`A ${fmtAmp(amp)}`}
             marks={[0, 1 / 3, 2 / 3, 1]}
             ticks={49}
             className="flex-1"
@@ -60,13 +61,13 @@ export default function CurvePicker({ amp, custom, onChange }: CurvePickerProps)
             }}
             inputMode="numeric"
             aria-label="A value"
-            className="w-20 px-2.5 py-1.5 rounded-lg text-[13px] text-right tabular-nums outline-none"
+            className="w-24 px-2.5 py-1.5 rounded-lg text-[13px] text-right tabular-nums outline-none"
             style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border-2)', color: 'var(--c-text)' }}
           />
         </div>
       )}
       <p className="text-[12px] mt-2.5" style={{ color: 'var(--c-text-muted)' }}>
-        A {amp}: a $10k swap moves the price {fmtImpact(priceImpactPct(amp))}.
+        A {fmtAmp(amp)}: a $10k swap moves the price {fmtImpact(priceImpactPct(amp))}.
       </p>
     </div>
   )

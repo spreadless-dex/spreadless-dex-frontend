@@ -1,4 +1,4 @@
-import { impactMeterPct, lpEarnPerMillion, priceImpactPct, type TokenMeta } from '../../lib/stellar/poolParams'
+import { fmtAmp, impactMeterPct, lpEarnPerMillion, priceImpactPct, type TokenMeta } from '../../lib/stellar/poolParams'
 import { shortenAddress } from '../../lib/utils'
 import TokenIcon from '../TokenIcon'
 import Tooltip from '../Tooltip'
@@ -72,7 +72,7 @@ export default function PoolPreviewCard({
             {name || 'Pick assets'}
           </p>
           <p className="text-[11px]" style={{ color: 'var(--c-text-faint)' }}>
-            A = {amp} · {feePct}% fee · {tokens.length} {tokens.length === 1 ? 'asset' : 'assets'}
+            A = {fmtAmp(amp)} · {feePct}% fee · {tokens.length} {tokens.length === 1 ? 'asset' : 'assets'}
           </p>
         </div>
         <div className="ml-auto text-right shrink-0">

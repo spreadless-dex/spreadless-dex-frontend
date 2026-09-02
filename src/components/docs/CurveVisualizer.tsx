@@ -38,10 +38,11 @@ const PH = H - M.t - M.b;
 const mapX = (v: number) => M.l + (v / DOMAIN) * PW;
 const mapY = (v: number) => M.t + PH - (v / DOMAIN) * PH;
 
-// Amplification slider runs on a log scale — all the interesting behaviour lives
-// between A=1 (≈ constant product) and A≈2000 (≈ constant sum / a flat line).
+// Amplification slider runs on a log scale from A=1 (≈ constant product) to
+// the protocol's ceiling; above roughly A 1200 the curve is visually a flat
+// line, so the top third of the slider mostly shows the impact figure moving.
 const A_MIN = 1;
-const A_MAX = 2000;
+const A_MAX = 50_000;
 const idxToA = (idx: number) =>
   Math.round(
     Math.exp(
@@ -62,7 +63,7 @@ function pct(v: number): string {
 }
 
 export default function CurveVisualizer() {
-  const [ampIdx, setAmpIdx] = useState(55); // ≈ A=100
+  const [ampIdx, setAmpIdx] = useState(43); // ≈ A=100
   const [tradeIn, setTradeIn] = useState(40);
   const A = idxToA(ampIdx);
 

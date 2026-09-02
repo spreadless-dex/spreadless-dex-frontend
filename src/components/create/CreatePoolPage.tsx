@@ -12,6 +12,7 @@ import {
   validateDraft,
   type PoolDraft,
   type TokenMeta,
+  fmtAmp,
 } from '../../lib/stellar/poolParams'
 import AssetPicker from './AssetPicker'
 import CurvePicker from './CurvePicker'
@@ -135,7 +136,7 @@ export default function CreatePoolPage() {
 
           <Step n={2} title="Curve" done={unlocked} locked={!unlocked} delay={0}
             tooltip="Higher A keeps the price closer to 1:1 but reacts harder if a peg breaks."
-            value={`A ${draft.amp}`}
+            value={`A ${fmtAmp(draft.amp)}`}
           >
             <CurvePicker
               amp={draft.amp}
