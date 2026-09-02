@@ -131,6 +131,10 @@ export function explorerTxUrl(hash: string): string {
 }
 
 /** Stellar Expert link for a contract (token or pool) on this network. */
+export function explorerAccountUrl(address: string): string {
+  return `https://stellar.expert/explorer/testnet/account/${address}`;
+}
+
 export function explorerContractUrl(contractId: string): string {
   return `https://stellar.expert/explorer/testnet/contract/${contractId}`;
 }

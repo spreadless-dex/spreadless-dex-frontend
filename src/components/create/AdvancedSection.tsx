@@ -69,7 +69,7 @@ export default function AdvancedSection({ draft, tokens, owner, onCap, onLpCap }
               <Tooltip text="Fixed to your wallet. The owner is the only address that can pause the pool, ramp A and change the swap fee after launch, and can hand that right to the protocol." label="About the owner" />
             </span>
             <span className="font-medium tabular-nums text-right" style={{ color: 'var(--c-text)' }}>
-              {owner ? `${shortenAddress(owner)} · you` : 'Connect wallet'}
+              {owner ? `${shortenAddress(owner)} · you` : 'Log in'}
             </span>
           </div>
         </div>

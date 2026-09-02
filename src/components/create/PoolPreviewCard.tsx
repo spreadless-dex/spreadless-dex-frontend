@@ -137,7 +137,7 @@ export default function PoolPreviewCard({
         <TickNumber value={earn} format={fmtUsd} className="font-medium" style={{ color: 'var(--c-text)' }} />
         <span>Owner</span>
         <span className="font-medium tabular-nums" style={{ color: 'var(--c-text)' }}>
-          {owner ? shortenAddress(owner) : 'Connect wallet'}
+          {owner ? shortenAddress(owner) : 'Log in'}
         </span>
       </div>
 

@@ -366,3 +366,141 @@ html.dark #scrim {
 @media (prefers-reduced-motion: reduce) {
   .curve-hint, .curve-hover:hover .curve-hint, .curve-hover:focus-visible .curve-hint { transition: none; transform: none; }
 }
+
+/* ─── Profile panel (native popover) ─────────────────────
+   Lives in the top layer. Enter/exit is a plain transition out of
+   display:none (transition-behavior + @starting-style), so no JS timers.
+   Desktop: anchored under the header's Profile button. Fallback values come
+   first so browsers without anchor positioning still get a sane spot. */
+.profile-anchor { anchor-name: --profile-btn; }
+
+.profile-panel {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 0;
+  top: 4.25rem;
+  right: 1.5rem;
+  position-anchor: --profile-btn;
+  top: calc(anchor(bottom, 4.25rem) + 0.5rem);
+  right: anchor(right, 1.5rem);
+  position-try-fallbacks: flip-block;
+  width: min(22.5rem, calc(100vw - 2rem));
+  /* Fits under the header on short viewports; a thin scrollbar only if it
+     really has to scroll. */
+  max-height: calc(100dvh - 5.5rem);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-border-2) transparent;
+  background: var(--c-surface);
+  color: var(--c-text);
+  border: 1px solid var(--c-border);
+  border-radius: 1rem;
+  box-shadow: var(--c-widget-shadow);
+  transform-origin: top right;
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+  transition:
+    opacity 0.18s ease,
+    transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+    overlay 0.22s allow-discrete,
+    display 0.22s allow-discrete;
+}
+.profile-panel:popover-open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+@starting-style {
+  .profile-panel:popover-open {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+.profile-panel::backdrop {
+  background: transparent;
+}
+
+/* Under 640px the same element is a bottom sheet. */
+@media (max-width: 639px) {
+  .profile-panel {
+    position-anchor: auto;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-height: 85vh;
+    border-radius: 1.25rem 1.25rem 0 0;
+    border-bottom: 0;
+    transform-origin: bottom center;
+    transform: translateY(1.5rem);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .profile-panel:popover-open { transform: translateY(0); }
+  @starting-style {
+    .profile-panel:popover-open { transform: translateY(1.5rem); }
+  }
+  .profile-panel::backdrop {
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(4px);
+    opacity: 0;
+    transition: opacity 0.22s ease, overlay 0.22s allow-discrete, display 0.22s allow-discrete;
+  }
+  .profile-panel:popover-open::backdrop { opacity: 1; }
+  @starting-style {
+    .profile-panel:popover-open::backdrop { opacity: 0; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-panel,
+  .profile-panel:popover-open {
+    transform: none;
+    transition-duration: 0.12s;
+  }
+}
+
+/* Rows and buttons inside the panel share the chooser's quiet lift. */
+.profile-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: inherit;
+  text-decoration: none;
+}
+.profile-row .chev {
+  opacity: 0;
+  transform: translate(-3px, 3px);
+  transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.profile-row:hover .chev,
+.profile-row:focus-visible .chev { opacity: 1; transform: translate(0, 0); }
+@media (hover: none) { .profile-row .chev { opacity: 1; transform: none; } }
+
+.profile-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  color: var(--c-text-muted);
+  transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.profile-icon-btn:hover { background: var(--c-surface-2); color: var(--c-text); }
+.profile-icon-btn:active { transform: scale(0.94); }
+
+.profile-action {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.75rem;
+  color: var(--c-text);
+  transition: background-color 0.18s ease, transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.profile-action:hover { background: var(--c-surface-2); }
+.profile-action:active { transform: scale(0.99); }

@@ -255,7 +255,7 @@ function WalletChooser() {
             className="text-base font-semibold"
             style={{ color: "var(--c-text)" }}
           >
-            Connect
+            Log in
           </h3>
           <button
             onClick={() => setOpen(false)}

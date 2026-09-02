@@ -162,7 +162,7 @@ export default function ReviewDeploy({
         className="w-full px-4 py-3 text-sm font-semibold rounded-xl btn-lift disabled:opacity-40 disabled:cursor-not-allowed"
         style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
       >
-        {owner ? 'Deploy pool' : 'Connect wallet to deploy'}
+        {owner ? 'Deploy pool' : 'Log in to deploy'}
       </button>
 
       <TxStatus

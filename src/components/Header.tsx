@@ -4,6 +4,7 @@ import { shortenAddress } from "../lib/utils";
 import { Menu, X } from "lucide-react";
 import { readPoolState } from "../lib/stellar/pool";
 import Logo from "./Logo";
+import ProfilePanel, { PROFILE_PANEL_ID } from "./ProfilePanel";
 
 interface HeaderProps {
   currentPage?:
@@ -31,7 +32,6 @@ export default function Header({ currentPage = "home" }: HeaderProps) {
     walletConnected,
     walletAddress,
     connectWallet,
-    disconnectWallet,
     theme,
     toggleTheme,
   } = useAppStore();
@@ -167,23 +167,31 @@ export default function Header({ currentPage = "home" }: HeaderProps) {
               )}
             </button>
 
-            {/* Wallet — hidden on mobile to save space */}
-            <button
-              onClick={walletConnected ? disconnectWallet : connectWallet}
-              className="hidden sm:block text-sm px-4 py-2 rounded-lg border transition-all duration-200 font-medium"
-              style={
-                walletConnected
-                  ? {
-                      borderColor: "var(--c-border)",
-                      color: "var(--c-text-muted)",
-                    }
-                  : { borderColor: "var(--c-border-2)", color: "var(--c-text)" }
-              }
-            >
-              {walletConnected && walletAddress
-                ? shortenAddress(walletAddress)
-                : "Connect Wallet"}
-            </button>
+            {/* Account — hidden on mobile to save space. Signed out it starts
+                the login; signed in it toggles the profile popover, which is
+                anchored to this button (see .profile-anchor). */}
+            {walletConnected ? (
+              <button
+                popoverTarget={PROFILE_PANEL_ID}
+                className="profile-anchor hidden sm:flex items-center gap-2 text-sm px-4 py-2 rounded-lg border transition-all duration-200 font-medium"
+                style={{ borderColor: "var(--c-border)", color: "var(--c-text)" }}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ backgroundColor: "var(--c-text)" }}
+                  aria-hidden="true"
+                />
+                Profile
+              </button>
+            ) : (
+              <button
+                onClick={() => void connectWallet()}
+                className="hidden sm:block text-sm px-4 py-2 rounded-lg border transition-all duration-200 font-medium"
+                style={{ borderColor: "var(--c-border-2)", color: "var(--c-text)" }}
+              >
+                Log In
+              </button>
+            )}
 
             {/* Hamburger — mobile only */}
             <button
@@ -276,18 +284,31 @@ export default function Header({ currentPage = "home" }: HeaderProps) {
                 </a>
               ))}
 
-              {/* Wallet button inside mobile menu */}
+              {/* Account inside the mobile menu */}
               <div
                 className="pt-3 mt-1"
                 style={{ borderTop: "1px solid var(--c-border)" }}
               >
+                {walletConnected && walletAddress && (
+                  <p
+                    className="px-3 pb-2 font-mono text-xs"
+                    style={{ color: "var(--c-text-faint)" }}
+                  >
+                    {shortenAddress(walletAddress)}
+                  </p>
+                )}
                 <button
                   onClick={() => {
                     closeMenu();
                     // Let the drawer slide out first (see closeMenu's 250ms)
-                    // so the connect surface doesn't open on top of it.
-                    const next = walletConnected ? disconnectWallet : connectWallet;
-                    window.setTimeout(() => void next(), 260);
+                    // so the next surface doesn't open on top of it.
+                    window.setTimeout(() => {
+                      if (walletConnected) {
+                        document.getElementById(PROFILE_PANEL_ID)?.showPopover();
+                      } else {
+                        void connectWallet();
+                      }
+                    }, 260);
                   }}
                   className="w-full py-3 text-sm font-semibold rounded-xl transition-all"
                   style={{
@@ -295,15 +316,15 @@ export default function Header({ currentPage = "home" }: HeaderProps) {
                     color: "var(--c-cta-text)",
                   }}
                 >
-                  {walletConnected && walletAddress
-                    ? shortenAddress(walletAddress)
-                    : "Connect Wallet"}
+                  {walletConnected ? "Profile" : "Log In"}
                 </button>
               </div>
             </div>
           </nav>
         </div>
       )}
+
+      <ProfilePanel />
     </>
   );
 }

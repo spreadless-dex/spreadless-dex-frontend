@@ -902,7 +902,7 @@ export default function SwapWidget() {
         }}
       >
         {!walletConnected
-          ? 'Connect Wallet to Exchange'
+          ? 'Log in to exchange'
           : trustline.needed
             ? trustlineCtaLabel(toToken.symbol, trustline)
             : !amountEntered

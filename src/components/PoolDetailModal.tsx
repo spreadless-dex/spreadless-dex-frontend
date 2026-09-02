@@ -592,7 +592,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
             className="w-full py-3 text-sm font-semibold rounded-xl btn-lift"
             style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
           >
-            Connect Wallet to {mode === 'deposit' ? 'Deposit' : 'Withdraw'}
+            Log in to {mode === 'deposit' ? 'deposit' : 'withdraw'}
           </button>
         )}
 

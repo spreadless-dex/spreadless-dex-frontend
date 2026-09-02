@@ -43,7 +43,7 @@ export default function MyLiquidity() {
           className="px-6 py-3 text-sm font-semibold rounded-xl btn-lift"
           style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
         >
-          Connect Wallet
+          Log In
         </button>
       </div>
     )

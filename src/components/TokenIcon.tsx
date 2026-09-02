@@ -13,6 +13,8 @@ const ICON_SRC: Record<string, string> = {
   PYUSD: '/tokens/pyusd.png',
   SUSD: '/tokens/susd.png',
   sUSDC: '/tokens/usdc.svg',
+  // Native lumens, shown in the profile panel. Simplified monochrome mark.
+  XLM: '/tokens/xlm.svg',
 }
 
 interface TokenIconProps {
