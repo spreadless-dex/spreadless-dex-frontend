@@ -1,4 +1,13 @@
-import { fmtAmp, impactMeterPct, lpEarnPerMillion, priceImpactPct, type TokenMeta } from '../../lib/stellar/poolParams'
+import {
+  assetsNarrative,
+  curveNarrative,
+  feeNarrative,
+  fmtAmp,
+  impactMeterPct,
+  lpEarnPerMillion,
+  priceImpactPct,
+  type TokenMeta,
+} from '../../lib/stellar/poolParams'
 import { shortenAddress } from '../../lib/utils'
 import TokenIcon from '../TokenIcon'
 import Tooltip from '../Tooltip'
@@ -6,8 +15,10 @@ import CurveSketch from './CurveSketch'
 import TickNumber from './TickNumber'
 
 // The sticky preview: the row this pool will occupy in /pools, plus the
-// curve and two figures that move with every input. Building this card is
-// the point of the page, so it gets the motion budget.
+// curve, two figures and three sentences that move with every input.
+// Building this card is the point of the page, so it gets the motion budget:
+// numbers tick, the curve tweens, and on a discrete choice the whole card
+// dissolves between scenes (view-transition-name below, CSS in global.css).
 
 interface PoolPreviewCardProps {
   tokens: TokenMeta[]
@@ -32,14 +43,19 @@ export default function PoolPreviewCard({
   state,
   backendLabel,
 }: PoolPreviewCardProps) {
-  const impact = priceImpactPct(amp)
+  const n = Math.max(2, tokens.length)
+  const impact = priceImpactPct(amp, n)
   const earn = lpEarnPerMillion(feePct)
   const live = state === 'live'
+  const symbols = tokens.map((t) => t.symbol)
+  const pair: [string, string] | undefined = tokens.length >= 2 ? [symbols[0], symbols[1]] : undefined
+  const lines = [assetsNarrative(symbols), curveNarrative(amp), feeNarrative(feePct)]
 
   return (
     <div
-      className={`rounded-2xl overflow-hidden transition-all duration-500 ${live ? 'animate-bounce-in' : ''}`}
+      className={`pool-preview rounded-2xl overflow-hidden transition-all duration-500 ${live ? 'animate-bounce-in' : ''}`}
       style={{
+        viewTransitionName: 'pool-preview',
         backgroundColor: 'var(--c-surface)',
         border: `1px solid ${live ? '#22c55e' : 'var(--c-border)'}`,
         boxShadow: live ? '0 0 0 4px rgba(34,197,94,0.12)' : 'var(--c-card-shadow)',
@@ -86,14 +102,23 @@ export default function PoolPreviewCard({
         <span className="absolute right-5 top-3 text-[10px] uppercase tracking-wider" style={{ color: 'var(--c-text-faint)' }}>
           vs constant product
         </span>
-        <CurveSketch amp={amp} className="w-full h-auto block" />
+        <CurveSketch amp={amp} n={n} pair={pair} className="w-full h-auto block" />
+      </div>
+
+      {/* What the choices mean, one line each. Keyed by text so a changed
+          sentence is a new node: the scene transition dissolves it, and the
+          no-view-transition fallback plays blurIn on it. */}
+      <div className="px-4 pt-2 pb-1 space-y-1 text-[12px] leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
+        {lines.map((text) => (
+          <p key={text} className="preview-line">{text}</p>
+        ))}
       </div>
 
       {/* Figures */}
       <div className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1.5 px-4 pt-2 pb-3.5 text-[12px]" style={{ color: 'var(--c-text-muted)' }}>
         <span className="flex items-center">
           Price impact, $10k swap
-          <Tooltip text="Simulated on a balanced $1M / $1M pool with your A. Fees excluded." label="About price impact" />
+          <Tooltip text={`Simulated on a balanced pool holding $1M of each of your ${n} assets, with your A. Fees excluded. A smaller or lopsided pool costs more.`} label="About price impact" />
         </span>
         <TickNumber value={impact} format={fmtImpact} className="font-medium" style={{ color: 'var(--c-text)' }} />
         <div className="col-span-2 h-1 rounded-full overflow-hidden -mt-0.5 mb-1" style={{ backgroundColor: 'var(--c-surface-2)' }}>

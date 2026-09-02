@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react'
 import { constantProductPoints, stableCurvePoints } from '../../lib/stellar/poolParams'
 
-// The preview's curve. When A changes the path is tweened point by point
-// (same x samples for every A), so the curve bends into its new shape rather
-// than swapping. Constant product sits behind it as a dashed reference.
+// The preview's curve. When A (or the coin count) changes the path is tweened
+// point by point (same x samples for every shape), so the curve bends into its
+// new form rather than swapping. Constant product sits behind it as a dashed
+// reference. Axis captions name the pair the sketch is drawn for.
 
 const W = 240
 const H = 150
@@ -24,16 +25,20 @@ const CP_PATH = pathFrom(constantProductPoints())
 
 interface CurveSketchProps {
   amp: number
+  /** Coins in the pool; the sketch plots the first two. */
+  n?: number
+  /** Symbols for the axis captions: [x axis, y axis]. */
+  pair?: [string, string]
   className?: string
 }
 
-export default function CurveSketch({ amp, className }: CurveSketchProps) {
+export default function CurveSketch({ amp, n = 2, pair, className }: CurveSketchProps) {
   const pathRef = useRef<SVGPathElement>(null)
-  const current = useRef<[number, number][]>(stableCurvePoints(amp))
+  const current = useRef<[number, number][]>(stableCurvePoints(amp, n))
   const raf = useRef<number>(0)
 
   useEffect(() => {
-    const target = stableCurvePoints(amp)
+    const target = stableCurvePoints(amp, n)
     const path = pathRef.current
     if (!path) return
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -53,15 +58,25 @@ export default function CurveSketch({ amp, className }: CurveSketchProps) {
     }
     raf.current = requestAnimationFrame(step)
     return () => cancelAnimationFrame(raf.current)
-  }, [amp])
+  }, [amp, n])
 
   const [cx, cy] = toSvg([100, 100])
+  const label = pair ? `StableSwap curve for ${pair[0]} against ${pair[1]} at A ${amp}` : `StableSwap curve at A ${amp}`
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className={className} style={{ overflow: 'hidden' }} aria-label={`StableSwap curve at A ${amp}`} role="img">
+    <svg viewBox={`0 0 ${W} ${H}`} className={className} style={{ overflow: 'hidden' }} aria-label={label} role="img">
       <path d={CP_PATH} fill="none" stroke="var(--c-border-2)" strokeDasharray="3 4" strokeWidth={1.2} />
       <path ref={pathRef} d={pathFrom(current.current)} fill="none" stroke="var(--c-accent)" strokeWidth={2.2} strokeLinecap="round" />
       <circle cx={cx} cy={cy} r={3} fill="var(--c-text)" />
+      {pair && (
+        <g fill="var(--c-text-faint)" fontSize={9} style={{ fontFamily: 'inherit', letterSpacing: '0.04em' }}>
+          {/* Captions are keyed by symbol so a pair change swaps the node and
+              the scene transition can dissolve it rather than retype it. */}
+          {/* Bottom-left corner: the one region the curve never crosses. */}
+          <text key={`y-${pair[1]}`} x={M + 2} y={H - 14}>↑ {pair[1]} in pool</text>
+          <text key={`x-${pair[0]}`} x={M + 2} y={H - 3}>{pair[0]} in pool →</text>
+        </g>
+      )}
     </svg>
   )
 }

@@ -55,6 +55,43 @@
   100% { box-shadow: 0 0 0 8px transparent; }
 }
 
+/* Pool builder preview: scene dissolve. On a discrete choice the card is
+   snapshotted, the old frame blurs and thins out like ink in water while the
+   new one sharpens underneath. The rest of the page keeps no cross-fade and
+   stays clickable during the animation. */
+@keyframes sceneOut {
+  from { opacity: 1; filter: blur(0); transform: scale(1); }
+  to   { opacity: 0; filter: blur(10px); transform: scale(1.012); }
+}
+@keyframes sceneIn {
+  from { opacity: 0; filter: blur(10px); transform: scale(0.992); }
+  to   { opacity: 1; filter: blur(0); transform: scale(1); }
+}
+::view-transition { pointer-events: none; }
+::view-transition-old(root),
+::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-group(pool-preview) {
+  animation-duration: 520ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+::view-transition-old(pool-preview) {
+  animation: sceneOut 420ms cubic-bezier(0.4, 0, 0.6, 1) both;
+}
+::view-transition-new(pool-preview) {
+  animation: sceneIn 560ms 60ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+/* Where view transitions are missing, changed sentences still ease in. */
+@keyframes blurIn {
+  from { opacity: 0; filter: blur(6px); }
+  to   { opacity: 1; filter: blur(0); }
+}
+@supports not (view-transition-name: x) {
+  .pool-preview .preview-line { animation: blurIn 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pool-preview .preview-line { animation: none; }
+}
+
 @layer utilities {
   .animate-bounce-in {
     animation: bounceIn 1.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;

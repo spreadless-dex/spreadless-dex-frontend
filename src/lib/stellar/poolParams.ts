@@ -336,15 +336,92 @@ export function getY(x: number, amp: number, D: number): number {
   return y;
 }
 
+// n-coin form of the same solver, floats. Balanced pools give the same
+// per-pair curve for any n under the A·n scaling, but the preview should
+// price what the user actually picked rather than assume two coins.
+
+export function getDN(xp: number[], amp: number): number {
+  const n = xp.length;
+  const Ann = amp * n;
+  const S = xp.reduce((a, b) => a + b, 0);
+  let D = S;
+  for (let k = 0; k < 255; k++) {
+    let DP = D;
+    for (const x of xp) DP = (DP * D) / (x * n);
+    const prev = D;
+    D = ((Ann * S + DP * n) * D) / ((Ann - 1) * D + (n + 1) * DP);
+    if (Math.abs(D - prev) < 1e-9) break;
+  }
+  return D;
+}
+
+/** Reserve of coin `j` after coin `i` moves to `x`, all others unchanged. */
+export function getYN(i: number, j: number, x: number, xp: number[], amp: number): number {
+  const n = xp.length;
+  const Ann = amp * n;
+  const D = getDN(xp, amp);
+  let c = D;
+  let S = 0;
+  for (let k = 0; k < n; k++) {
+    let v: number;
+    if (k === i) v = x;
+    else if (k !== j) v = xp[k];
+    else continue;
+    S += v;
+    c = (c * D) / (v * n);
+  }
+  c = (c * D) / (Ann * n);
+  const b = S + D / Ann;
+  let y = D;
+  for (let k = 0; k < 255; k++) {
+    const prev = y;
+    y = (y * y + c) / (2 * y + b - D);
+    if (Math.abs(y - prev) < 1e-9) break;
+  }
+  return y;
+}
+
 /**
  * Percent of a trade lost to curvature (fees excluded) when swapping
- * `amount` into a balanced pool holding `reserve` of each side.
+ * `amount` of one coin for another in a balanced `n`-coin pool holding
+ * `reserve` of each.
  */
-export function priceImpactPct(amp: number, reserve = 1_000_000, amount = 10_000): number {
-  const D = 2 * reserve;
-  const yAfter = getY(reserve + amount, amp, D);
+export function priceImpactPct(amp: number, n = 2, reserve = 1_000_000, amount = 10_000): number {
+  const coins = Math.max(2, n);
+  const xp = Array<number>(coins).fill(reserve);
+  const yAfter = getYN(0, 1, reserve + amount, xp, amp);
   const out = reserve - yAfter;
   return Math.max(0, (1 - out / amount) * 100);
+}
+
+// ── Narratives ───────────────────────────────────────────────────────────
+//
+// One sentence per choice for the preview. Bucketed on purpose: the text
+// should change when the meaning changes, not on every slider tick, so the
+// scene transition fires a handful of times per session rather than a
+// hundred.
+
+export function curveNarrative(amp: number): string {
+  if (amp >= 500) return "Nearly a straight line. Trades at 1:1 until the pool is badly lopsided, then the price snaps.";
+  if (amp >= 150) return "Flat around 1:1. Suited to assets that hold their peg tightly.";
+  if (amp >= 50) return "The usual shape for stable pairs: cheap near balance, firm when one side runs low.";
+  if (amp >= 10) return "Bends early. Prices react sooner when one asset drifts, which protects the other side.";
+  return "Close to constant product. Every trade moves the price; only for pairs that really wobble.";
+}
+
+export function feeNarrative(feePct: number): string {
+  if (feePct <= 0.015) return "A thin fee for volume. Routers pick this pool first; LPs earn on turnover.";
+  if (feePct < 0.07) return "The standard fee. Competitive for stable pairs without starving LPs.";
+  if (feePct <= 0.2) return "A wider fee for thin or volatile pairs. Fewer routed trades, more per trade.";
+  return "A steep fee. Only pays off where there is no other venue for this pair.";
+}
+
+export function assetsNarrative(symbols: string[]): string {
+  const n = symbols.length;
+  if (n === 0) return "Pick assets to see how this pool would trade.";
+  if (n === 1) return "One more asset makes a pool.";
+  if (n === 2) return `${symbols[0]} and ${symbols[1]} on one curve.`;
+  return `${n} assets on one curve. Every pair trades at the same A; the sketch shows ${symbols[0]} against ${symbols[1]}.`;
 }
 
 /** What LPs keep of the swap fee on $1M of daily volume, in dollars. */
@@ -371,15 +448,16 @@ export function impactMeterPct(impactPct: number): number {
 const CURVE_Y_CLIP = 400;
 
 /**
- * Curve sample points on a fixed 0..200 domain (balanced pool at 100/100),
- * as [x, y] pairs. Same x for every amp, so two curves can be tweened.
+ * Curve sample points on a fixed 0..200 domain (balanced pool at 100 per
+ * coin), as [x, y] pairs for the first two coins of an `n`-coin pool. Same
+ * x for every amp, so two curves can be tweened.
  */
-export function stableCurvePoints(amp: number, samples = 80): [number, number][] {
-  const D = 200;
+export function stableCurvePoints(amp: number, n = 2, samples = 80): [number, number][] {
+  const xp = Array<number>(Math.max(2, n)).fill(100);
   const pts: [number, number][] = [];
   for (let i = 0; i <= samples; i++) {
     const x = 6 + (194 * i) / samples;
-    pts.push([x, Math.min(getY(x, amp, D), CURVE_Y_CLIP)]);
+    pts.push([x, Math.min(getYN(0, 1, x, xp, amp), CURVE_Y_CLIP)]);
   }
   return pts;
 }

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { flushSync } from 'react-dom'
+import { sceneTransition } from '../../lib/sceneTransition'
 import { useAppStore } from '../../store/useAppStore'
 import { listVaults } from '../../lib/stellar/registry'
 import { listLocalPools } from '../../lib/stellar/localPools'
@@ -79,10 +81,15 @@ export default function CreatePoolPage() {
     setDraft((d) => ({ ...d, ...patch }))
   }
 
+  // A chip or a preset is a scene change: the preview dissolves into its
+  // new state. Slider drags call `set` directly and let the curve tween and
+  // the numbers tick instead.
+  const setScene = (patch: Partial<PoolDraft>) => sceneTransition(() => flushSync(() => set(patch)))
+
   const toggleToken = (meta: TokenMeta) => {
     setLimitHit(false)
     const has = draft.tokens.includes(meta.address)
-    set({ tokens: has ? draft.tokens.filter((a) => a !== meta.address) : [...draft.tokens, meta.address] })
+    setScene({ tokens: has ? draft.tokens.filter((a) => a !== meta.address) : [...draft.tokens, meta.address] })
   }
 
   const name = poolName(tokens.map((t) => t.symbol))
@@ -161,7 +168,7 @@ export default function CreatePoolPage() {
             <CurvePicker
               amp={draft.amp}
               custom={ampCustom}
-              onChange={(amp, custom) => { setAmpCustom(custom); set({ amp }) }}
+              onChange={(amp, custom) => { setAmpCustom(custom); (custom ? set : setScene)({ amp }) }}
             />
           </Step>
 
@@ -172,7 +179,7 @@ export default function CreatePoolPage() {
             <FeePicker
               feePct={draft.feePct}
               custom={feeCustom}
-              onFee={(pct, custom) => { setFeeCustom(custom); set({ feePct: pct }) }}
+              onFee={(pct, custom) => { setFeeCustom(custom); (custom ? set : setScene)({ feePct: pct }) }}
             />
           </Step>
 
