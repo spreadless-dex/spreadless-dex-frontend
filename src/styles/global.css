@@ -80,6 +80,44 @@
 ::view-transition-new(pool-preview) {
   animation: sceneIn 560ms 60ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
+/* ─── Cross-document navigation ───────────────────────────
+   Every page opts in, so a link from the profile panel to Earn or Activity
+   (or any nav click) swaps documents under a view transition. Only two
+   things are named: the header, so it stays put and crisp while the page
+   changes under it, and the page content, which settles in with a short
+   fade and a few pixels of lift. Root keeps no animation (see above), so the
+   ambient canvas never flickers. */
+@view-transition { navigation: auto; }
+
+#content { view-transition-name: page; }
+
+@keyframes pageOut {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-4px); }
+}
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+::view-transition-group(page) { animation-duration: 0s; }
+::view-transition-old(page) {
+  animation: pageOut 140ms cubic-bezier(0.4, 0, 0.6, 1) both;
+}
+::view-transition-new(page) {
+  animation: pageIn 240ms 60ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+/* The header is captured on its own and therefore left out of the page
+   snapshot; identical old/new images mean it simply stays. */
+::view-transition-group(site-header),
+::view-transition-old(site-header),
+::view-transition-new(site-header) { animation: none; }
+::view-transition-old(site-header) { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(page),
+  ::view-transition-new(page) { animation-duration: 0s; }
+}
+
 /* Where view transitions are missing, changed sentences still ease in. */
 @keyframes blurIn {
   from { opacity: 0; filter: blur(6px); }

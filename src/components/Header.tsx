@@ -86,6 +86,9 @@ export default function Header({ currentPage = "home" }: HeaderProps) {
         style={{
           backgroundColor: "color-mix(in srgb, var(--c-bg) 82%, transparent)",
           borderColor: "var(--c-border)",
+          // Named so cross-document view transitions keep it still while the
+          // page content swaps underneath (see global.css).
+          viewTransitionName: "site-header",
         }}
       >
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
