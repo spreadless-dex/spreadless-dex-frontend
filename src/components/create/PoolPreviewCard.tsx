@@ -98,11 +98,16 @@ export default function PoolPreviewCard({
       </div>
 
       {/* Curve */}
-      <div className="relative px-4 pt-3">
-        <span className="absolute right-5 top-3 inline-flex items-center text-[10px] uppercase tracking-wider" style={{ color: 'var(--c-text-faint)' }}>
+      {/* Hovering the chart (or tabbing to it) fades in a small note on what
+          the axes mean. It sits under the top-right label, the one corner the
+          curve leaves empty. */}
+      <div className="curve-hover relative px-4 pt-3" tabIndex={0} aria-describedby="curve-hint">
+        <span className="absolute right-5 top-3 text-[10px] uppercase tracking-wider" style={{ color: 'var(--c-text-faint)' }}>
           vs constant product
-          <Tooltip text="Axes show how much of each asset the pool holds, with 100 per asset at balance. The curve is every mix the pool accepts at your A. The dashed line is a plain constant product pool." label="About the curve chart" />
         </span>
+        <p id="curve-hint" className="curve-hint" role="note">
+          How much of each asset the pool holds, 100 apiece at balance. The curve is every mix it accepts at your A.
+        </p>
         <CurveSketch amp={amp} n={n} pair={pair} className="w-full h-auto block" />
       </div>
 
