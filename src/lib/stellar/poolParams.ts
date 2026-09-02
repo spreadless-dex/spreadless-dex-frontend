@@ -135,16 +135,50 @@ export function sameTokenSet(a: string[], b: string[]): boolean {
   return sa.every((x, i) => x === sb[i]);
 }
 
-export function findDuplicate<V extends { tokens: string[] }>(
-  tokens: string[],
-  vaults: V[],
-): V | undefined {
-  return vaults.find((v) => sameTokenSet(v.tokens, tokens));
+/**
+ * What the builder knows about a pool that already exists. `amp` and
+ * `feeBps` are optional because the config-backed vault has no getters for
+ * either; a pool with unknown settings can never be called an exact twin.
+ */
+export interface ExistingPool {
+  address: string;
+  tokens: string[];
+  amp?: number;
+  feeBps?: number;
+}
+
+/** Every existing pool holding exactly this asset set, whatever its settings. */
+export function findTwins<V extends { tokens: string[] }>(tokens: string[], vaults: V[]): V[] {
+  return vaults.filter((v) => sameTokenSet(v.tokens, tokens));
+}
+
+/**
+ * The one case the protocol rejects (DEX-58): same assets, same A, same fee.
+ * Same assets with a different curve or fee is a distinct pool and allowed.
+ */
+export function findDuplicate<V extends ExistingPool>(draft: PoolDraft, vaults: V[]): V | undefined {
+  return findTwins(draft.tokens, vaults).find(
+    (v) => v.amp === draft.amp && v.feeBps === percentToBps(draft.feePct),
+  );
+}
+
+/** "A 100 · 0.04% fee" for twin notices, listing only what is known. */
+export function describeSettings(p: { amp?: number; feeBps?: number }): string {
+  const parts: string[] = [];
+  if (p.amp !== undefined) parts.push(`A ${fmtAmp(p.amp)}`);
+  if (p.feeBps !== undefined) parts.push(`${(p.feeBps / 100).toFixed(2)}% fee`);
+  return parts.length ? parts.join(" · ") : "settings unknown";
+}
+
+/** True when both A and fee are known, so the twin check can be conclusive. */
+export function settingsKnown(p: { amp?: number; feeBps?: number }): boolean {
+  return p.amp !== undefined && p.feeBps !== undefined;
 }
 
 // ── Validation ───────────────────────────────────────────────────────────
 
-export type DraftField = "tokens" | "amp" | "fee" | "caps" | "lpMaxSupply";
+/** "config" covers the asset set together with A and fee: the twin check. */
+export type DraftField = "tokens" | "config" | "amp" | "fee" | "caps" | "lpMaxSupply";
 
 export interface DraftIssue {
   field: DraftField;
@@ -171,7 +205,7 @@ export function isAccountAddress(s: string): boolean {
 export function validateDraft(
   draft: PoolDraft,
   metaFor: (address: string) => TokenMeta | undefined,
-  existing: { tokens: string[] }[],
+  existing: ExistingPool[],
 ): DraftIssue[] {
   const issues: DraftIssue[] = [];
   const n = draft.tokens.length;
@@ -182,8 +216,6 @@ export function validateDraft(
     issues.push({ field: "tokens", message: `${MAX_TOKENS} assets max.`, severity: "error" });
   } else if (new Set(draft.tokens).size !== n) {
     issues.push({ field: "tokens", message: "Each asset can only be in the pool once.", severity: "error" });
-  } else if (findDuplicate(draft.tokens, existing)) {
-    issues.push({ field: "tokens", message: "This pool already exists.", severity: "error" });
   } else {
     const pegs = new Set(draft.tokens.map((a) => metaFor(a)?.peg).filter(Boolean));
     if (pegs.size > 1) {
@@ -191,6 +223,19 @@ export function validateDraft(
         field: "tokens",
         message: "Mixed pegs. StableSwap expects assets that trade near 1:1.",
         severity: "warning",
+      });
+    }
+  }
+
+  // Twin check sits on its own field so a clash never locks the curve and
+  // fee steps: changing either one is exactly how the user resolves it.
+  if (n >= MIN_TOKENS) {
+    const twin = findDuplicate(draft, existing);
+    if (twin) {
+      issues.push({
+        field: "config",
+        message: `A pool with these assets, ${describeSettings(twin)}, already exists. Change the curve or the fee to make yours distinct.`,
+        severity: "error",
       });
     }
   }

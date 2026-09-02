@@ -81,7 +81,7 @@ export function mapTxError(err: unknown, ctx: TxErrorContext = {}): MappedTxErro
 
   // Pool creation. The Factory's error enum is not final; match by name.
   if (/DuplicateVault|AlreadyExists|VaultExists/i.test(raw)) {
-    return { message: "A pool with exactly these assets already exists. Open it instead." };
+    return { message: "A pool with these assets, curve and fee already exists. Change A or the fee, or open the existing pool." };
   }
   if (/InvalidFee|FeeOutOfRange|FeeTooHigh/i.test(raw)) {
     return { message: "The contract rejected this fee. Pick a value inside the allowed range." };

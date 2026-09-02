@@ -24,6 +24,8 @@ export interface VaultInfo {
    * label instead of showing a number nobody verified.
    */
   feeBps?: number;
+  /** Amplification, when the source knows it. Same caveat as `feeBps`. */
+  amp?: number;
 }
 
 export function shortAddress(address: string): string {
@@ -85,6 +87,7 @@ function listDeployedLocally(): VaultInfo[] {
     tokens: p.tokens,
     label: p.label,
     feeBps: p.feeBps,
+    amp: p.amp,
   }));
 }
 
@@ -97,8 +100,13 @@ async function readSingleVault(): Promise<VaultInfo[]> {
     rpcUrl: RPC_URL,
     networkPassphrase: NETWORK_PASSPHRASE,
   });
-  const tokens = (await pool.get_tokens()).result;
-  return [{ address: POOL_CONTRACT_ID, tokens, label: "Stableswap Pool" }];
+  // A is readable, the fee is not (no getter), so the builder's twin check
+  // can only ever call this vault a partial match.
+  const [tokens, amp] = await Promise.all([
+    pool.get_tokens().then((t) => t.result),
+    pool.get_amp().then((t) => t.result),
+  ]);
+  return [{ address: POOL_CONTRACT_ID, tokens, label: "Stableswap Pool", amp }];
 }
 
 // TRANCHE 2 / D1: read the Factory's paginated registry (address, tokens,

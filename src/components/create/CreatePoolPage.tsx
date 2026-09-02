@@ -5,14 +5,19 @@ import { listLocalPools } from '../../lib/stellar/localPools'
 import type { CreatePoolResult } from '../../lib/stellar/factory'
 import {
   canonicalOrder,
+  describeSettings,
   emptyDraft,
+  findDuplicate,
+  findTwins,
+  fmtAmp,
+  settingsKnown,
   hasErrors,
   knownTokenMeta,
   poolName,
   validateDraft,
+  type ExistingPool,
   type PoolDraft,
   type TokenMeta,
-  fmtAmp,
 } from '../../lib/stellar/poolParams'
 import AssetPicker from './AssetPicker'
 import CurvePicker from './CurvePicker'
@@ -35,13 +40,13 @@ export default function CreatePoolPage() {
   const [ampCustom, setAmpCustom] = useState(false)
   const [feeCustom, setFeeCustom] = useState(false)
   const [customTokens, setCustomTokens] = useState<TokenMeta[]>([])
-  const [existing, setExisting] = useState<{ tokens: string[] }[]>([])
+  const [existing, setExisting] = useState<ExistingPool[]>([])
   const [limitHit, setLimitHit] = useState(false)
   const [deploying, setDeploying] = useState(false)
   const [created, setCreated] = useState<CreatePoolResult | null>(null)
 
-  // The duplicate check needs every known vault: live registry plus pools
-  // this browser created (both kinds; a demo pool should also refuse a twin).
+  // The twin check needs every known vault: live registry plus pools this
+  // browser created (both kinds; a demo pool should also refuse an exact twin).
   useEffect(() => {
     listVaults()
       .then((vaults) => setExisting([...vaults, ...listLocalPools()]))
@@ -62,6 +67,10 @@ export default function CreatePoolPage() {
 
   const issues = validateDraft(draft, metaFor, existing)
   const assetIssue = issues.find((i) => i.field === 'tokens')
+  // Same assets is fine (DEX-58); only same assets with the same A and fee
+  // is refused. Twins with other settings get a note, not a block.
+  const twins = draft.tokens.length >= 2 ? findTwins(draft.tokens, existing) : []
+  const duplicate = findDuplicate(draft, existing)
   const assetsValid = !issues.some((i) => i.field === 'tokens' && i.severity === 'error')
   const unlocked = assetsValid && draft.tokens.length >= 2
 
@@ -128,10 +137,21 @@ export default function CreatePoolPage() {
             />
             <p className="text-[12px] mt-2.5 min-h-[18px]" style={{ color: assetHint.warn ? '#d97706' : 'var(--c-text-muted)' }}>
               {assetHint.text}
-              {assetIssue?.message === 'This pool already exists.' && (
-                <a href="/pools" className="underline underline-offset-2 ml-1">Open it</a>
-              )}
             </p>
+            {duplicate ? (
+              <p className="text-[12px] mt-1" style={{ color: '#d97706' }}>
+                A pool with these assets, {describeSettings(duplicate)}, already exists. Change the curve or the fee to make yours distinct, or
+                <a href={`/pools/v/${duplicate.address}`} className="underline underline-offset-2 ml-1">open it</a>.
+              </p>
+            ) : twins.length > 0 && (
+              <p className="text-[12px] mt-1" style={{ color: 'var(--c-text-muted)' }}>
+                {twins.length === 1 ? 'A pool' : `${twins.length} pools`} with these assets already
+                {twins.length === 1 ? ' exists' : ' exist'} ({twins.map(describeSettings).join('; ')}).{' '}
+                {twins.every(settingsKnown)
+                  ? 'Yours has different settings, so it deploys as a separate pool.'
+                  : 'Not every setting is readable on-chain: an exact match of curve and fee is rejected, anything else deploys as a separate pool.'}
+              </p>
+            )}
           </Step>
 
           <Step n={2} title="Curve" done={unlocked} locked={!unlocked} delay={0}

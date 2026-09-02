@@ -56,7 +56,7 @@ Mobile: Preview wird zur kompakten Sticky-Leiste oben (Icons, Name, A, Fee), Kur
 - Chip-Grid der bekannten Tokens (TokenIcon + Symbol + Wallet-Balance). Tippen = an/aus. 2 bis 4 Tokens (Contract-Limit "supported token count", Annahme 4 wie Vault C).
 - Reihenfolge: canonical = sortiert nach Contract-Adresse (Factory validiert das). UI sortiert automatisch, zeigt aber die gewählte Reihenfolge nicht als Entscheidung an.
 - **"+ Add by address"**: Textfeld für eine Contract-Adresse. Liest `symbol`/`decimals` on-chain, zeigt Chip mit "Unverified" Badge. Tooltip: "Not on our list. Check the address on Stellar Expert before you pool it."
-- Live-Check gegen die Registry: gleiches Token-Set existiert → Chip-Zeile zeigt "This pool already exists. Open it →" und Deploy ist gesperrt. Doc-Anforderung "Rejection of duplicate configurations" wird so schon im UI abgefangen.
+- Live-Check gegen die Registry (DEX-58, 02.09.2026): Zwilling ist nur "gleiche Tokens + gleiches A + gleiche Fee". Der exakte Zwilling sperrt Deploy mit Hinweis und Link zum bestehenden Pool; gleiche Tokens mit anderer Konfiguration sind ein eigener Pool und bekommen nur eine Notiz ("deploys as a separate pool"). Die Prüfung sitzt auf einem eigenen Feld `config`, damit Curve- und Fee-Schritt offen bleiben, denn dort löst man den Konflikt. Pools ohne bekanntes A/Fee (der Config-Vault) können nie als Zwilling gelten.
 - Peg-Hinweis: Alle Listen-Tokens tragen ein `peg: 'USD' | 'EUR'`-Feld (Doc: "EURC nur EUR, Dollar zu Dollar"). Gemischte Pegs → Warnung "Mixed pegs. StableSwap expects assets that trade near 1:1."
 - Pool-Name wird generiert: "USDx / sUSDC". Nicht editierbar (Name ist on-chain nicht vorhanden, nur Anzeige).
 
