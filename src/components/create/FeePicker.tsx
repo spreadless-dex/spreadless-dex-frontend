@@ -9,10 +9,11 @@ import {
 } from '../../lib/stellar/poolParams'
 import SegmentedControl from './SegmentedControl'
 import HairlineSlider from './HairlineSlider'
+import Smoke from './Smoke'
 import Tooltip from '../Tooltip'
 
-// Step 3: the swap fee. Presets first; Custom opens a log slider spanning
-// 0.001% to 1%. How the fee splits is fixed by the protocol, so it is stated
+// Step 3: the swap fee. Presets first; Custom condenses a log slider spanning
+// 0.001% to 1% out of the space below (Smoke). How the fee splits is fixed by the protocol, so it is stated
 // here rather than offered as a choice.
 
 interface FeePickerProps {
@@ -38,8 +39,8 @@ export default function FeePicker({ feePct, custom, onFee }: FeePickerProps) {
           else onFee(Number(key), false)
         }}
       />
-      {custom && (
-        <div className="flex items-center gap-3 mt-3 animate-fade-up">
+      <Smoke show={custom}>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-3 pb-1">
           <HairlineSlider
             min={0}
             max={100}
@@ -50,9 +51,9 @@ export default function FeePicker({ feePct, custom, onFee }: FeePickerProps) {
             ariaValueText={`${feePct}%`}
             marks={[0, 1 / 3, 2 / 3, 1]}
             ticks={49}
-            className="flex-1"
+            className="w-full sm:flex-1"
           />
-          <div className="relative">
+          <div className="smoke-late relative self-end sm:self-auto">
             <input
               value={feePct}
               onChange={(e) => {
@@ -67,7 +68,7 @@ export default function FeePicker({ feePct, custom, onFee }: FeePickerProps) {
             <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[12px]" style={{ color: 'var(--c-text-faint)' }}>%</span>
           </div>
         </div>
-      )}
+      </Smoke>
       <div className="flex items-center flex-wrap gap-x-1 gap-y-1 mt-3 text-[12px]" style={{ color: 'var(--c-text-muted)' }}>
         <span className="flex items-center">
           A fixed {formatSharePct(PROTOCOL_SHARE_PCT)}% of the fee goes to the protocol, the rest to LPs.

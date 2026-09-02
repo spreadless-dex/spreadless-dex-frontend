@@ -45,7 +45,7 @@ export default function AdvancedSection({ draft, tokens, owner, onCap, onLpCap }
         style={{ gridTemplateRows: open ? '1fr' : '0fr', transitionTimingFunction: 'cubic-bezier(0.2,0.8,0.2,1)' }}
       >
         <div className="overflow-hidden">
-          <div className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2.5 pt-4 text-[13px]" style={{ color: 'var(--c-text-muted)' }}>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1.5 sm:gap-y-2.5 pt-4 text-[13px]" style={{ color: 'var(--c-text-muted)' }}>
             {tokens.map((t) => (
               <FragmentRow key={t.address}>
                 <span className="flex items-center">
@@ -68,7 +68,7 @@ export default function AdvancedSection({ draft, tokens, owner, onCap, onLpCap }
               Owner
               <Tooltip text="Fixed to your wallet. The owner is the only address that can pause the pool, ramp A and change the swap fee after launch, and can hand that right to the protocol." label="About the owner" />
             </span>
-            <span className="font-medium tabular-nums text-right" style={{ color: 'var(--c-text)' }}>
+            <span className="font-medium tabular-nums sm:text-right" style={{ color: 'var(--c-text)' }}>
               {owner ? `${shortenAddress(owner)} · you` : 'Log in'}
             </span>
           </div>

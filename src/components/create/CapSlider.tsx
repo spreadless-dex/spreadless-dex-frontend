@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { logToSlider, sliderToLog } from '../../lib/stellar/poolParams'
 import HairlineSlider from './HairlineSlider'
+import GlowValue from '../GlowValue'
 
 // A cap starts unlimited and is pulled down, so the track runs from a small
 // floor up to one extra stop past the maximum that means "No cap" — the
@@ -75,7 +76,7 @@ export default function CapSlider({ value, onChange, label }: CapSliderProps) {
   }
 
   return (
-    <div className="flex items-center gap-2.5 w-[244px]">
+    <div className="flex items-center gap-2.5 w-full sm:w-[244px]">
       <HairlineSlider
         min={0}
         max={NO_CAP_STEP}
@@ -130,7 +131,7 @@ export default function CapSlider({ value, onChange, label }: CapSliderProps) {
             color: set ? 'var(--c-text)' : 'var(--c-text-faint)',
           }}
         >
-          {set ? groups.format(n) : 'No cap'}
+          <GlowValue value={set ? groups.format(n) : 'No cap'} />
         </button>
       )}
     </div>

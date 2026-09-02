@@ -6,6 +6,7 @@ import { listVaults } from '../../lib/stellar/registry'
 import { listLocalPools } from '../../lib/stellar/localPools'
 import { isDemoAddress, useVaultTvl } from '../../lib/stellar/vaultTvl'
 import { formatCurrency } from '../../lib/utils'
+import GlowValue from '../GlowValue'
 import type { CreatePoolResult } from '../../lib/stellar/factory'
 import {
   canonicalOrder,
@@ -305,9 +306,11 @@ function Step({ n, title, done, locked, delay = 0, tooltip, value, bare, childre
             {title}
             {tooltip && <Tooltip text={tooltip} label={`About ${title.toLowerCase()}`} />}
             {value && (
-              <span className="ml-auto pl-3 text-[12px] font-medium truncate" style={{ color: 'var(--c-text-muted)' }}>
-                {value}
-              </span>
+              <GlowValue
+                value={value}
+                className="ml-auto pl-3 text-[12px] font-medium truncate"
+                style={{ color: 'var(--c-text-muted)' }}
+              />
             )}
           </h2>
         </header>

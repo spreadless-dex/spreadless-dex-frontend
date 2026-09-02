@@ -9,9 +9,10 @@ import {
 } from '../../lib/stellar/poolParams'
 import SegmentedControl from './SegmentedControl'
 import HairlineSlider from './HairlineSlider'
+import Smoke from './Smoke'
 
 // Step 2: amplification. Three named presets carry the decision; Custom
-// reveals a log slider plus a typed field. The hint line translates A into
+// condenses a log slider plus a typed field out of the space below (Smoke). The hint line translates A into
 // the one number people feel: what a $10k swap does to the price.
 
 interface CurvePickerProps {
@@ -39,8 +40,8 @@ export default function CurvePicker({ amp, custom, onChange }: CurvePickerProps)
           else onChange(AMP_PRESETS.find((p) => p.key === key)!.amp, false)
         }}
       />
-      {custom && (
-        <div className="flex items-center gap-3 mt-3 animate-fade-up">
+      <Smoke show={custom}>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-3 pb-1">
           <HairlineSlider
             min={0}
             max={100}
@@ -51,7 +52,7 @@ export default function CurvePicker({ amp, custom, onChange }: CurvePickerProps)
             ariaValueText={`A ${fmtAmp(amp)}`}
             marks={[0, 1 / 3, 2 / 3, 1]}
             ticks={49}
-            className="flex-1"
+            className="w-full sm:flex-1"
           />
           <input
             value={amp}
@@ -61,11 +62,11 @@ export default function CurvePicker({ amp, custom, onChange }: CurvePickerProps)
             }}
             inputMode="numeric"
             aria-label="A value"
-            className="w-24 px-2.5 py-1.5 rounded-lg text-[13px] text-right tabular-nums outline-none"
+            className="smoke-late self-end sm:self-auto w-24 px-2.5 py-1.5 rounded-lg text-[13px] text-right tabular-nums outline-none"
             style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border-2)', color: 'var(--c-text)' }}
           />
         </div>
-      )}
+      </Smoke>
       <p className="text-[12px] mt-2.5" style={{ color: 'var(--c-text-muted)' }}>
         A $10k swap gives up {fmtImpact(priceImpactPct(amp))} to the curve, before fees.
       </p>

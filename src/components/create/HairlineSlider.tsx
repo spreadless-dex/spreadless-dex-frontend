@@ -8,8 +8,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 // relaxes flat when you let go. A ruler can also dissolve toward its right
 // end (`fadeFrom`), which is how the cap slider says "past here, unlimited".
 //
-// The real <input type="range"> sits invisible on top at full size, so
-// pointer, touch, keyboard and screen-reader behaviour are stock. Reduced
+// The real <input type="range"> sits invisible on top, a little taller than
+// the ruler (see .hairline-slider in global.css) so a finger has room, and
+// pointer, touch, keyboard and screen-reader behaviour stay stock. Reduced
 // motion drops the trailing and the swell; the ruler still fills and moves.
 
 interface HairlineSliderProps {
@@ -152,7 +153,7 @@ export default function HairlineSlider({
   useEffect(() => () => cancelAnimationFrame(anim.current.raf), [])
 
   return (
-    <div className={`relative h-[26px] ${className ?? ''}`}>
+    <div className={`hairline-slider relative ${className ?? ''}`}>
       {/* Baseline: the faintest possible ground under the ticks. */}
       <span
         aria-hidden
@@ -183,7 +184,7 @@ export default function HairlineSlider({
         className="absolute top-1/2 rounded-full transition-[height,box-shadow,opacity] duration-150"
         style={{
           left: `${fraction * 100}%`,
-          width: 2,
+          width: 'var(--thumb-w)',
           height: held ? 20 : 16,
           backgroundColor: 'var(--c-text)',
           opacity: dimThumb && !held ? 0.4 : 1,
@@ -207,7 +208,7 @@ export default function HairlineSlider({
         onBlur={() => setFocused(false)}
         aria-label={ariaLabel}
         aria-valuetext={ariaValueText}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer m-0"
+        className="absolute left-0 right-0 w-full opacity-0 cursor-pointer m-0"
       />
     </div>
   )
