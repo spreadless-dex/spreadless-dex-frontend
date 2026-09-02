@@ -99,8 +99,9 @@ export default function PoolPreviewCard({
 
       {/* Curve */}
       <div className="relative px-4 pt-3">
-        <span className="absolute right-5 top-3 text-[10px] uppercase tracking-wider" style={{ color: 'var(--c-text-faint)' }}>
+        <span className="absolute right-5 top-3 inline-flex items-center text-[10px] uppercase tracking-wider" style={{ color: 'var(--c-text-faint)' }}>
           vs constant product
+          <Tooltip text="Axes show how much of each asset the pool holds, with 100 per asset at balance. The curve is every mix the pool accepts at your A. The dashed line is a plain constant product pool." label="About the curve chart" />
         </span>
         <CurveSketch amp={amp} n={n} pair={pair} className="w-full h-auto block" />
       </div>
