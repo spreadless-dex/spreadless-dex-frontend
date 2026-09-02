@@ -44,7 +44,11 @@ That is exactly what the flat middle section does:
   For a two-coin pool with reserves `x` and `y`, amplification `A`, and invariant
   total `D`, StableSwap holds:
 
-  `A · 4 · (x + y) + D = A · D · 4 + D³ / (4 · x · y)`
+  `A · 2 · (x + y) + D = A · D · 2 + D³ / (4 · x · y)`
+
+  (`A` here is the on-chain value from `get_amp()`. The contract scales it by
+  the coin count `n`, so the coefficient is `A · n`, which is `A · 2` for two
+  coins.)
 
   When `A → 0` this collapses to the constant-product curve `x · y = k`. When
   `A → ∞` it becomes the constant-sum line `x + y = D`, a perfectly flat 1:1

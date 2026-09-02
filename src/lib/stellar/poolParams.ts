@@ -315,10 +315,14 @@ export function toConstructorArgs(
 // Two-coin StableSwap in floats: the preview sketch and the "price impact on
 // a $10k swap" figure. Same recurrence as CurveVisualizer in the docs; the
 // bigint version in demo.ts is for quotes that must round like the chain.
+//
+// A convention: the contract (like Curve's) uses Ann = A·n, not the
+// whitepaper's A·nⁿ. Verified 2026-09-02 against the testnet vault: a
+// simulated swap matches A·n to the 0.01% fee and misses A·nⁿ by ~0.3%.
 
 export function getY(x: number, amp: number, D: number): number {
   const n = 2;
-  const Ann = amp * n * n;
+  const Ann = amp * n;
   let c = D;
   c = (c * D) / (x * n);
   c = (c * D) / (Ann * n);

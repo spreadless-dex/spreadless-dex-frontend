@@ -5,10 +5,11 @@ import { useMemo, useState } from "react";
 // invariant D, and the amplification coefficient A, solve for the other reserve
 // y that keeps the invariant satisfied. Newton's method, same recurrence the
 // on-chain contract uses — so the shape you drag here is the shape the pool
-// actually prices against.
+// actually prices against. The contract scales A as Ann = A·n (Curve's
+// contract convention), not the whitepaper's A·nⁿ; verified against testnet.
 function getY(x: number, A: number, D: number): number {
   const n = 2;
-  const Ann = A * n * n; // A · nⁿ
+  const Ann = A * n; // A · n
   let c = D;
   c = (c * D) / (x * n); //  → D²/(2x)
   c = (c * D) / (Ann * n); //  → D³/(4·Ann·x)
