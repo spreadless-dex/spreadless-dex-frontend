@@ -4,6 +4,8 @@ import { sceneTransition } from '../../lib/sceneTransition'
 import { useAppStore } from '../../store/useAppStore'
 import { listVaults } from '../../lib/stellar/registry'
 import { listLocalPools } from '../../lib/stellar/localPools'
+import { isDemoAddress, useVaultTvl } from '../../lib/stellar/vaultTvl'
+import { formatCurrency } from '../../lib/utils'
 import type { CreatePoolResult } from '../../lib/stellar/factory'
 import {
   canonicalOrder,
@@ -69,10 +71,19 @@ export default function CreatePoolPage() {
 
   const issues = validateDraft(draft, metaFor, existing)
   const assetIssue = issues.find((i) => i.field === 'tokens')
-  // Same assets is fine (DEX-58); only same assets with the same A and fee
-  // is refused. Twins with other settings get a note, not a block.
+  // Nothing about a twin blocks the deploy: the Factory accepts a pool that
+  // matches another one down to the fee, so the builder does too and says
+  // what actually separates them, which is TVL.
   const twins = draft.tokens.length >= 2 ? findTwins(draft.tokens, existing) : []
   const duplicate = findDuplicate(draft, existing)
+  const twinTvl = useVaultTvl(twins.map((t) => t.address))
+  const tvlLabel = (address: string) => {
+    if (isDemoAddress(address)) return 'demo, no TVL'
+    const v = twinTvl[address]
+    if (v === undefined) return 'TVL loading'
+    if (v === null) return 'TVL unknown'
+    return v > 0 ? `${formatCurrency(v)} TVL` : 'empty'
+  }
   const assetsValid = !issues.some((i) => i.field === 'tokens' && i.severity === 'error')
   const unlocked = assetsValid && draft.tokens.length >= 2
 
@@ -145,19 +156,38 @@ export default function CreatePoolPage() {
             <p className="text-[12px] mt-2.5 min-h-[18px]" style={{ color: assetHint.warn ? '#d97706' : 'var(--c-text-muted)' }}>
               {assetHint.text}
             </p>
-            {duplicate ? (
-              <p className="text-[12px] mt-1" style={{ color: '#d97706' }}>
-                A pool with these assets, {describeSettings(duplicate)}, already exists. Change the curve or the fee to make yours distinct, or
-                <a href={`/pools/v/${duplicate.address}`} className="underline underline-offset-2 ml-1">open it</a>.
-              </p>
-            ) : twins.length > 0 && (
-              <p className="text-[12px] mt-1" style={{ color: 'var(--c-text-muted)' }}>
-                {twins.length === 1 ? 'A pool' : `${twins.length} pools`} with these assets already
-                {twins.length === 1 ? ' exists' : ' exist'} ({twins.map(describeSettings).join('; ')}).{' '}
-                {twins.every(settingsKnown)
-                  ? 'Yours has different settings, so it deploys as a separate pool.'
-                  : 'Not every setting is readable on-chain: an exact match of curve and fee is rejected, anything else deploys as a separate pool.'}
-              </p>
+            {twins.length > 0 && (
+              <div className="mt-2 rounded-xl px-3 py-2.5" style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border)' }}>
+                <p className="text-[12px]" style={{ color: 'var(--c-text)' }}>
+                  {twins.length === 1 ? 'A pool' : `${twins.length} pools`} with these assets already
+                  {twins.length === 1 ? ' exists' : ' exist'}.{' '}
+                  {duplicate
+                    ? 'One of them carries your exact settings. You can still deploy: two identical pools are allowed, and depth is what tells them apart. Yours starts empty, so seed it before it can win a quote.'
+                    : twins.every(settingsKnown)
+                      ? 'Yours has different settings, so it deploys as a separate pool.'
+                      : 'Not every setting is readable on chain, so an exact match cannot be ruled out. Either way yours deploys as its own pool.'}
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {twins.map((t) => (
+                    <li key={t.address} className="flex items-baseline justify-between gap-3 text-[12px]">
+                      <span style={{ color: 'var(--c-text-muted)' }}>
+                        {describeSettings(t)}
+                        {findDuplicate(draft, [t]) && (
+                          <span className="ml-1.5" style={{ color: '#d97706' }}>same as yours</span>
+                        )}
+                      </span>
+                      <span className="flex items-baseline gap-2 shrink-0">
+                        <span className="font-semibold tabular-nums" style={{ color: 'var(--c-text)' }}>
+                          {tvlLabel(t.address)}
+                        </span>
+                        <a href={`/pools/v/${t.address}`} className="underline underline-offset-2" style={{ color: 'var(--c-text-muted)' }}>
+                          open
+                        </a>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </Step>
 

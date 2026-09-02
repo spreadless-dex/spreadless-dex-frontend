@@ -139,12 +139,16 @@ export function sameTokenSet(a: string[], b: string[]): boolean {
  * What the builder knows about a pool that already exists. `amp` and
  * `feeBps` are optional because the config-backed vault has no getters for
  * either; a pool with unknown settings can never be called an exact twin.
+ * `tvl` is filled in lazily (readPoolState per twin) and is what separates
+ * two pools that carry the same settings.
  */
 export interface ExistingPool {
   address: string;
   tokens: string[];
   amp?: number;
   feeBps?: number;
+  /** Total value locked in USD terms, once read. */
+  tvl?: number;
 }
 
 /** Every existing pool holding exactly this asset set, whatever its settings. */
@@ -153,8 +157,9 @@ export function findTwins<V extends { tokens: string[] }>(tokens: string[], vaul
 }
 
 /**
- * The one case the protocol rejects (DEX-58): same assets, same A, same fee.
- * Same assets with a different curve or fee is a distinct pool and allowed.
+ * Same assets, same A, same fee. The Factory deploys this happily, so the
+ * builder allows it too and only says what it means: the new pool starts at
+ * zero TVL next to one that already has depth.
  */
 export function findDuplicate<V extends ExistingPool>(draft: PoolDraft, vaults: V[]): V | undefined {
   return findTwins(draft.tokens, vaults).find(
@@ -227,15 +232,16 @@ export function validateDraft(
     }
   }
 
-  // Twin check sits on its own field so a clash never locks the curve and
-  // fee steps: changing either one is exactly how the user resolves it.
+  // An identical pool is allowed, the Factory permits it, so this is a note
+  // and never a block: it sits on its own field, so the curve and fee steps
+  // stay usable if the user would rather make the pool distinct after all.
   if (n >= MIN_TOKENS) {
     const twin = findDuplicate(draft, existing);
     if (twin) {
       issues.push({
         field: "config",
-        message: `A pool with these assets, ${describeSettings(twin)}, already exists. Change the curve or the fee to make yours distinct.`,
-        severity: "error",
+        message: `A pool with these assets and the same settings, ${describeSettings(twin)}, already exists. Yours deploys next to it and starts empty, so TVL decides which one traders and depositors land in.`,
+        severity: "warning",
       });
     }
   }

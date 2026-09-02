@@ -223,6 +223,136 @@
   }
 }
 
+/* ─── Login chooser ───────────────────────────────────────
+   A native <dialog> in the top layer. Open and close are the SAME
+   transition run in opposite directions: out of display:none the card
+   condenses from a slight blur and lift, and on close it dissolves the same
+   way while the backdrop clears. React only toggles showModal()/close(); no
+   unmount races, no timers, and Escape / backdrop click go through the same
+   path as the X button. Rows settle one after the other on the way in and
+   leave together with the card on the way out. */
+.wallet-dialog {
+  --dur-in: 0.32s;
+  --dur-out: 0.2s;
+  --ease-in: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-out: cubic-bezier(0.4, 0, 0.6, 1);
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  padding: 0;
+  width: min(24rem, calc(100vw - 2rem));
+  max-width: none;
+  max-height: calc(100dvh - 2rem);
+  overflow: visible;
+  color: var(--c-text);
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 1rem;
+  box-shadow: var(--c-widget-shadow);
+  transform-origin: 50% 60%;
+  pointer-events: none;
+
+  /* Resting = closed. */
+  opacity: 0;
+  translate: 0 14px;
+  scale: 0.96;
+  filter: blur(6px);
+  transition:
+    opacity var(--dur-out) ease,
+    translate var(--dur-out) var(--ease-out),
+    scale var(--dur-out) var(--ease-out),
+    filter var(--dur-out) ease,
+    overlay var(--dur-out) allow-discrete,
+    display var(--dur-out) allow-discrete;
+}
+.wallet-dialog[open] {
+  pointer-events: auto;
+  opacity: 1;
+  translate: 0 0;
+  scale: 1;
+  filter: blur(0);
+  transition:
+    opacity var(--dur-in) ease,
+    translate var(--dur-in) var(--ease-in),
+    scale var(--dur-in) var(--ease-in),
+    filter var(--dur-in) ease,
+    overlay var(--dur-in) allow-discrete,
+    display var(--dur-in) allow-discrete;
+}
+@starting-style {
+  .wallet-dialog[open] {
+    opacity: 0;
+    translate: 0 14px;
+    scale: 0.96;
+    filter: blur(6px);
+  }
+}
+
+.wallet-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0;
+  transition:
+    opacity var(--dur-out, 0.2s) ease,
+    overlay var(--dur-out, 0.2s) allow-discrete,
+    display var(--dur-out, 0.2s) allow-discrete;
+}
+.wallet-dialog[open]::backdrop {
+  opacity: 1;
+  transition:
+    opacity var(--dur-in, 0.32s) ease,
+    overlay var(--dur-in, 0.32s) allow-discrete,
+    display var(--dur-in, 0.32s) allow-discrete;
+}
+@starting-style {
+  .wallet-dialog[open]::backdrop { opacity: 0; }
+}
+
+/* Rows: staggered on the way in (--i is the row index), together on the way
+   out so nothing lags behind the dissolving card. */
+.wallet-dialog .wallet-option {
+  opacity: 0;
+  translate: 0 10px;
+  transition:
+    opacity 0.16s ease,
+    translate 0.16s var(--ease-out),
+    transform 0.18s var(--ease-in),
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.2s ease;
+}
+.wallet-dialog[open] .wallet-option {
+  opacity: 1;
+  translate: 0 0;
+  transition:
+    opacity 0.36s ease calc(0.08s + var(--i, 0) * 0.055s),
+    translate 0.42s var(--ease-in) calc(0.08s + var(--i, 0) * 0.055s),
+    transform 0.18s var(--ease-in),
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.2s ease;
+}
+@starting-style {
+  .wallet-dialog[open] .wallet-option {
+    opacity: 0;
+    translate: 0 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wallet-dialog,
+  .wallet-dialog[open],
+  .wallet-dialog .wallet-option,
+  .wallet-dialog[open] .wallet-option {
+    translate: 0 0;
+    scale: 1;
+    filter: none;
+    transition-duration: 0.12s;
+    transition-delay: 0s;
+  }
+}
+
 /* ─── "Soon" note ─────────────────────────────────────────
    Native popover in the top layer, sitting just under the tapped row via
    anchor positioning (fixed bottom-centre where anchors aren't supported).

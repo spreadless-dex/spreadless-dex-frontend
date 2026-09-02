@@ -11,6 +11,7 @@ import {
   getLpBalance,
   LP_DECIMALS,
 } from '../lib/stellar/pool'
+import { invalidateVaultTvl } from '../lib/stellar/vaultTvl'
 import { getTokenBalance } from '../lib/stellar/token'
 import { getPoolPreviewStats } from '../lib/mockPoolStats'
 import { mapTxError } from '../lib/stellar/errors'
@@ -236,6 +237,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
       }).catch((err) => console.error('Failed to record activity:', err))
       setAmount('')
       if (!poolId) loadPoolState() // refresh reserves after the deposit lands (configured pool only)
+      invalidateVaultTvl(poolId) // the register ranks by TVL, so its cached figure is stale now
       // Poll instead of a one-shot refetch — the RPC can briefly serve the
       // pre-tx snapshot right after the tx confirms.
       refetchUntilChanged(() => getLpBalance(walletAddress, poolId), lpBalance)
@@ -284,6 +286,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
       setLpAmount('')
       setWithdrawQuote('')
       if (!poolId) loadPoolState() // refresh reserves after the withdrawal lands (configured pool only)
+      invalidateVaultTvl(poolId)
       refetchUntilChanged(() => getLpBalance(walletAddress, poolId), lpBalance)
         .then(setLpBalance)
         .catch(() => {})

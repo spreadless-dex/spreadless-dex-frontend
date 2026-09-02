@@ -20,6 +20,7 @@ import {
   RPC_URL,
 } from "./config";
 import { invalidateVaults, shortAddress } from "./registry";
+import { invalidateVaultTvl } from "./vaultTvl";
 import {
   localPoolFromArgs,
   useLocalPools,
@@ -77,6 +78,7 @@ export async function createPool(args: CreatePoolArgs): Promise<CreatePoolResult
     .getState()
     .add(localPoolFromArgs(result.address, ctor, args.label, backend, result.hash, meta));
   invalidateVaults();
+  invalidateVaultTvl();
   return result;
 }
 

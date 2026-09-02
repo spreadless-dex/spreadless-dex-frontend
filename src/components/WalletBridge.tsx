@@ -219,6 +219,20 @@ function WalletChooser() {
   };
   useEffect(() => () => window.clearTimeout(noteTimer.current), []);
 
+  // The chooser is a native <dialog> that stays mounted. The store's flag
+  // only drives showModal()/close(); the enter and exit choreography is one
+  // CSS transition (see .wallet-dialog in global.css) that runs forwards on
+  // open and backwards on close, so closing never just blinks out of
+  // existence the way an unmount would. Escape and a click on the backdrop
+  // end in the same `close` event as the X button, which syncs the store.
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const el = dialogRef.current;
+    if (!el) return;
+    if (open && !el.open) el.showModal();
+    else if (!open && el.open) el.close();
+  }, [open]);
+
   // On a phone no browser extension can be installed, so the email login is
   // the option that actually works: list it first and say so. Evaluated on
   // open, not at module load, so a resized window gets the right order.
@@ -226,14 +240,14 @@ function WalletChooser() {
   useEffect(() => {
     if (!open) return;
     setHandheld(window.matchMedia("(max-width: 639px), (pointer: coarse)").matches);
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [open, setOpen]);
+  }, [open]);
 
-  if (!open) return null;
+  // Leaving the chooser takes the note with it.
+  useEffect(() => {
+    if (open) return;
+    const el = noteRef.current;
+    if (el?.matches(":popover-open")) el.hidePopover();
+  }, [open]);
 
   const extension = {
     icon: <Wallet size={18} />,
@@ -256,23 +270,18 @@ function WalletChooser() {
     handheld && privyEnabled ? [email, extension] : [extension, email];
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onClick={() => setOpen(false)}
+    <dialog
+      ref={dialogRef}
+      aria-labelledby="wallet-chooser-title"
+      className="wallet-dialog"
+      onClose={() => setOpen(false)}
+      // Only the backdrop reports the dialog itself as target; the card has
+      // no padding, so any click on content lands on a descendant.
+      onClick={(e) => {
+        if (e.target === e.currentTarget) setOpen(false);
+      }}
     >
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-
-      <div
-        role="dialog"
-        aria-labelledby="wallet-chooser-title"
-        className="relative w-full max-w-sm flex flex-col rounded-2xl animate-bounce-in"
-        style={{
-          backgroundColor: "var(--c-surface)",
-          border: "1px solid var(--c-border)",
-          boxShadow: "var(--c-widget-shadow)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="flex flex-col">
         <div className="flex items-center justify-between p-5 pb-3">
           <h3
             id="wallet-chooser-title"
@@ -300,14 +309,14 @@ function WalletChooser() {
               key={o.title}
               onClick={o.onClick}
               aria-describedby={o.soon ? "wallet-soon-note" : undefined}
-              className={`wallet-option animate-fade-up flex items-center gap-3 w-full text-left px-3 py-3 rounded-xl${
+              className={`wallet-option flex items-center gap-3 w-full text-left px-3 py-3 rounded-xl${
                 o.soon ? " wallet-option-soon" : ""
               }`}
               style={{
                 backgroundColor: "var(--c-surface-2)",
                 border: "1px solid var(--c-border)",
-                // Staggered so the rows settle one after the other.
-                animationDelay: `${120 + i * 60}ms`,
+                // Row index for the staggered settle (see .wallet-dialog).
+                ["--i" as string]: i,
               }}
             >
               <span
@@ -365,6 +374,6 @@ function WalletChooser() {
           Not just yet. Email login is on its way.
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }
