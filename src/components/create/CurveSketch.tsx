@@ -8,10 +8,19 @@ import { constantProductPoints, stableCurvePoints } from '../../lib/stellar/pool
 
 const W = 240
 const H = 150
-const M = 8
+// Plot margins: room on the left and bottom for the tick labels.
+const ML = 22
+const MR = 8
+const MT = 8
+const MB = 16
+const PW = W - ML - MR
+const PH = H - MT - MB
+
+// Both axes run 0..200 in pool units; the balanced point sits at 100/100.
+const TICKS = [0, 50, 100, 150, 200]
 
 function toSvg([x, y]: [number, number]): [number, number] {
-  return [M + (x / 200) * (W - 2 * M), M + (H - 2 * M) - (y / 200) * (H - 2 * M)]
+  return [ML + (x / 200) * PW, MT + PH - (y / 200) * PH]
 }
 
 function pathFrom(points: [number, number][]): string {
@@ -65,6 +74,31 @@ export default function CurveSketch({ amp, n = 2, pair, className }: CurveSketch
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className={className} style={{ overflow: 'hidden' }} aria-label={label} role="img">
+      {/* Grid and scale. The 100 lines are a touch darker so the balanced
+          point reads as the centre of the scene. */}
+      <g stroke="var(--c-border)" strokeWidth={0.6}>
+        {TICKS.map((t) => {
+          const [gx, gy] = toSvg([t, t])
+          const strong = t === 100
+          return (
+            <g key={t} opacity={strong ? 0.9 : 0.5}>
+              <line x1={gx} y1={MT} x2={gx} y2={MT + PH} />
+              <line x1={ML} y1={gy} x2={ML + PW} y2={gy} />
+            </g>
+          )
+        })}
+      </g>
+      <g fill="var(--c-text-faint)" fontSize={7.5} style={{ fontFamily: 'inherit', fontVariantNumeric: 'tabular-nums' }}>
+        {TICKS.map((t) => {
+          const [gx, gy] = toSvg([t, t])
+          return (
+            <g key={t}>
+              <text x={gx} y={H - 4} textAnchor={t === 0 ? 'start' : t === 200 ? 'end' : 'middle'}>{t}</text>
+              <text x={ML - 4} y={gy + (t === 200 ? 6 : t === 0 ? 0 : 2.5)} textAnchor="end">{t}</text>
+            </g>
+          )
+        })}
+      </g>
       <path d={CP_PATH} fill="none" stroke="var(--c-border-2)" strokeDasharray="3 4" strokeWidth={1.2} />
       <path ref={pathRef} d={pathFrom(current.current)} fill="none" stroke="var(--c-accent)" strokeWidth={2.2} strokeLinecap="round" />
       <circle cx={cx} cy={cy} r={3} fill="var(--c-text)" />
@@ -72,9 +106,9 @@ export default function CurveSketch({ amp, n = 2, pair, className }: CurveSketch
         <g fill="var(--c-text-faint)" fontSize={9} style={{ fontFamily: 'inherit', letterSpacing: '0.04em' }}>
           {/* Captions are keyed by symbol so a pair change swaps the node and
               the scene transition can dissolve it rather than retype it. */}
-          {/* Bottom-left corner: the one region the curve never crosses. */}
-          <text key={`y-${pair[1]}`} x={M + 2} y={H - 14}>↑ {pair[1]} in pool</text>
-          <text key={`x-${pair[0]}`} x={M + 2} y={H - 3}>{pair[0]} in pool →</text>
+          {/* Bottom-left of the plot: the one region the curve never crosses. */}
+          <text key={`y-${pair[1]}`} x={ML + 4} y={MT + PH - 14}>↑ {pair[1]} in pool</text>
+          <text key={`x-${pair[0]}`} x={ML + 4} y={MT + PH - 4}>{pair[0]} in pool →</text>
         </g>
       )}
     </svg>
