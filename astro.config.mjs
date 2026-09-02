@@ -10,6 +10,14 @@ import tailwindcss from '@tailwindcss/vite';
 import cloudflare from '@astrojs/cloudflare';
 
 import { fileURLToPath } from 'node:url';
+import { setDefaultResultOrder } from 'node:dns';
+
+// The Cloudflare adapter prerenders by starting a Vite preview server on
+// "localhost" and fetching it. On Linux builders where localhost resolves to
+// ::1 first, the server binds IPv6 only while fetch dials 127.0.0.1 and the
+// build dies with ECONNREFUSED. Preferring IPv4 keeps both on the same
+// address. Harmless on macOS, where the build already passed.
+setDefaultResultOrder('ipv4first');
 
 // @privy-io/react-auth declares Solana and EVM smart-account packages as
 // OPTIONAL peers, but Rolldown refuses to build when their named imports
