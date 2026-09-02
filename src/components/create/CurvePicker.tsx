@@ -67,7 +67,7 @@ export default function CurvePicker({ amp, custom, onChange }: CurvePickerProps)
         </div>
       )}
       <p className="text-[12px] mt-2.5" style={{ color: 'var(--c-text-muted)' }}>
-        A {fmtAmp(amp)}: a $10k swap gives up {fmtImpact(priceImpactPct(amp))} to the curve, before fees.
+        A $10k swap gives up {fmtImpact(priceImpactPct(amp))} to the curve, before fees.
       </p>
     </div>
   )
