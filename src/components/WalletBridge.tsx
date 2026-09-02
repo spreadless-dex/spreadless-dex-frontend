@@ -10,8 +10,9 @@
  * setPrivyBackend(). It also renders the "how do you want to connect?"
  * chooser the store opens from connectWallet().
  *
- * With PUBLIC_PRIVY_APP_ID unset the island registers nothing: the store then
- * skips the chooser and opens the wallet kit directly, as before.
+ * With PRIVY_APP_ID empty (see config.ts) the island registers nothing. The
+ * chooser still lists the email option, marked "Soon": a tap shows a short
+ * note that fades out again instead of opening a login.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PrivyProvider, usePrivy, type User } from "@privy-io/react-auth";
@@ -22,14 +23,12 @@ import {
 } from "@privy-io/react-auth/extended-chains";
 import { ChevronRight, Mail, Wallet } from "lucide-react";
 import { useAppStore } from "../store/useAppStore";
-import { NETWORK_PASSPHRASE } from "../lib/stellar/config";
+import { NETWORK_PASSPHRASE, PRIVY_APP_ID } from "../lib/stellar/config";
 import {
   ensureFunded,
   signAuthEntryXdr,
   signTransactionXdr,
 } from "../lib/stellar/privySigner";
-
-const PRIVY_APP_ID = (import.meta.env.PUBLIC_PRIVY_APP_ID ?? "") as string;
 
 export default function WalletBridge() {
   const theme = useAppStore((s) => s.theme);
@@ -188,16 +187,37 @@ function PrivyBridge() {
   );
 }
 
+/** How long the "Soon" note stays before it dissolves on its own. */
+const SOON_NOTE_MS = 2800;
+
 /**
  * Two ways in: a browser wallet through the kit, or email/Google through
- * Privy. Only shown when Privy is configured; otherwise connectWallet() goes
- * straight to the kit modal.
+ * Privy. Without a Privy app id the email row stays visible but reads
+ * "Soon" and only shows a note.
  */
 function WalletChooser() {
   const open = useAppStore((s) => s.walletChooserOpen);
   const setOpen = useAppStore((s) => s.setWalletChooserOpen);
   const connectExtension = useAppStore((s) => s.connectExtension);
   const connectPrivy = useAppStore((s) => s.connectPrivy);
+  const privyEnabled = useAppStore((s) => s.privyEnabled);
+
+  // The "Soon" note is a native popover: it lives in the top layer above the
+  // dialog, and its enter/exit is pure CSS (@starting-style + allow-discrete),
+  // so the only JS here is show, then hide after a beat. A second tap while
+  // it's visible just restarts the clock.
+  const noteRef = useRef<HTMLDivElement>(null);
+  const noteTimer = useRef<number | undefined>(undefined);
+  const showSoonNote = () => {
+    const el = noteRef.current;
+    if (!el || typeof el.showPopover !== "function") return;
+    if (!el.matches(":popover-open")) el.showPopover();
+    window.clearTimeout(noteTimer.current);
+    noteTimer.current = window.setTimeout(() => {
+      if (el.isConnected && el.matches(":popover-open")) el.hidePopover();
+    }, SOON_NOTE_MS);
+  };
+  useEffect(() => () => window.clearTimeout(noteTimer.current), []);
 
   // On a phone no browser extension can be installed, so the email login is
   // the option that actually works: list it first and say so. Evaluated on
@@ -221,15 +241,19 @@ function WalletChooser() {
     hint: "Freighter, xBull, Albedo and others. You keep your own keys.",
     tag: null as string | null,
     onClick: () => void connectExtension(),
+    soon: false,
   };
   const email = {
     icon: <Mail size={18} />,
     title: "Email or Google",
     hint: "No extension needed. A Stellar account is created for you.",
-    tag: handheld ? "Recommended" : null,
-    onClick: connectPrivy,
+    tag: !privyEnabled ? "Soon" : handheld ? "Recommended" : null,
+    onClick: privyEnabled ? connectPrivy : showSoonNote,
+    soon: !privyEnabled,
   };
-  const options = handheld ? [email, extension] : [extension, email];
+  // Email first on a phone, but only once it actually works there.
+  const options =
+    handheld && privyEnabled ? [email, extension] : [extension, email];
 
   return (
     <div
@@ -275,7 +299,10 @@ function WalletChooser() {
             <button
               key={o.title}
               onClick={o.onClick}
-              className="wallet-option animate-fade-up flex items-center gap-3 w-full text-left px-3 py-3 rounded-xl"
+              aria-describedby={o.soon ? "wallet-soon-note" : undefined}
+              className={`wallet-option animate-fade-up flex items-center gap-3 w-full text-left px-3 py-3 rounded-xl${
+                o.soon ? " wallet-option-soon" : ""
+              }`}
               style={{
                 backgroundColor: "var(--c-surface-2)",
                 border: "1px solid var(--c-border)",
@@ -325,6 +352,18 @@ function WalletChooser() {
           Spreadless never sees your secret key. Every transaction is approved in
           your wallet or through your login.
         </p>
+
+        {/* Anchored under the email row (see .soon-note in global.css). */}
+        <div
+          ref={noteRef}
+          id="wallet-soon-note"
+          popover="manual"
+          role="status"
+          className="soon-note"
+        >
+          <span className="soon-dot" aria-hidden="true" />
+          Not just yet. Email login is on its way.
+        </div>
       </div>
     </div>
   );

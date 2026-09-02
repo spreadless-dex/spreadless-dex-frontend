@@ -138,3 +138,11 @@ export function explorerAccountUrl(address: string): string {
 export function explorerContractUrl(contractId: string): string {
   return `https://stellar.expert/explorer/testnet/contract/${contractId}`;
 }
+
+// Privy app id for the email/Google login, inlined at build time from
+// PUBLIC_PRIVY_APP_ID. While it is empty the login chooser still lists the
+// email option, but marked "Soon": tapping it shows a short note instead of
+// opening Privy. The id itself is public (it ships in the bundle either way);
+// what protects the app is the allowed-origins list in the Privy dashboard.
+// The Privy app SECRET is server-side only and must never appear in this repo.
+export const PRIVY_APP_ID: string = import.meta.env.PUBLIC_PRIVY_APP_ID ?? "";
