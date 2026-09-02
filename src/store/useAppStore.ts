@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { readPoolState } from "../lib/stellar/pool";
 import type { PoolState, PoolToken } from "../lib/stellar/pool";
-import { PRIVY_APP_ID } from "../lib/stellar/config";
 
 export type { PoolState, PoolToken } from "../lib/stellar/pool";
 
@@ -90,7 +89,7 @@ const MODE_KEY = "spreadless-wallet-mode";
 // stale "privy" mode must not hide the kit's restored session forever.
 const storedMode: WalletKind =
   typeof window !== "undefined" &&
-  Boolean(PRIVY_APP_ID) &&
+  Boolean(import.meta.env.PUBLIC_PRIVY_APP_ID) &&
   localStorage.getItem(MODE_KEY) === "privy"
     ? "privy"
     : "extension";
@@ -136,16 +135,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   walletConnected: false,
   walletAddress: null,
   walletKind: storedMode,
-  // Known from the build, so the chooser offers the email option on the first
-  // click even while the Privy island is still downloading; the bridge
-  // confirms it on mount. False = the option is shown as "Soon".
-  privyEnabled: Boolean(PRIVY_APP_ID),
+  // Known from the build, so the chooser opens on the first click even while
+  // the Privy island is still downloading; the bridge confirms it on mount.
+  privyEnabled: Boolean(import.meta.env.PUBLIC_PRIVY_APP_ID),
   walletChooserOpen: false,
   setWalletChooserOpen: (open) => set({ walletChooserOpen: open }),
-  // Always the chooser, even without Privy: the email option is then listed
-  // as "Soon", so people see what's coming rather than only the wallet kit.
   connectWallet: async () => {
-    set({ walletChooserOpen: true });
+    if (get().privyEnabled) {
+      set({ walletChooserOpen: true });
+      return;
+    }
+    await get().connectExtension();
   },
   connectExtension: async () => {
     set({ walletChooserOpen: false });
@@ -170,7 +170,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   connectPrivy: () => {
     set({ walletChooserOpen: false });
     if (!privyBackend) {
-      throw new Error("Email login is not configured (PRIVY_APP_ID empty)");
+      throw new Error("Email login is not configured (PUBLIC_PRIVY_APP_ID unset)");
     }
     // Not persisted yet: that happens once Privy reports a session, so a
     // dismissed login modal doesn't strand the next page load in Privy mode.
@@ -196,7 +196,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   setPrivyBackend: (backend) => {
     privyBackend = backend;
-    const enabled = backend !== null || Boolean(PRIVY_APP_ID);
+    const enabled = backend !== null || Boolean(import.meta.env.PUBLIC_PRIVY_APP_ID);
     if (get().walletKind !== "privy") {
       set({ privyEnabled: enabled });
       return;
