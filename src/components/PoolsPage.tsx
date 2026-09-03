@@ -123,7 +123,7 @@ export default function PoolsPage() {
           <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--c-text)' }}>
             Earn
           </h1>
-          <p className="text-sm" style={{ color: 'var(--c-text)', opacity: 0.72 }}>
+          <p className="learn-only text-sm" style={{ color: 'color-mix(in srgb, var(--c-text) 72%, transparent)' }}>
             {TAB_SUBTITLE[tab]}
           </p>
         </div>

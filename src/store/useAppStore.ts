@@ -73,6 +73,28 @@ interface AppState {
   setPrivyBackend: (backend: PrivyBackend | null) => void;
   theme: "light" | "dark";
   toggleTheme: () => void;
+  /**
+   * How much the interface explains itself. "learn" shows tooltips and the
+   * how-it-works prose; "pro" strips them and leaves the numbers. Mirrored
+   * to <html data-mode> so plain CSS can fade learn-only content in and out
+   * (see .learn-only in global.css) without a re-render of every island.
+   */
+  mode: UiMode;
+  setMode: (mode: UiMode) => void;
+}
+
+export type UiMode = "learn" | "pro";
+
+const MODE_UI_KEY = "spreadless-mode";
+const storedUiMode: UiMode =
+  typeof window !== "undefined" && localStorage.getItem(MODE_UI_KEY) === "pro"
+    ? "pro"
+    : "learn";
+
+function applyUiMode(mode: UiMode) {
+  if (typeof document === "undefined") return;
+  if (mode === "pro") document.documentElement.setAttribute("data-mode", "pro");
+  else document.documentElement.removeAttribute("data-mode");
 }
 
 // Guard on window, not localStorage: newer Node versions define a global
@@ -235,6 +257,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       localStorage.setItem("spreadless-theme", next);
       return { theme: next };
     }),
+  mode: storedUiMode,
+  setMode: (mode) => {
+    if (get().mode === mode) return;
+    localStorage.setItem(MODE_UI_KEY, mode);
+    applyUiMode(mode);
+    set({ mode });
+  },
 }));
 
 // ─── Stellar Wallets Kit ────────────────────────────────

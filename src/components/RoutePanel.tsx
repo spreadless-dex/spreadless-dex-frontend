@@ -132,7 +132,7 @@ export default function RoutePanel({ results, bestId, searching, error, executio
             <AtomicNote demo={bestIsDemo} />
           )}
           {results.length > 1 && !execution && (
-            <p className="text-[10px] mt-2.5 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
+            <p className="learn-only text-[10px] mt-2.5 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
               Intermediate amounts are simulated, not guaranteed. Only the final output is protected
               by the on-chain minimum below.
             </p>
@@ -145,23 +145,30 @@ export default function RoutePanel({ results, bestId, searching, error, executio
   )
 }
 
-/** One line under the graph that says what the transaction will do, in the user's terms. */
+/** One line under the graph that says what the transaction will do, in the
+ *  user's terms. How atomicity works is Learn mode only; that the Router is
+ *  missing, or that nothing gets signed, holds in both modes. */
 function AtomicNote({ demo }: { demo: boolean }) {
+  if (!ROUTER_CONTRACT_ID && !demo) {
+    return (
+      <p className="text-[10px] mt-2.5 leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
+        This route needs the atomic Router, which is not deployed on testnet yet.
+      </p>
+    )
+  }
   return (
-    <p className="text-[10px] mt-2.5 leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
-      {ROUTER_CONTRACT_ID || demo ? (
-        <>
-          Executed as <span style={{ color: 'var(--c-text)', fontWeight: 600 }}>one transaction</span>
-          . The Router holds the intermediate token for the duration of the call; if any leg fails,
-          every leg is rolled back and nothing leaves your wallet.
-          {demo && !ROUTER_CONTRACT_ID && (
-            <span style={{ color: 'var(--c-text-faint)' }}> Demo vaults: nothing is signed.</span>
-          )}
-        </>
-      ) : (
-        <>This route needs the atomic Router, which is not deployed on testnet yet.</>
+    <>
+      <p className="learn-only text-[10px] mt-2.5 leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
+        Executed as <span style={{ color: 'var(--c-text)', fontWeight: 600 }}>one transaction</span>
+        . The Router holds the intermediate token for the duration of the call; if any leg fails,
+        every leg is rolled back and nothing leaves your wallet.
+      </p>
+      {demo && !ROUTER_CONTRACT_ID && (
+        <p className="text-[10px] mt-2.5 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
+          Demo vaults: nothing is signed.
+        </p>
       )}
-    </p>
+    </>
   )
 }
 

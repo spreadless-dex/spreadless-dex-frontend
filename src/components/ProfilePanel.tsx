@@ -24,6 +24,7 @@ import { fromRawUnits } from "../lib/stellar/units";
 import { getActivities, type ActivityRecord } from "../lib/activity/db";
 import { explorerAccountUrl } from "../lib/stellar/config";
 import TokenIcon from "./TokenIcon";
+import ModeSwitch from "./ModeSwitch";
 
 export const PROFILE_PANEL_ID = "profile-panel";
 
@@ -224,6 +225,12 @@ export default function ProfilePanel() {
                 ))}
               </ul>
             )}
+          </section>
+
+          {/* Interface mode */}
+          <section className="px-5 py-3.5" style={{ borderBottom: "1px solid var(--c-border)" }}>
+            <SectionLabel>Interface</SectionLabel>
+            <ModeSwitch />
           </section>
 
           {/* Actions */}

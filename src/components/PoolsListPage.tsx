@@ -22,7 +22,7 @@ export default function PoolsListPage() {
             <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--c-text)' }}>
               Pools
             </h1>
-            <p className="text-sm" style={{ color: 'var(--c-text)', opacity: 0.72 }}>
+            <p className="learn-only text-sm" style={{ color: 'color-mix(in srgb, var(--c-text) 72%, transparent)' }}>
               Every deposit flows into these StableSwap pools. Open one for its full breakdown.
             </p>
           </div>
@@ -58,7 +58,9 @@ export default function PoolsListPage() {
         ) : poolStatus === 'ready' ? (
           <>
             <PoolsRegister />
-            <p className="text-[13px] mt-4" style={{ color: 'var(--c-text-faint)' }}>
+            {/* The Create pool button above says the same thing, so this line
+                is Learn mode only. */}
+            <p className="learn-only text-[13px] mt-4" style={{ color: 'var(--c-text-faint)' }}>
               Missing a pair?{' '}
               <a href="/pools/new" className="underline underline-offset-2" style={{ color: 'var(--c-text-muted)' }}>
                 Create your own pool.

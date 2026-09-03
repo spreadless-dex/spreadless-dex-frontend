@@ -160,7 +160,7 @@ function TransactionSettings({
               <span className="pr-2 text-xs" style={{ color: 'var(--c-text-faint)' }}>%</span>
             </div>
           </div>
-          <p className="text-[11px] mt-3 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
+          <p className="learn-only text-[11px] mt-3 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
             Applied on-chain as your minimum received, measured against the quote you see. The trade
             reverts instead of settling below it. Down to {formatPpmPct(MIN_PPM)}%.
           </p>
@@ -675,7 +675,8 @@ export default function SwapWidget() {
           >
             Place Limit Order (Coming Soon)
           </button>
-          <p className="text-[11px] mt-3 leading-relaxed text-center" style={{ color: 'var(--c-text-faint)' }}>
+          {/* The button already reads "Coming Soon". */}
+          <p className="learn-only text-[11px] mt-3 leading-relaxed text-center" style={{ color: 'var(--c-text-faint)' }}>
             Limit orders aren't live yet. This is a preview of what's coming.
           </p>
         </div>

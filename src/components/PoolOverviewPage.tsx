@@ -114,7 +114,7 @@ export default function PoolOverviewPage() {
               ))}
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: 'var(--c-text-faint)' }}>
+              <p className="learn-only text-[10px] uppercase tracking-widest mb-0.5" style={{ color: 'var(--c-text-faint)' }}>
                 {poolState.tokens.length}-stablecoin StableSwap pool
               </p>
               <h1 className="text-3xl font-bold leading-tight" style={{ color: 'var(--c-text)' }}>
@@ -122,7 +122,7 @@ export default function PoolOverviewPage() {
               </h1>
             </div>
           </div>
-          <p className="text-sm leading-relaxed mt-4 max-w-xl" style={{ color: 'var(--c-text-muted)' }}>
+          <p className="learn-only text-sm leading-relaxed mt-4 max-w-xl" style={{ color: 'var(--c-text-muted)' }}>
             One shared pool holding {poolState.tokens.map((t) => t.symbol).join(', ')}. Every deposit
             joins this pool and earns a slice of the fees from all swaps between the four stables.
           </p>
@@ -234,8 +234,8 @@ export default function PoolOverviewPage() {
         </Section>
       </div>
 
-      {/* ── How StableSwap works ────────────────────────────────── */}
-      <div className="mt-6">
+      {/* ── How StableSwap works. Learn mode only. ──────────────── */}
+      <div className="learn-only mt-6">
         <Section title="How this pool works">
           <p className="text-sm leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
             This is a <strong style={{ color: 'var(--c-text)' }}>StableSwap</strong> pool: all{' '}

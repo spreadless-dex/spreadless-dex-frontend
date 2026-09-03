@@ -132,10 +132,12 @@ export default function CreatePoolPage() {
       </a>
 
       <div className="mt-4 mb-8">
-        <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--c-text)' }}>
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--c-text)' }}>
           Create a pool
         </h1>
-        <p className="text-sm" style={{ color: 'var(--c-text)', opacity: 0.72 }}>
+        {/* Inline opacity would beat the .learn-only fade, so the tone comes
+            from the colour instead. */}
+        <p className="learn-only text-sm mt-1" style={{ color: 'color-mix(in srgb, var(--c-text) 72%, transparent)' }}>
           Pick assets, set the curve, choose a fee. One transaction to deploy.
         </p>
       </div>
@@ -159,11 +161,16 @@ export default function CreatePoolPage() {
             </p>
             {twins.length > 0 && (
               <div className="mt-2 rounded-xl px-3 py-2.5" style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border)' }}>
+                {/* The count is the fact and stays; what it means for this
+                    deploy is Learn mode only. */}
                 <p className="text-[12px]" style={{ color: 'var(--c-text)' }}>
                   {twins.length === 1 ? 'A pool' : `${twins.length} pools`} with these assets already
-                  {twins.length === 1 ? ' exists' : ' exist'}.{' '}
+                  {twins.length === 1 ? ' exists' : ' exist'}.
+                  {duplicate && <span className="ml-1" style={{ color: '#d97706' }}>One carries your exact settings.</span>}
+                </p>
+                <p className="learn-only text-[12px] mt-1" style={{ color: 'var(--c-text-muted)' }}>
                   {duplicate
-                    ? 'One of them carries your exact settings. You can still deploy: two identical pools are allowed, and depth is what tells them apart. Yours starts empty, so seed it before it can win a quote.'
+                    ? 'You can still deploy: two identical pools are allowed, and depth is what tells them apart. Yours starts empty, so seed it before it can win a quote.'
                     : twins.every(settingsKnown)
                       ? 'Yours has different settings, so it deploys as a separate pool.'
                       : 'Not every setting is readable on chain, so an exact match cannot be ruled out. Either way yours deploys as its own pool.'}

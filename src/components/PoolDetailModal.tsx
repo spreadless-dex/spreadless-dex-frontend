@@ -602,7 +602,7 @@ export default function PoolDetailModal({ token, onClose, defaultMode = 'deposit
         <TxStatus phase={txPhase} status={status} />
 
         <p
-          className="text-[11px] mt-4 pt-3 text-center leading-relaxed"
+          className="learn-only text-[11px] mt-4 pt-3 text-center leading-relaxed"
           style={{ borderTop: '1px solid var(--c-border)', color: 'var(--c-text-faint)' }}
         >
           No lockup: deposits and withdrawals are instant. Single-sided amounts

@@ -69,7 +69,7 @@ export default function FeePicker({ feePct, custom, onFee }: FeePickerProps) {
           </div>
         </div>
       </Smoke>
-      <div className="flex items-center flex-wrap gap-x-1 gap-y-1 mt-3 text-[12px]" style={{ color: 'var(--c-text-muted)' }}>
+      <div className="learn-only flex items-center flex-wrap gap-x-1 gap-y-1 mt-3 text-[12px]" style={{ color: 'var(--c-text-muted)' }}>
         <span className="flex items-center">
           A fixed {formatSharePct(PROTOCOL_SHARE_PCT)}% of the fee goes to the protocol, the rest to LPs.
           <Tooltip

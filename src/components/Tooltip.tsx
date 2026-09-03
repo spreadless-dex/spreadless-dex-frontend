@@ -9,6 +9,9 @@ import { createPortal } from 'react-dom'
 // the trigger: several of the places it is used sit inside cards and
 // accordions that clip their overflow, and a centred bubble near a column
 // edge would otherwise run off screen.
+//
+// In Pro mode (html[data-mode="pro"]) the trigger folds away through the
+// .learn-only-inline transition in global.css; nothing here needs to know.
 
 const WIDTH = 230
 const MARGIN = 8 // gap to the trigger and to the viewport edge
@@ -75,7 +78,7 @@ export default function Tooltip({ text, label }: TooltipProps) {
   const close = () => { setOpen(false); setPos(null) }
 
   return (
-    <span ref={ref} className="relative inline-flex align-middle ml-1.5">
+    <span ref={ref} className="learn-only-inline relative inline-flex align-middle ml-1.5">
       <button
         type="button"
         aria-label={label ?? 'More about this'}

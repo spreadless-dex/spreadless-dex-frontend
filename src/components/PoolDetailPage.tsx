@@ -154,7 +154,7 @@ export default function PoolDetailPage({ symbol }: PoolDetailPageProps) {
           <div className="flex items-center gap-4">
             <TokenIcon symbol={token.symbol} size={56} />
             <div>
-              <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: 'var(--c-text-faint)' }}>
+              <p className="learn-only text-[10px] uppercase tracking-widest mb-0.5" style={{ color: 'var(--c-text-faint)' }}>
                 {copy.eyebrow}
               </p>
               <h1 className="text-3xl font-bold leading-tight" style={{ color: 'var(--c-text)' }}>
@@ -162,7 +162,7 @@ export default function PoolDetailPage({ symbol }: PoolDetailPageProps) {
               </h1>
             </div>
           </div>
-          <p className="text-sm leading-relaxed mt-4 max-w-xl" style={{ color: 'var(--c-text-muted)' }}>
+          <p className="learn-only text-sm leading-relaxed mt-4 max-w-xl" style={{ color: 'var(--c-text-muted)' }}>
             {copy.blurb}
           </p>
         </div>
@@ -292,8 +292,9 @@ export default function PoolDetailPage({ symbol }: PoolDetailPageProps) {
         </div>
       )}
 
-      {/* ── How StableSwap works (invariant explainer) ──────────── */}
-      <div className="mt-6">
+      {/* ── How StableSwap works (invariant explainer). Learn mode only:
+            in Pro it folds out of the page (see .learn-only). ──────── */}
+      <div className="learn-only mt-6">
         <Section title="How this pool works">
           <p className="text-sm leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
             This is a <strong style={{ color: 'var(--c-text)' }}>StableSwap</strong> pool: all four

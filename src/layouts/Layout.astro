@@ -23,12 +23,13 @@ const {
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
     <title>{title}</title>
-    <!-- Blocking theme script: runs before first paint to prevent flash -->
+    <!-- Blocking theme + mode script: runs before first paint to prevent flash -->
     <script is:inline>
       (function () {
         try {
           var t = localStorage.getItem('spreadless-theme')
           if (t === 'dark') document.documentElement.classList.add('dark')
+          if (localStorage.getItem('spreadless-mode') === 'pro') document.documentElement.setAttribute('data-mode', 'pro')
         } catch (e) {}
       })()
     </script>

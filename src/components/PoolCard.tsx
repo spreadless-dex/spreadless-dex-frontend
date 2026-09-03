@@ -69,10 +69,13 @@ export default function PoolCard({ token, onAction, index = 0 }: PoolCardProps) 
         ))}
       </div>
 
+      {/* Editorial header. Learn mode only: in Pro the eyebrow and the blurb
+          are the whole component, so the card closes to icon, symbol and
+          figures. */}
       <div className="flex items-center gap-3 mb-3">
         <TokenIcon symbol={token.symbol} size={40} />
         <div>
-          <p className="text-[10px] uppercase tracking-widest mb-0.5" style={{ color: 'var(--c-text-faint)' }}>
+          <p className="learn-only text-[10px] uppercase tracking-widest mb-0.5" style={{ color: 'var(--c-text-faint)' }}>
             {copy.eyebrow}
           </p>
           <p className="text-lg font-bold leading-tight" style={{ color: 'var(--c-text)' }}>
@@ -81,7 +84,7 @@ export default function PoolCard({ token, onAction, index = 0 }: PoolCardProps) 
         </div>
       </div>
 
-      <p className="text-[13px] leading-relaxed mb-5" style={{ color: 'var(--c-text-muted)' }}>
+      <p className="learn-only text-[13px] leading-relaxed mb-5" style={{ color: 'var(--c-text-muted)' }}>
         {copy.blurb}
       </p>
 

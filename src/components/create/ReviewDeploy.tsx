@@ -175,7 +175,12 @@ export default function ReviewDeploy({
         }}
       />
       {phase === null && status.kind === 'idle' && (
-        <p className="text-[12px] text-center mt-2.5" style={{ color: 'var(--c-text-faint)' }}>
+        // Demo mode changes what the button actually does, so that line
+        // stays in both modes; the other one only describes the obvious.
+        <p
+          className={`text-[12px] text-center mt-2.5 ${backend === 'demo' ? '' : 'learn-only'}`}
+          style={{ color: 'var(--c-text-faint)' }}
+        >
           {backend === 'demo'
             ? 'Demo mode: the Factory is not deployed yet, so nothing is signed.'
             : 'One transaction. You can seed liquidity right after.'}

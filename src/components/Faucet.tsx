@@ -126,7 +126,7 @@ export default function Faucet() {
         >
           Testnet Faucet
         </h1>
-        <p className="text-sm leading-relaxed" style={{ color: "var(--c-text-muted)" }}>
+        <p className="learn-only text-sm leading-relaxed" style={{ color: "var(--c-text-muted)" }}>
           Mint free test tokens to your wallet to try swaps and deposits. These
           are worthless testnet assets on the Stellar Test Network.
         </p>

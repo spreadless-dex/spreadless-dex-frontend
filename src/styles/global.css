@@ -815,3 +815,137 @@ html.dark #scrim {
   .smoke-in, .smoke-out, .smoke-in .smoke-late { animation-duration: 1ms; animation-delay: 0ms; }
   .value-glow { animation: none; }
 }
+
+/* ─── Learn / Pro mode ────────────────────────────────────
+   <html data-mode="pro"> is set before first paint (Layout.astro) and by the
+   store's setMode(). Anything explanatory carries .learn-only (a block) or
+   .learn-only-inline (a tooltip trigger). Flipping the mode from the profile
+   panel lets that content settle out of the page in place: it thins, blurs
+   and gives up its height while the rest closes the gap, so nothing jumps.
+   Height animates from auto through interpolate-size (Chrome 129+); other
+   engines still get the fade and just snap the height. visibility, not
+   display, so no @starting-style is needed and initial paint never animates. */
+.learn-only {
+  interpolate-size: allow-keywords;
+  height: auto;
+  overflow: clip;
+  transition:
+    height 460ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    margin 460ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    padding 460ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 240ms ease,
+    filter 300ms ease,
+    translate 460ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    visibility 0s linear 0s;
+}
+html[data-mode="pro"] .learn-only {
+  height: 0;
+  margin-block: 0;
+  padding-block: 0;
+  opacity: 0;
+  filter: blur(6px);
+  translate: 0 -6px;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    height 460ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    margin 460ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    padding 460ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 220ms ease 40ms,
+    filter 300ms ease,
+    translate 460ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    visibility 0s linear 460ms;
+}
+
+.learn-only-inline {
+  interpolate-size: allow-keywords;
+  width: auto;
+  overflow: clip;
+  transition:
+    width 300ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    margin 300ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 220ms ease 60ms,
+    scale 300ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    visibility 0s linear 0s;
+}
+html[data-mode="pro"] .learn-only-inline {
+  width: 0;
+  margin-left: 0;
+  opacity: 0;
+  scale: 0.6;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    width 300ms cubic-bezier(0.2, 0.8, 0.2, 1) 60ms,
+    margin 300ms cubic-bezier(0.2, 0.8, 0.2, 1) 60ms,
+    opacity 180ms ease,
+    scale 300ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    visibility 0s linear 360ms;
+}
+
+/* The hover note over the preview chart is an explanation too. */
+html[data-mode="pro"] .curve-hint { display: none; }
+
+/* The switch in the profile panel: one thumb that glides between the two
+   options, so a change reads as a single motion rather than two repaints. */
+.mode-switch {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  border-radius: 0.625rem;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+}
+.mode-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc(50% - 3px);
+  border-radius: 0.5rem;
+  background: var(--c-surface);
+  box-shadow: 0 0 0 1px var(--c-border), 0 1px 2px rgba(0, 0, 0, 0.10), 0 4px 10px -4px rgba(0, 0, 0, 0.18);
+  transition: translate 340ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.mode-switch[data-mode="pro"] .mode-thumb { translate: 100% 0; }
+.mode-switch:active .mode-thumb { transition-duration: 200ms; }
+.mode-option {
+  position: relative;
+  z-index: 1;
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--c-text-muted);
+  transition: color 240ms ease;
+}
+.mode-option[aria-checked="true"] { color: var(--c-text); }
+.mode-option:focus-visible { outline: 2px solid var(--c-border-2); outline-offset: -2px; }
+
+/* The one-line hint under the switch: both sentences share a cell and
+   crossfade with a hair of vertical drift. */
+.mode-hint { display: grid; }
+.mode-hint > span {
+  grid-area: 1 / 1;
+  transition: opacity 240ms ease, translate 340ms cubic-bezier(0.2, 0.8, 0.2, 1), filter 240ms ease;
+}
+.mode-hint > span[data-active="false"] {
+  opacity: 0;
+  translate: 0 3px;
+  filter: blur(2px);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .learn-only, html[data-mode="pro"] .learn-only,
+  .learn-only-inline, html[data-mode="pro"] .learn-only-inline {
+    filter: none;
+    translate: none;
+    scale: none;
+    transition: opacity 120ms ease, visibility 0s linear 120ms;
+  }
+  .mode-thumb, .mode-hint > span { transition-duration: 0s; }
+}

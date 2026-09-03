@@ -111,10 +111,10 @@ export default function PoolPreviewCard({
         <CurveSketch amp={amp} n={n} pair={pair} className="w-full h-auto block" />
       </div>
 
-      {/* What the choices mean, one line each. Keyed by text so a changed
+      {/* What the choices mean, one line each. Learn mode only. Keyed by text so a changed
           sentence is a new node: the scene transition dissolves it, and the
           no-view-transition fallback plays blurIn on it. */}
-      <div className="px-4 pt-2 pb-1 space-y-1 text-[12px] leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
+      <div className="learn-only px-4 pt-2 pb-1 space-y-1 text-[12px] leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
         {lines.map((text) => (
           <p key={text} className="preview-line">{text}</p>
         ))}
