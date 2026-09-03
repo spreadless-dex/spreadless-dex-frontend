@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { createPool, createBackend, type CreatePoolResult } from '../../lib/stellar/factory'
+import { createPool, createBackend, type CreatePoolResult, type CreateStage } from '../../lib/stellar/factory'
 import { mapTxError } from '../../lib/stellar/errors'
 import { explorerContractUrl } from '../../lib/stellar/config'
 import { shortenAddress } from '../../lib/utils'
@@ -46,7 +46,9 @@ export default function ReviewDeploy({
   metaFor,
 }: ReviewDeployProps) {
   const [phase, setPhase] = useState<TxPhase | null>(null)
+  const [stage, setStage] = useState<CreateStage>('deploy')
   const [status, setStatus] = useState<TxUiStatus>({ kind: 'idle' })
+  const fixed = draft.aRight === 'fixed'
 
   const name = poolName(tokens.map((t) => t.symbol))
   const backend = createBackend()
@@ -63,10 +65,11 @@ export default function ReviewDeploy({
     try {
       const result = await createPool({
         draft,
-        owner,
+        creator: owner,
         label: name,
         metaFor,
         onPhase: setPhase,
+        onStage: setStage,
       })
       setPhase(null)
       onDeploying(false)
@@ -91,7 +94,9 @@ export default function ReviewDeploy({
               {name} is live.
             </p>
             <p className="text-[13px] mt-0.5 mb-3" style={{ color: 'var(--c-text-muted)' }}>
-              It has no liquidity yet. Seed it so it can quote.
+              {created.aRight === 'undecided'
+                ? 'It has no liquidity yet. Ownership was not given up: you still own it. Finish that on the pool page, or keep it.'
+                : 'It has no liquidity yet. Seed it so it can quote.'}
             </p>
             <p className="text-[12px] mb-3 flex items-center gap-1.5 flex-wrap" style={{ color: 'var(--c-text-faint)' }}>
               <span className="font-mono">{shortenAddress(created.address)}</span>
@@ -142,7 +147,7 @@ export default function ReviewDeploy({
         <dt style={{ color: 'var(--c-text-muted)' }}>Assets</dt>
         <dd style={{ color: 'var(--c-text)' }}>{tokens.map((t) => t.symbol).join(', ') || '—'}</dd>
         <dt style={{ color: 'var(--c-text-muted)' }}>Amplification</dt>
-        <dd style={{ color: 'var(--c-text)' }}>A = {fmtAmp(draft.amp)}</dd>
+        <dd style={{ color: 'var(--c-text)' }}>A = {fmtAmp(draft.amp)} · {fixed ? 'fixed for good' : 'Spreadless may ramp it'}</dd>
         <dt style={{ color: 'var(--c-text-muted)' }}>Swap fee</dt>
         <dd style={{ color: 'var(--c-text)' }}>{draft.feePct}% · {formatSharePct(PROTOCOL_SHARE_PCT)}% to the protocol</dd>
         <dt style={{ color: 'var(--c-text-muted)' }}>Caps</dt>
@@ -150,8 +155,10 @@ export default function ReviewDeploy({
           {tokens.some((t) => draft.caps[t.address]?.trim()) || draft.lpMaxSupply.trim() ? 'Custom' : 'None'}
         </dd>
         <dt style={{ color: 'var(--c-text-muted)' }}>Owner</dt>
-        <dd className="font-mono text-[12px]" style={{ color: 'var(--c-text)' }}>
-          {owner ? shortenAddress(owner) : '—'}
+        <dd className="text-[12px]" style={{ color: 'var(--c-text)' }}>
+          {fixed
+            ? <>None after deploy <span className="font-mono" style={{ color: 'var(--c-text-faint)' }}>({owner ? shortenAddress(owner) : 'you'} signs twice)</span></>
+            : 'Spreadless'}
         </dd>
       </dl>
 
@@ -168,11 +175,17 @@ export default function ReviewDeploy({
       <TxStatus
         phase={phase}
         status={status}
-        hint={{
-          preparing: backend === 'demo' ? 'Demo mode: simulating the deploy…' : 'Building the deploy transaction…',
-          signing: 'Your wallet is open. Review and approve the deploy.',
-          submitting: 'Waiting for the network to confirm…',
-        }}
+        hint={stage === 'renounce'
+          ? {
+              preparing: fixed ? 'Deployed. Now step 2 of 2: giving ownership up…' : 'Preparing…',
+              signing: 'Step 2 of 2. Your wallet is open: approve giving ownership up.',
+              submitting: 'Waiting for the network to confirm…',
+            }
+          : {
+              preparing: backend === 'demo' ? 'Demo mode: simulating the deploy…' : 'Building the deploy transaction…',
+              signing: fixed ? 'Step 1 of 2. Your wallet is open: approve the deploy.' : 'Your wallet is open. Review and approve the deploy.',
+              submitting: 'Waiting for the network to confirm…',
+            }}
       />
       {phase === null && status.kind === 'idle' && (
         // Demo mode changes what the button actually does, so that line
@@ -183,7 +196,9 @@ export default function ReviewDeploy({
         >
           {backend === 'demo'
             ? 'Demo mode: the Factory is not deployed yet, so nothing is signed.'
-            : 'One transaction. You can seed liquidity right after.'}
+            : fixed
+              ? 'Two signatures: the deploy, then giving ownership up. You can seed liquidity right after.'
+              : 'One transaction. You can seed liquidity right after.'}
         </p>
       )}
     </div>

@@ -64,5 +64,20 @@ included.
   not the start or target.
 </Callout>
 
+## Who can change A
+
+The creator picks `A` once, in the builder, and never touches it again. What
+they decide is who may:
+
+- **Flexible.** Spreadless owns the pool and can retune `A`, only as a ramp.
+  `set_amp_ramp()` moves the value in a straight line to the new target over a
+  set duration, so the curve never jumps.
+- **Fixed.** The creator gives ownership up right after the deploy. Nobody can
+  change `A` again.
+
+A pool whose creator still holds ownership shows as **Undecided**. The full flow,
+including handing a pool to another wallet, is in
+[Pool Ownership](/docs/guides/pool-ownership).
+
 Next: how this curvature turns into the number you care about at trade time,
 [Slippage & Price Impact](/docs/concepts/slippage).

@@ -1,4 +1,5 @@
 import {
+  aRightNarrative,
   assetsNarrative,
   curveNarrative,
   feeNarrative,
@@ -6,9 +7,9 @@ import {
   impactMeterPct,
   lpEarnPerMillion,
   priceImpactPct,
+  type ARight,
   type TokenMeta,
 } from '../../lib/stellar/poolParams'
-import { shortenAddress } from '../../lib/utils'
 import TokenIcon from '../TokenIcon'
 import Tooltip from '../Tooltip'
 import CurveSketch from './CurveSketch'
@@ -24,6 +25,7 @@ interface PoolPreviewCardProps {
   tokens: TokenMeta[]
   name: string
   amp: number
+  aRight: ARight
   feePct: number
   owner: string | null
   state: 'draft' | 'deploying' | 'live'
@@ -38,6 +40,7 @@ export default function PoolPreviewCard({
   tokens,
   name,
   amp,
+  aRight,
   feePct,
   owner,
   state,
@@ -49,7 +52,7 @@ export default function PoolPreviewCard({
   const live = state === 'live'
   const symbols = tokens.map((t) => t.symbol)
   const pair: [string, string] | undefined = tokens.length >= 2 ? [symbols[0], symbols[1]] : undefined
-  const lines = [assetsNarrative(symbols), curveNarrative(amp), feeNarrative(feePct)]
+  const lines = [assetsNarrative(symbols), curveNarrative(amp), aRightNarrative(aRight), feeNarrative(feePct)]
 
   return (
     <div
@@ -135,9 +138,9 @@ export default function PoolPreviewCard({
         </div>
         <span>LPs earn per $1M daily volume</span>
         <TickNumber value={earn} format={fmtUsd} className="font-medium" style={{ color: 'var(--c-text)' }} />
-        <span>Owner</span>
-        <span className="font-medium tabular-nums" style={{ color: 'var(--c-text)' }}>
-          {owner ? shortenAddress(owner) : 'Log in'}
+        <span>Right to change A</span>
+        <span className="font-medium" style={{ color: 'var(--c-text)' }}>
+          {aRight === 'flexible' ? 'Flexible · Spreadless' : owner ? 'Fixed · no owner' : 'Fixed'}
         </span>
       </div>
 

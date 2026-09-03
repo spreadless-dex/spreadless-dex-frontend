@@ -19,6 +19,7 @@ import {
   POOL_WASM_HASH,
   RPC_URL,
 } from "./config";
+import { protocolOwnerFor, renounceOwnership, type ARightState } from "./ownership";
 import { invalidateVaults, shortAddress } from "./registry";
 import { invalidateVaultTvl } from "./vaultTvl";
 import {
@@ -46,40 +47,79 @@ export interface CreatePoolResult {
   /** Empty for demo pools. */
   hash: string;
   backend: CreateBackend;
+  /**
+   * What the deploy ended with. "undecided" means a fixed pool whose second
+   * signature (giving ownership up) was declined or failed: the pool exists
+   * and the creator owns it; the pool page offers to finish the step.
+   */
+  aRight: ARightState;
 }
+
+/** A fixed pool takes two signatures; the UI labels each. */
+export type CreateStage = "deploy" | "renounce";
 
 interface CreatePoolArgs {
   draft: PoolDraft;
-  /** Owner and signer. Must be the connected wallet. */
-  owner: string;
+  /** Signer. Must be the connected wallet. Owner too, unless the draft hands the pool to Spreadless. */
+  creator: string;
   label: string;
   metaFor: (address: string) => TokenMeta | undefined;
   onPhase?: OnPhase;
+  onStage?: (stage: CreateStage) => void;
 }
 
 export async function createPool(args: CreatePoolArgs): Promise<CreatePoolResult> {
   const backend = createBackend();
-  const ctor = toConstructorArgs(args.draft, args.owner, args.metaFor);
+  const flexible = args.draft.aRight === "flexible";
+
+  // The right to change A is the owner. Flexible: Spreadless from the first
+  // ledger, no handover needed. Fixed: the creator deploys and then gives
+  // the pool up, because an owner who kept it could still ramp A.
+  const protocolOwner = protocolOwnerFor(backend === "demo");
+  if (flexible && !protocolOwner) {
+    throw new Error(
+      "The Spreadless owner address is not configured yet (PROTOCOL_OWNER), so a flexible pool cannot be deployed. Choose Fixed, or ask the team for the address.",
+    );
+  }
+  const owner = flexible ? protocolOwner! : args.creator;
+  const ctor = toConstructorArgs(args.draft, owner, args.metaFor);
   const meta = {
     feeBps: percentToBps(args.draft.feePct),
     protocolSharePct: PROTOCOL_SHARE_PCT,
   };
 
-  let result: CreatePoolResult;
+  args.onStage?.("deploy");
+  let result: Omit<CreatePoolResult, "aRight">;
   if (backend === "factory") {
     result = await createViaFactory();
   } else if (backend === "deploy") {
-    result = await deployDirect(ctor, args.owner, args.onPhase);
+    result = await deployDirect(ctor, args.creator, args.onPhase);
   } else {
     result = await createDemo(ctor, args.onPhase);
   }
 
-  useLocalPools
-    .getState()
-    .add(localPoolFromArgs(result.address, ctor, args.label, backend, result.hash, meta));
+  const local = localPoolFromArgs(result.address, ctor, args.label, backend, result.hash, meta);
+  useLocalPools.getState().add(local);
   invalidateVaults();
   invalidateVaultTvl();
-  return result;
+
+  if (flexible) return { ...result, aRight: "flexible" };
+
+  // Second signature. The pool is already registered above, so a declined
+  // signature leaves a real, creator-owned pool behind rather than nothing.
+  args.onStage?.("renounce");
+  try {
+    if (backend === "demo") {
+      await demoRenounce(args.onPhase);
+    } else {
+      await renounceOwnership({ from: args.creator, poolId: result.address, onPhase: args.onPhase });
+    }
+  } catch (err) {
+    console.error("Giving up ownership failed after the deploy:", err);
+    return { ...result, aRight: "undecided" };
+  }
+  useLocalPools.getState().setOwner(result.address, "");
+  return { ...result, aRight: "fixed" };
 }
 
 // ── Backends ─────────────────────────────────────────────────────────────
@@ -97,7 +137,7 @@ async function deployDirect(
   ctor: ReturnType<typeof toConstructorArgs>,
   owner: string,
   onPhase?: OnPhase,
-): Promise<CreatePoolResult> {
+): Promise<Omit<CreatePoolResult, "aRight">> {
   onPhase?.("preparing");
   const sdk = await import("@spreadless-dex/sdk");
   const signer = await getWalletSigner();
@@ -133,7 +173,7 @@ let demoCounter = 0;
 async function createDemo(
   ctor: ReturnType<typeof toConstructorArgs>,
   onPhase?: OnPhase,
-): Promise<CreatePoolResult> {
+): Promise<Omit<CreatePoolResult, "aRight">> {
   const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
   onPhase?.("preparing");
   await wait(700);
@@ -145,4 +185,14 @@ async function createDemo(
   const tag = ctor.tokens.length.toString();
   const address = `CDEMO${"0".repeat(56 - 5 - n.length - tag.length - 4)}${tag}${n}POOL`.slice(0, 56);
   return { address, hash: "", backend: "demo" };
+}
+
+async function demoRenounce(onPhase?: OnPhase): Promise<void> {
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  onPhase?.("preparing");
+  await wait(400);
+  onPhase?.("signing");
+  await wait(800);
+  onPhase?.("submitting");
+  await wait(700);
 }

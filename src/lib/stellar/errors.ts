@@ -109,6 +109,26 @@ export function mapTxError(err: unknown, ctx: TxErrorContext = {}): MappedTxErro
     return { message: "This deposit would exceed the pool's cap for this token. Try a smaller amount." };
   }
 
+  // Ownable #2100-2102 and RoleTransfer #2200-2203: the two-step owner handover.
+  if (contractCode(raw, 2101) || /TransferInProgress/i.test(raw)) {
+    return { message: "A transfer offer is already open for this pool. Withdraw it first, then send a new one." };
+  }
+  if (contractCode(raw, 2100) || /OwnerNotSet/i.test(raw)) {
+    return { message: "This pool has no owner any more, so ownership can't be transferred." };
+  }
+  if (contractCode(raw, 2200) || /NoPendingTransfer/i.test(raw)) {
+    return { message: "There is no open transfer offer for this wallet. Ask the current owner to send one to this address." };
+  }
+  if (contractCode(raw, 2203) || /TransferExpired/i.test(raw)) {
+    return { message: "This transfer offer has expired. The owner can send a new one." };
+  }
+  if (contractCode(raw, 2202) || /InvalidPendingAccount/i.test(raw)) {
+    return { message: "The open offer is addressed to a different wallet than the one given." };
+  }
+  if (contractCode(raw, 2201) || /InvalidLiveUntilLedger/i.test(raw)) {
+    return { message: "The offer's expiry lies in the past. Try again for a fresh one." };
+  }
+
   // Pausable #1000 — the pool is paused by its owner.
   if (contractCode(raw, 1000) || /EnforcedPause/i.test(raw)) {
     return { message: "The pool is paused right now. Transactions are disabled until it's unpaused." };

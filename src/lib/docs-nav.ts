@@ -42,6 +42,7 @@ export const DOCS_NAV: DocSection[] = [
       { slug: "guides/swap", label: "How to Swap" },
       { slug: "guides/provide-liquidity", label: "Provide Liquidity" },
       { slug: "guides/withdraw", label: "Withdraw Liquidity" },
+      { slug: "guides/pool-ownership", label: "Pool Ownership" },
       { slug: "guides/portfolio", label: "Portfolio & Activity" },
     ],
   },

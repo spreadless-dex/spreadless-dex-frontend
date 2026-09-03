@@ -4,7 +4,7 @@
 // detail per record (rate, slippage, hash, etc.) and the need to query by
 // wallet warrant a real object store with an index, not a JSON blob.
 
-export type ActivityType = "swap" | "deposit" | "withdraw";
+export type ActivityType = "swap" | "deposit" | "withdraw" | "ownership";
 export type ActivityStatus = "completed" | "failed" | "pending";
 
 export interface ActivityRecord {

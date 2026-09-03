@@ -16,6 +16,7 @@ const RETRY_HREF: Record<ActivityRecord['type'], string> = {
   swap: '/swap',
   deposit: '/earn',
   withdraw: '/earn',
+  ownership: '/pools',
 }
 
 export default function TxDetailDrawer({ activity, onClose }: TxDetailDrawerProps) {

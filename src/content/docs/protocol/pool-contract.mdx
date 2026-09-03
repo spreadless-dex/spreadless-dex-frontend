@@ -27,7 +27,7 @@ These simulate only: no signature, no state change.
 | `paused()` | `bool` | Whether the pool is currently paused. |
 | `total_supply()` | `i128` | Total `SLP` shares outstanding. |
 | `balance(account)` | `i128` | An account's `SLP` share balance. |
-| `get_owner()` | `address` | The pool's admin/owner. |
+| `get_owner()` | `address \| none` | The pool's owner. `none` once ownership was renounced. |
 
 ## Write methods
 
@@ -73,6 +73,26 @@ withdraw_one_token({
   min_amount_out, // bigint, floor on payout; revert if less
 }) // → bigint  (token_out received)
 ```
+
+## Owner methods
+
+Only the current owner can call these. Ownership uses a two-step transfer: an
+offer with an expiry ledger, then an accept by the recipient. See
+[Pool Ownership](/docs/guides/pool-ownership) for the flow in the app.
+
+| Method | Effect |
+| --- | --- |
+| `set_amp_ramp({ target_factor, duration })` | Moves `A` linearly from its current value to the target over `duration` seconds. `0` applies at once. |
+| `set_swap_fee(fee)` | Sets the swap fee. |
+| `pause()` / `unpause()` | Halts or resumes trading and deposits. |
+| `transfer_ownership({ new_owner, live_until_ledger })` | Offers the pool to `new_owner` until the given ledger. `0` cancels an open offer. |
+| `accept_ownership()` | Called by the offered address. This is the moment ownership moves. |
+| `renounce_ownership()` | Removes the owner for good. Refused while an offer is open. |
+
+<Callout kind="note" title="No pending getter">
+  The contract does not expose the pending recipient of an open offer. The app
+  keeps the offers it sent in the browser and shares them through an invite link.
+</Callout>
 
 ## Quoting
 

@@ -80,11 +80,26 @@ export function formatSharePct(pct: number): string {
 
 // ── Draft ────────────────────────────────────────────────────────────────
 
+/**
+ * Who may move A after launch. The contract has one role for it, the owner,
+ * so this is really a choice of owner:
+ *   flexible  the pool is deployed with Spreadless as owner. Its admins can
+ *             ramp A (always a linear glide over a set duration, never a
+ *             jump), and with the same role pause the pool or adjust the fee.
+ *   fixed     the creator deploys, then gives ownership up in a second
+ *             signature. A, fee and pause are frozen for everyone, for good.
+ * A creator never keeps the right to ramp A themselves.
+ */
+export type ARight = "flexible" | "fixed";
+
+export const DEFAULT_A_RIGHT: ARight = "flexible";
+
 /** Everything the builder collects, in human units. */
 export interface PoolDraft {
   /** Token contract addresses, in the order the user picked them. */
   tokens: string[];
   amp: number;
+  aRight: ARight;
   feePct: number;
   /** Per-token cap in human units, keyed by address. Empty string: no cap. */
   caps: Record<string, string>;
@@ -96,6 +111,7 @@ export function emptyDraft(): PoolDraft {
   return {
     tokens: [],
     amp: DEFAULT_AMP,
+    aRight: DEFAULT_A_RIGHT,
     feePct: DEFAULT_FEE_PCT,
     caps: {},
     lpMaxSupply: "",
@@ -413,6 +429,12 @@ export function curveNarrative(amp: number): string {
   if (amp >= 50) return "The usual shape for stable pairs: cheap near balance, firm when one side runs low.";
   if (amp >= 10) return "Bends early. Prices react sooner when one asset drifts, which protects the other side.";
   return "Close to constant product. Every trade moves the price; only for pairs that really wobble.";
+}
+
+export function aRightNarrative(right: ARight): string {
+  return right === "flexible"
+    ? "Spreadless can glide A to a new value if the market shifts. You cannot."
+    : "A is locked at launch. Nobody can change it, not even Spreadless.";
 }
 
 export function feeNarrative(feePct: number): string {

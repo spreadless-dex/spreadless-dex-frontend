@@ -66,10 +66,17 @@ export default function AdvancedSection({ draft, tokens, owner, onCap, onLpCap }
             <CapSlider value={draft.lpMaxSupply} onChange={onLpCap} label="LP supply cap" />
             <span className="flex items-center">
               Owner
-              <Tooltip text="Fixed to your wallet. The owner is the only address that can pause the pool, ramp A and change the swap fee after launch, and can hand that right to the protocol." label="About the owner" />
+              <Tooltip
+                text={draft.aRight === 'flexible'
+                  ? 'Set by your choice in step 3. Spreadless owns the pool from the first ledger: the one address that can ramp A, pause, or change the fee.'
+                  : 'Set by your choice in step 3. You deploy as owner and give the role up in a second signature, so afterwards nobody holds it.'}
+                label="About the owner"
+              />
             </span>
             <span className="font-medium tabular-nums sm:text-right" style={{ color: 'var(--c-text)' }}>
-              {owner ? `${shortenAddress(owner)} · you` : 'Log in'}
+              {draft.aRight === 'flexible'
+                ? 'Spreadless'
+                : owner ? `${shortenAddress(owner)} · you, then none` : 'Log in'}
             </span>
           </div>
         </div>

@@ -29,6 +29,12 @@ export const POOL_CONTRACT_ID =
 // swap path onto the registry without any other change here.
 export const FACTORY_CONTRACT_ID: string | null = null;
 
+// OWNERSHIP HANDOVER: the address a creator can hand a pool to when they no
+// longer want to run it themselves ("give it back to Spreadless"). The pool
+// page offers it as the first option in the transfer dialog; while null that
+// option is listed as "Soon" and only a custom address can be entered.
+export const PROTOCOL_OWNER: string | null = null;
+
 // TRANCHE 2 / D2 — the atomic multi-hop Router. Until this is deployed a
 // multi-hop route can be *quoted* (each leg simulates fine on its own pool) but
 // must never be signed: without the Router there is no single transaction that

@@ -44,6 +44,8 @@ interface LocalPoolsState {
   pools: LocalPool[];
   add: (pool: LocalPool) => void;
   remove: (address: string) => void;
+  /** Reflect a completed on-chain handover (or a demo one) in the stored record. */
+  setOwner: (address: string, owner: string) => void;
 }
 
 // A store rather than a plain array so /pools re-renders the moment the
@@ -59,6 +61,12 @@ export const useLocalPools = create<LocalPoolsState>((set) => ({
   remove: (address) =>
     set((s) => {
       const pools = s.pools.filter((p) => p.address !== address);
+      persist(pools);
+      return { pools };
+    }),
+  setOwner: (address, owner) =>
+    set((s) => {
+      const pools = s.pools.map((p) => (p.address === address ? { ...p, owner } : p));
       persist(pools);
       return { pools };
     }),

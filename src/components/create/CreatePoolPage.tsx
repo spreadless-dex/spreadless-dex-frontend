@@ -26,6 +26,7 @@ import {
 } from '../../lib/stellar/poolParams'
 import AssetPicker from './AssetPicker'
 import CurvePicker from './CurvePicker'
+import ARightPicker from './ARightPicker'
 import FeePicker from './FeePicker'
 import AdvancedSection from './AdvancedSection'
 import ReviewDeploy from './ReviewDeploy'
@@ -33,7 +34,7 @@ import PoolPreviewCard from './PoolPreviewCard'
 import Tooltip from '../Tooltip'
 import { ArrowLeft, Check } from 'lucide-react'
 
-// The pool builder (/pools/new). All five steps live on one page; a step
+// The pool builder (/pools/new). All six steps live on one page; a step
 // after the assets unlocks once the asset set is valid, so the page always
 // shows how much is left. The sticky preview on the right is the payoff:
 // it is the row this pool will occupy in /pools, updating on every input.
@@ -210,8 +211,15 @@ export default function CreatePoolPage() {
             />
           </Step>
 
-          <Step n={3} title="Fee" done={unlocked} locked={!unlocked} delay={60}
-            tooltip="Charged on every swap. Most of it stays in the pool for liquidity providers, and you can change it after launch."
+          <Step n={3} title="Right to change A" done={unlocked} locked={!unlocked} delay={40}
+            tooltip="Whether A can ever be retuned after launch. Only Spreadless can do that, and only if you allow it here. You never change it yourself."
+            value={draft.aRight === 'flexible' ? 'Flexible' : 'Fixed'}
+          >
+            <ARightPicker value={draft.aRight} onChange={(aRight) => setScene({ aRight })} />
+          </Step>
+
+          <Step n={4} title="Fee" done={unlocked} locked={!unlocked} delay={80}
+            tooltip="Charged on every swap. Most of it stays in the pool for liquidity providers. After launch only the pool's owner can change it."
             value={`${draft.feePct}%`}
           >
             <FeePicker
@@ -221,7 +229,7 @@ export default function CreatePoolPage() {
             />
           </Step>
 
-          <Step n={4} title="" done={false} locked={!unlocked} delay={120} bare>
+          <Step n={5} title="" done={false} locked={!unlocked} delay={120} bare>
             <AdvancedSection
               draft={draft}
               tokens={tokens}
@@ -231,7 +239,7 @@ export default function CreatePoolPage() {
             />
           </Step>
 
-          <Step n={5} title="Review" done={created !== null} locked={!unlocked || hasErrors(issues)} delay={180}>
+          <Step n={6} title="Review" done={created !== null} locked={!unlocked || hasErrors(issues)} delay={180}>
             <ReviewDeploy
               draft={draft}
               tokens={tokens}
@@ -255,6 +263,7 @@ export default function CreatePoolPage() {
             tokens={tokens}
             name={name}
             amp={draft.amp}
+            aRight={draft.aRight}
             feePct={draft.feePct}
             owner={walletAddress}
             state={created ? 'live' : deploying ? 'deploying' : 'draft'}

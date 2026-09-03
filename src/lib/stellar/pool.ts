@@ -60,7 +60,7 @@ async function readClient(poolId: string = POOL_CONTRACT_ID) {
 // so callers can surface the tx lifecycle: signTransaction being invoked is
 // the moment the wallet pops up ("signing"); it resolving means the signed tx
 // is on its way to the network ("submitting").
-async function writeClient(
+export async function writeClient(
   to: string,
   onPhase?: OnPhase,
   poolId: string = POOL_CONTRACT_ID,
@@ -88,7 +88,7 @@ async function writeClient(
 // throwing — String(it) is "[object Object]" and it would flow straight into
 // the UI. Normalize: unwrap Result-likes so callers get a real value or a
 // real throw.
-function unwrapResult<T>(value: T | { unwrap(): T }): T {
+export function unwrapResult<T>(value: T | { unwrap(): T }): T {
   if (
     value !== null &&
     typeof value === "object" &&

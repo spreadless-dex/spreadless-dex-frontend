@@ -42,11 +42,21 @@ pool contract *is* the LP token; `SLP` uses 9 decimals.
 tolerance. The transaction reverts rather than filling below it. See
 [Slippage & Safety](/docs/protocol/slippage-and-safety).
 
+**Ownership (pool)**: the single role that may ramp `A`, set the fee and pause a
+pool. Held by Spreadless (flexible), by nobody (fixed) or still by the creator
+(undecided). See [Pool Ownership](/docs/guides/pool-ownership).
+
 **Price impact**: how much your own trade moves the price against you, from walking
 along the curve as you trade.
 
 **Raw units**: on-chain integer amounts in a token's smallest unit. Scale by the
 token's decimals to get human values.
+
+**Ramp**: a change of `A` that moves linearly from the current value to a target
+over a set duration instead of jumping. The only way `A` ever changes.
+
+**Right to change A**: the choice at pool creation between *Flexible* (Spreadless
+may ramp `A`) and *Fixed* (nobody can, ever).
 
 **SAC (Stellar Asset Contract)**: a Soroban contract wrapping a *classic* Stellar
 asset. Holding one requires a [trustline](/docs/guides/trustlines); only its issuer

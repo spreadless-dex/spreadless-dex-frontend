@@ -202,6 +202,7 @@ export default function ActivityPage() {
             { key: 'swap', label: 'Swap' },
             { key: 'deposit', label: 'Deposit' },
             { key: 'withdraw', label: 'Withdraw' },
+            { key: 'ownership', label: 'Ownership' },
           ]}
         />
         <FilterPill

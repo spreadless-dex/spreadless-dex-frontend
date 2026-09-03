@@ -128,3 +128,56 @@ export async function recordWithdraw(args: RecordWithdrawArgs): Promise<Activity
   await addActivity(record);
   return record;
 }
+
+interface RecordOwnershipArgs {
+  walletAddress: string;
+  status: ActivityStatus;
+  /** Which step of the handover this was. */
+  step: "offer" | "withdraw" | "accept" | "renounce";
+  poolLabel: string;
+  poolAddress: string;
+  /** The other party: recipient for an offer, previous owner for an accept. */
+  counterparty?: string;
+  txHash?: string;
+  detail?: string;
+}
+
+// Ownership moves in two signed steps (offer, accept) plus an optional
+// withdrawal, so each one gets its own entry: the history then reads like
+// the handover actually happened, not like one event with a hidden middle.
+export async function recordOwnership(args: RecordOwnershipArgs): Promise<ActivityRecord> {
+  const failed = args.status === "failed";
+  const short = (a?: string) => (a ? `${a.slice(0, 4)}…${a.slice(-4)}` : "");
+  const title =
+    args.step === "offer"
+      ? `Ownership offered · ${args.poolLabel}`
+      : args.step === "withdraw"
+        ? `Offer withdrawn · ${args.poolLabel}`
+        : args.step === "renounce"
+          ? `Ownership given up · ${args.poolLabel}`
+          : `Ownership accepted · ${args.poolLabel}`;
+  const subtitle = failed
+    ? (args.detail ?? "Nothing changed")
+    : args.step === "offer"
+      ? `To ${short(args.counterparty)} · open for 7 days`
+      : args.step === "withdraw"
+        ? "The pool stays with you"
+        : args.step === "renounce"
+          ? "A, fee and pause are fixed for good"
+          : "You are the owner now";
+  const record = build({
+    walletAddress: args.walletAddress,
+    type: "ownership",
+    status: args.status,
+    title,
+    subtitle,
+    assetPool: args.poolLabel,
+    amount: short(args.poolAddress),
+    sent: args.step === "offer" ? `Offer to ${short(args.counterparty)}` : undefined,
+    received: args.step === "accept" ? `Pool ${short(args.poolAddress)}` : undefined,
+    txHash: args.txHash,
+    detail: failed ? args.detail : undefined,
+  });
+  await addActivity(record);
+  return record;
+}

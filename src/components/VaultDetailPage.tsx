@@ -8,6 +8,8 @@ import { useLocalPools, type LocalPool } from '../lib/stellar/localPools'
 import { explorerContractUrl } from '../lib/stellar/config'
 import { formatSharePct } from '../lib/stellar/poolParams'
 import PoolDetailModal from './PoolDetailModal'
+import OwnershipPanel from './OwnershipPanel'
+import { aRightOf, A_RIGHT_LABEL, A_RIGHT_TIP } from '../lib/stellar/ownership'
 import TokenIcon from './TokenIcon'
 import Tooltip from './Tooltip'
 import { ArrowLeft, ExternalLink } from 'lucide-react'
@@ -66,6 +68,27 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(fetchState, [address, isDemo])
 
+  // After an ownership step lands, re-read without dropping into the
+  // skeleton: the panel that just showed the success message must stay on
+  // screen. The RPC can serve the pre-tx snapshot for a moment, so poll
+  // until the owner actually moves.
+  const refreshOwner = async () => {
+    if (isDemo) return
+    const before = load.kind === 'ready' ? load.state.owner : undefined
+    for (let i = 0; i < 6; i++) {
+      try {
+        const next = await readPoolState(address)
+        if (next.owner !== before || i === 5) {
+          setLoad({ kind: 'ready', state: next })
+          return
+        }
+      } catch {
+        // keep what is on screen
+      }
+      await new Promise((r) => setTimeout(r, 1000))
+    }
+  }
+
   useEffect(() => {
     if (!walletAddress || isDemo) {
       setLpBalance(null)
@@ -103,7 +126,10 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
   const tvl = state?.totalTvl ?? 0
   const empty = tvl === 0
   const feePct = localPool ? (localPool.feeBps / 100).toFixed(2) : null
-  const owner = state?.owner ?? localPool?.owner
+  // Empty string is a demo pool whose owner was given up; undefined is the
+  // same thing on chain (get_owner() returned None).
+  const owner = (state ? state.owner : localPool?.owner) || undefined
+  const aRight = aRightOf(owner)
   const lpHuman = lpBalance !== null ? fromRawUnits(lpBalance, LP_DECIMALS) : null
 
   // The builder's Seed CTA: open the deposit modal on the first asset as
@@ -218,7 +244,7 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <Stat label="TVL" value={empty ? 'Empty' : formatCurrency(tvl)} />
-        <Stat label="Amplification" value={amp !== undefined ? `A = ${amp}` : '—'} tip="Higher A keeps the price closer to 1:1 but reacts harder if a peg breaks." />
+        <Stat label="Amplification" value={amp !== undefined ? `A = ${amp}` : '—'} note={A_RIGHT_LABEL[aRight]} tip={`Higher A keeps the price closer to 1:1 but reacts harder if a peg breaks. ${A_RIGHT_TIP[aRight]}`} />
         <Stat label="Swap fee" value={feePct ? `${feePct}%` : '—'} tip={feePct ? `${formatSharePct(localPool!.protocolSharePct)}% of it goes to the protocol, the rest to LPs.` : 'The current contract exposes no fee getter, so unknown fees stay unlabeled.'} />
         <Stat label="LP supply" value={state ? state.lpSupplyHuman.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '0'} />
       </div>
@@ -286,13 +312,14 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
               </a>
             )}
           </Row>
-          {owner && (
-            <Row label="Owner">
-              <span className="font-mono text-[12px]" style={{ color: 'var(--c-text)' }}>
-                {shortenAddress(owner)}
-                {walletAddress === owner ? ' · you' : ''}
-              </span>
-            </Row>
+          {(state || localPool) && (
+            <OwnershipPanel
+              poolId={address}
+              poolLabel={label}
+              owner={owner}
+              isDemo={isDemo}
+              onOwnerChanged={refreshOwner}
+            />
           )}
         </div>
       </Section>
@@ -310,14 +337,17 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
   )
 }
 
-function Stat({ label, value, tip }: { label: string; value: string; tip?: string }) {
+function Stat({ label, value, note, tip }: { label: string; value: string; note?: string; tip?: string }) {
   return (
     <div className="rounded-xl px-4 py-3" style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)' }}>
       <p className="text-[11px] uppercase tracking-wider flex items-center" style={{ color: 'var(--c-text-faint)' }}>
         {label}
         {tip && <Tooltip text={tip} label={`About ${label.toLowerCase()}`} />}
       </p>
-      <p className="text-[15px] font-semibold mt-1 tabular-nums" style={{ color: 'var(--c-text)' }}>{value}</p>
+      <p className="text-[15px] font-semibold mt-1 tabular-nums flex items-baseline gap-2 flex-wrap" style={{ color: 'var(--c-text)' }}>
+        {value}
+        {note && <span key={note} className="owner-swap text-[11px] font-medium" style={{ color: 'var(--c-text-muted)' }}>{note}</span>}
+      </p>
     </div>
   )
 }

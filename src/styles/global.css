@@ -234,7 +234,7 @@
    unmount races, no timers, and Escape / backdrop click go through the same
    path as the X button. Rows settle one after the other on the way in and
    leave together with the card on the way out. */
-.wallet-dialog {
+:is(.wallet-dialog, .handover-dialog) {
   --dur-in: 0.32s;
   --dur-out: 0.2s;
   --ease-in: cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -268,7 +268,7 @@
     overlay var(--dur-out) allow-discrete,
     display var(--dur-out) allow-discrete;
 }
-.wallet-dialog[open] {
+:is(.wallet-dialog, .handover-dialog)[open] {
   pointer-events: auto;
   opacity: 1;
   translate: 0 0;
@@ -283,7 +283,7 @@
     display var(--dur-in) allow-discrete;
 }
 @starting-style {
-  .wallet-dialog[open] {
+  :is(.wallet-dialog, .handover-dialog)[open] {
     opacity: 0;
     translate: 0 14px;
     scale: 0.96;
@@ -291,7 +291,7 @@
   }
 }
 
-.wallet-dialog::backdrop {
+:is(.wallet-dialog, .handover-dialog)::backdrop {
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
@@ -301,7 +301,7 @@
     overlay var(--dur-out, 0.2s) allow-discrete,
     display var(--dur-out, 0.2s) allow-discrete;
 }
-.wallet-dialog[open]::backdrop {
+:is(.wallet-dialog, .handover-dialog)[open]::backdrop {
   opacity: 1;
   transition:
     opacity var(--dur-in, 0.32s) ease,
@@ -309,12 +309,12 @@
     display var(--dur-in, 0.32s) allow-discrete;
 }
 @starting-style {
-  .wallet-dialog[open]::backdrop { opacity: 0; }
+  :is(.wallet-dialog, .handover-dialog)[open]::backdrop { opacity: 0; }
 }
 
 /* Rows: staggered on the way in (--i is the row index), together on the way
    out so nothing lags behind the dissolving card. */
-.wallet-dialog .wallet-option {
+:is(.wallet-dialog, .handover-dialog) .wallet-option {
   opacity: 0;
   translate: 0 10px;
   transition:
@@ -325,7 +325,7 @@
     border-color 0.15s ease,
     box-shadow 0.2s ease;
 }
-.wallet-dialog[open] .wallet-option {
+:is(.wallet-dialog, .handover-dialog)[open] .wallet-option {
   opacity: 1;
   translate: 0 0;
   transition:
@@ -337,23 +337,169 @@
     box-shadow 0.2s ease;
 }
 @starting-style {
-  .wallet-dialog[open] .wallet-option {
+  :is(.wallet-dialog, .handover-dialog)[open] .wallet-option {
     opacity: 0;
     translate: 0 10px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .wallet-dialog,
-  .wallet-dialog[open],
-  .wallet-dialog .wallet-option,
-  .wallet-dialog[open] .wallet-option {
+  :is(.wallet-dialog, .handover-dialog),
+  :is(.wallet-dialog, .handover-dialog)[open],
+  :is(.wallet-dialog, .handover-dialog) .wallet-option,
+  :is(.wallet-dialog, .handover-dialog)[open] .wallet-option {
     translate: 0 0;
     scale: 1;
     filter: none;
     transition-duration: 0.12s;
     transition-delay: 0s;
   }
+}
+
+/* ─── Ownership handover ──────────────────────────────────
+   Same top-layer choreography as the login chooser (shared above); only the
+   width differs, since a Stellar address needs the room. Rows reuse
+   .wallet-option, which already carries the staggered settle and the lift.
+   The parts below are the pieces the handover adds: a chosen row, a field
+   that unfolds beneath it, a line that flows from the owner to the
+   recipient, and the dot that breathes while an offer is open. */
+.handover-dialog {
+  width: min(26.5rem, calc(100vw - 2rem));
+}
+
+/* A choice row that is currently selected: a hairline ring, no fill, so the
+   selection reads as a state and not as a second button colour. */
+.wallet-option[role="radio"] {
+  box-shadow: inset 0 0 0 1px transparent;
+}
+.wallet-option[role="radio"][aria-checked="true"] {
+  box-shadow: inset 0 0 0 1px var(--c-text);
+}
+.wallet-option[role="radio"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
+.wallet-option[role="radio"][aria-disabled="true"]:hover {
+  transform: none;
+  border-color: var(--c-border) !important;
+  background-color: var(--c-surface-2) !important;
+}
+
+/* The custom-address field unfolds under its row. Height animates through
+   grid rows, so nothing is measured and the rows below glide down with it. */
+.unfold {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 380ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 200ms ease;
+}
+.unfold[data-open="true"] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows 380ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 280ms ease 90ms;
+}
+.unfold > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Address field: hairline at rest, a soft ring on focus, and the ring turns
+   solid the moment the address checks out. No colour, the state is weight. */
+.addr-field {
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  transition:
+    border-color 200ms ease,
+    box-shadow 240ms ease;
+}
+.addr-field:focus-within {
+  border-color: var(--c-border-2);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--c-text) 6%, transparent);
+}
+.addr-field[data-valid="true"] {
+  border-color: var(--c-text);
+}
+.addr-field[data-valid="false"] {
+  border-color: var(--c-border-2);
+}
+.addr-field input::placeholder {
+  color: var(--c-text-faint);
+}
+
+/* Owner to recipient: a dashed line whose dashes drift toward the recipient
+   while an offer is on its way or open. Static once it has landed. */
+.flow-line {
+  stroke: var(--c-border-2);
+  stroke-dasharray: 3 5;
+  stroke-linecap: round;
+}
+.flow-line[data-live="true"] {
+  stroke: var(--c-text-muted);
+  animation: flowDrift 1.4s linear infinite;
+}
+@keyframes flowDrift {
+  to { stroke-dashoffset: -16; }
+}
+.flow-end {
+  transition: background-color 300ms ease, box-shadow 300ms ease;
+}
+
+/* Builder, right to change A: the sketch's line draws itself in when the
+   choice changes (the wrapper is keyed, so this runs on every switch). */
+.ramp-draw {
+  stroke-dasharray: 140;
+  stroke-dashoffset: 140;
+  animation: drawStroke 640ms cubic-bezier(0.2, 0.8, 0.2, 1) 120ms forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ramp-draw { animation-duration: 0.01s; animation-delay: 0s; }
+}
+
+/* The open-offer marker breathes at the pace of the "Soon" dot. */
+.pending-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: soonBreathe 2.4s ease-in-out infinite;
+}
+
+/* A changed owner address settles in out of a blur (blurIn is the page's
+   own enter animation, so the row reads like the rest of the app). */
+.owner-swap {
+  animation: blurIn 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* The dialog's success view: the stamp condenses, the text follows. */
+.stamp-in {
+  animation: stampIn 560ms linear(0, 0.3 8%, 0.72 20%, 0.96 36%, 1.02 52%, 0.995 70%, 1) both;
+}
+.stamp-late {
+  animation: fadeUp 420ms cubic-bezier(0.2, 0.8, 0.2, 1) 160ms both;
+}
+@keyframes stampIn {
+  from { opacity: 0; scale: 0.7; filter: blur(8px); }
+  to   { opacity: 1; scale: 1;   filter: blur(0); }
+}
+
+/* Inline offer card on the pool page: rises into place like TxStatus. */
+.handover-card {
+  animation: fadeUp 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .unfold,
+  .unfold[data-open="true"] { transition-duration: 0.12s; transition-delay: 0s; }
+  .flow-line[data-live="true"] { animation: none; }
+  .pending-dot { animation: none; }
+  .owner-swap,
+  .stamp-in,
+  .stamp-late,
+  .handover-card { animation-duration: 0.12s; animation-delay: 0s; filter: none; }
 }
 
 /* ─── "Soon" note ─────────────────────────────────────────

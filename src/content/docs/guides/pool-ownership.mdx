@@ -1,0 +1,61 @@
+---
+title: Pool Ownership
+description: Who owns a pool, what the owner can do, and how to hand a pool over.
+---
+
+import Callout from "../../../components/docs/Callout.astro";
+
+Every pool has at most one owner. The owner is the only address that can ramp the
+amplification factor `A`, change the swap fee, or pause the pool. The creator of
+a pool never keeps this role for themselves. They decide at creation who holds it
+instead.
+
+## The choice at creation
+
+Step 3 of the pool builder, **Right to change A**, has two options:
+
+- **Flexible** (recommended). The pool is deployed with Spreadless as owner. If a
+  market shifts, Spreadless can retune `A`, always as a slow ramp, never as a jump.
+  One signature.
+- **Fixed.** You deploy, then give ownership up in a second signature. The pool
+  has no owner from then on. `A`, the fee and the pause switch are frozen for
+  everyone, Spreadless included. This cannot be undone.
+
+If you decline the second signature of a fixed deploy, the pool still exists and
+you remain its owner. Its page shows **Undecided** until you make the choice
+there.
+
+## Handing a pool over
+
+A pool you still own shows a **Transfer** button in the Owner row of its page.
+It opens the same three choices:
+
+1. **Spreadless.** Hand the pool over. The pool becomes flexible.
+2. **Nobody, fix it for good.** Give ownership up. You press twice to confirm.
+3. **Another wallet.** Offer the pool to any Stellar address, account (`G...`)
+   or contract (`C...`).
+
+A transfer to another wallet is a two-step handshake. You sign an **offer**. The
+recipient signs an **accept**. Nothing moves until they do. The offer stays open
+for seven days and then lapses. While it is open you can take it back, and the
+pool page shows the offer with a copyable invite link. The recipient opens that
+link with their wallet connected and finds the Accept step waiting.
+
+<Callout kind="note" title="A wrong address costs nothing">
+  Ownership only moves when the recipient accepts. An address nobody controls can
+  never accept, so a mistyped offer simply lapses and the pool stays yours.
+</Callout>
+
+## What the states mean
+
+| State | Owner | `A`, fee, pause |
+| --- | --- | --- |
+| Flexible | Spreadless | Spreadless may change them, `A` only by ramp |
+| Fixed | none | frozen for good |
+| Undecided | the creator | the creator may change them, and should decide |
+
+Every offer, withdrawal, accept and renounce appears in your
+[Activity](/docs/guides/portfolio) history under the **Ownership** filter.
+
+Next: what `A` does and why ramping matters,
+[Amplification Factor](/docs/concepts/amplification).
