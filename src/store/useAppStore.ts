@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { readPoolState } from "../lib/stellar/pool";
 import type { PoolState, PoolToken } from "../lib/stellar/pool";
-import { PRIVY_APP_ID } from "../lib/stellar/config";
+import { PRIVY_APP_ID, WALLETCONNECT_PROJECT_ID } from "../lib/stellar/config";
 
 export type { PoolState, PoolToken } from "../lib/stellar/pool";
 
@@ -282,10 +282,40 @@ async function bootWalletKit() {
   const { KitEventType, Networks, SwkAppDarkTheme, SwkAppLightTheme } =
     await import("@creit-tech/stellar-wallets-kit/types");
 
+  // defaultModules() is every desktop-extension wallet the kit ships — none
+  // of them can be reached from inside Freighter's own mobile app browser.
+  // There, Freighter injects `window.stellar = { provider: "freighter",
+  // platform: "mobile" }` and the kit's own FreighterModule.isAvailable()
+  // deliberately returns false when it sees that (it can't drive the
+  // extension-style API from in there); the kit's comment on that check says
+  // to use WalletConnect instead. So without a WalletConnect module in the
+  // list, opening the app inside Freighter's mobile browser has no wallet
+  // that will ever report itself connectable.
+  const modules = defaultModules();
+  if (WALLETCONNECT_PROJECT_ID) {
+    const { WalletConnectModule } =
+      await import("@creit-tech/stellar-wallets-kit/modules/wallet-connect");
+    modules.push(
+      new WalletConnectModule({
+        projectId: WALLETCONNECT_PROJECT_ID,
+        metadata: {
+          name: "Spreadless",
+          description: "StableSwap AMM on Stellar — swap and earn on stablecoins.",
+          url: typeof window !== "undefined" ? window.location.origin : "https://spreadless.xyz",
+          icons: [
+            typeof window !== "undefined"
+              ? `${window.location.origin}/favicon.svg`
+              : "https://spreadless.xyz/favicon.svg",
+          ],
+        },
+      }),
+    );
+  }
+
   StellarWalletsKit.init({
     // Switch to Networks.PUBLIC when going to mainnet.
     network: Networks.TESTNET,
-    modules: defaultModules(),
+    modules,
     theme: SwkAppDarkTheme,
   });
 
