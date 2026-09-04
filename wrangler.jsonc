@@ -7,12 +7,23 @@
 	// Worker fails startup validation on deploy — `wrangler deploy --dry-run`
 	// does NOT catch this, only a real deploy or `wrangler`/workerd dev does.
 	"compatibility_flags": ["global_fetch_strictly_public", "nodejs_compat"],
-	"name": "spreadless",
+	"name": "spreadless-dex-frontend",
 	"main": "@astrojs/cloudflare/entrypoints/server",
 	"assets": {
 		"directory": "./dist",
 		"binding": "ASSETS"
 	},
+	// Pinned explicitly so Workers Builds binds the existing namespace instead
+	// of trying to auto-provision a fresh one on every deploy. Without an id
+	// here, @astrojs/cloudflare's default KV-backed session support (see
+	// createIntegration() in the adapter — it defaults to a Cloudflare KV
+	// session driver whenever astro.config.mjs doesn't configure one) makes
+	// the build attempt `Creating new KV Namespace "spreadless-dex-frontend-
+	// session"` on every run, which fails with code 10014 once the namespace
+	// already exists — it never checks for an existing one first.
+	"kv_namespaces": [
+		{ "binding": "SESSION", "id": "8826f4f448d645708b8314d3673c434d" }
+	],
 	"observability": {
 		"enabled": true
 	}
