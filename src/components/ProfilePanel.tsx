@@ -258,7 +258,7 @@ export default function ProfilePanel() {
             >
               <LogOut size={15} />
               <span className="flex flex-col items-start gap-0.5">
-                <span className="text-sm font-medium">Disconnect</span>
+                <span className="text-sm font-medium">Log out</span>
                 <span className="text-[11px]" style={{ color: "var(--c-text-faint)" }}>
                   Sign in with a different wallet or address
                 </span>
