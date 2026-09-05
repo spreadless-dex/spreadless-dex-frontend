@@ -282,6 +282,12 @@ async function bootWalletKit() {
   const { KitEventType, Networks, SwkAppDarkTheme, SwkAppLightTheme } =
     await import("@creit-tech/stellar-wallets-kit/types");
 
+  // Single source of truth for which net the kit talks to — the
+  // WalletConnect session request below must ask for the same chain, or the
+  // wallet is being asked to approve a network we never intended.
+  // Switch to Networks.PUBLIC when going to mainnet.
+  const NETWORK = Networks.TESTNET;
+
   // defaultModules() is every desktop-extension wallet the kit ships — none
   // of them can be reached from inside Freighter's own mobile app browser.
   // There, Freighter injects `window.stellar = { provider: "freighter",
@@ -293,7 +299,7 @@ async function bootWalletKit() {
   // that will ever report itself connectable.
   const modules = defaultModules();
   if (WALLETCONNECT_PROJECT_ID) {
-    const { WalletConnectModule } =
+    const { WalletConnectModule, WalletConnectTargetChain } =
       await import("@creit-tech/stellar-wallets-kit/modules/wallet-connect");
     modules.push(
       new WalletConnectModule({
@@ -308,13 +314,25 @@ async function bootWalletKit() {
               : "https://spreadless.xyz/favicon.svg",
           ],
         },
+        // Without this the module's getAddress() defaults the WalletConnect
+        // session's requiredNamespaces to stellar:pubnet regardless of the
+        // kit's own `network` below. Freighter mobile then gets asked to
+        // approve a MAINNET session while every account it can offer here is
+        // a testnet one — it never answers, and approval() just hangs
+        // forever, which is exactly the "WalletConnect… loading" stall: not
+        // a timeout or a crash, a session request the wallet can't satisfy
+        // and silently never responds to.
+        allowedChains: [
+          NETWORK === Networks.PUBLIC
+            ? WalletConnectTargetChain.PUBLIC
+            : WalletConnectTargetChain.TESTNET,
+        ],
       }),
     );
   }
 
   StellarWalletsKit.init({
-    // Switch to Networks.PUBLIC when going to mainnet.
-    network: Networks.TESTNET,
+    network: NETWORK,
     modules,
     theme: SwkAppDarkTheme,
   });
