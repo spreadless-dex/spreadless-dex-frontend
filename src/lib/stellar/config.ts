@@ -153,8 +153,7 @@ export function explorerContractUrl(contractId: string): string {
 // The Privy app SECRET is server-side only and must never appear in this repo.
 export const PRIVY_APP_ID: string = import.meta.env.PUBLIC_PRIVY_APP_ID ?? "";
 
-// WalletConnect (Reown Cloud) project id, inlined at build time from
-// PUBLIC_WALLETCONNECT_PROJECT_ID. Required so Freighter's own mobile
+// WalletConnect (Reown Cloud) project id. Needed so Freighter's own mobile
 // in-app browser can connect at all: Freighter injects `window.stellar =
 // { provider: "freighter", platform: "mobile" }` there, and the kit's
 // FreighterModule deliberately reports itself unavailable in that case (it
@@ -162,7 +161,14 @@ export const PRIVY_APP_ID: string = import.meta.env.PUBLIC_PRIVY_APP_ID ?? "";
 // the kit's own comment says to use WalletConnect instead. Without a
 // project id the WalletConnectModule is left out of the kit entirely and
 // Freighter's mobile browser has no working connect path (every other
-// listed wallet is desktop-extension-only). Get one free at
-// https://cloud.reown.com — same public/no-secret model as PRIVY_APP_ID.
+// listed wallet is desktop-extension-only).
+//
+// PUBLIC_WALLETCONNECT_PROJECT_ID (a build-time inline) overrides the
+// literal below; the literal is the real project id for this app so a
+// build with the var unset — or set wrong — still gets a working WC path.
+// It is public by design (it ships in the client bundle either way); what
+// gates access is the allowed-domains list on the Reown project. Get one
+// free at https://cloud.reown.com.
 export const WALLETCONNECT_PROJECT_ID: string =
-  import.meta.env.PUBLIC_WALLETCONNECT_PROJECT_ID ?? "";
+  import.meta.env.PUBLIC_WALLETCONNECT_PROJECT_ID ||
+  "14ffe7bd71888d62cfc55f01c0818dcc";
