@@ -1,12 +1,22 @@
 // Spreadless Soroban deployment — TESTNET.
 //
-// These are testnet values and CHANGE whenever the pool is redeployed. The
-// contract team treats `deployments/testnet.json` in the contract repo as the
-// source of truth; keep this file in sync with it.
+// These are testnet values and CHANGE whenever the contracts are redeployed.
+// The contract team's source of truth is `deployments/testnet.json` in the
+// contracts repo; keep this file in sync with it. Everything below is from the
+// 2026-09-05 deployment.
 //
-// For pool operations, do NOT assume this token order — read it live with
-// `get_tokens()`. This list is used by the faucet (which needs fixed addresses
-// to mint) and for display metadata.
+// That file also ships as `@spreadless-dex/sdk/deployments`, but only from SDK
+// 0.1.0, and this app is deliberately still on 0.0.1: the 0.1.0 bundle carries
+// the new pool spec, whose 12-input constructor exceeds the 10-input cap in
+// the XDR of stellar-base 14 ("saw 12 length VarArray, max allowed is 10").
+// The Client constructor parses that spec, so on 0.1.0 every pool read fails.
+// Only stellar-sdk 15 lifts the cap, and the SDK pins `^14.5.0`. Upgrading
+// needs a republished SDK, not a change here.
+//
+// For pool operations, do NOT assume this token order. Read it live with
+// `get_tokens()`. The lists below are used by the faucet (which needs fixed
+// addresses to mint), by the pool builder's asset picker, and for display
+// metadata.
 
 export const NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
 export const RPC_URL = "https://soroban-testnet.stellar.org";
@@ -23,30 +33,71 @@ export interface ClassicAsset {
 export const POOL_CONTRACT_ID =
   "CCAD3EH4P74PVYL3IC6ND7RSV6NYYOMUMNKRNVBJYOVIZP7Z2QS5XTSN";
 
-// TRANCHE 2 / D1 — the Vault Factory. While this is null the app runs in
-// single-vault mode: the registry reports POOL_CONTRACT_ID and the router finds
-// exactly one route, which is today's behaviour. Setting it switches the whole
-// swap path onto the registry without any other change here.
+// THE ROUTER, deployed 2026-09-05 at
+// CA4VB4SJQAPWBRTMEHCTX7GZ7KC2DGS7PXV6BEZUI3WUOKRGOQ7VCV6M.
+//
+// Tranche 2 drafted D1 (Factory) and D2 (Router) as two contracts. They
+// shipped as one: it deploys pools (`create_pool`), registers each under a
+// numeric id (`pool_at`, `next_pool_id`), executes atomic multi-hop swaps
+// (`swap_exact_in`), and is the immutable `protocol_controller` of every pool
+// it creates. Both constants below take that same address once wired.
+//
+// They stay null because wiring either one today ships a call that fails:
+//
+//   FACTORY_CONTRACT_ID  createViaFactory() is unimplemented, and
+//                        toConstructorArgs() builds the 8 arguments the old
+//                        constructor took. The pool constructor now takes 12:
+//                        protocol_controller, amp_control, lp_name and
+//                        lp_symbol were added. `create_pool` also no longer
+//                        accepts protocol_fee or beneficiary at all.
+//   ROUTER_CONTRACT_ID   routerContract.ts encodes `route(user, recipient,
+//                        token_in, amount_in, token_out, min_out, deadline,
+//                        hops)` with each hop keyed by pool *address*. The
+//                        contract has `swap_exact_in(to, token_in, path,
+//                        amount_in, min_out)`, each hop keyed by pool *id*
+//                        (u32), and no deadline argument. Setting this turns
+//                        canExecuteRoute() green for multi-hop and hands the
+//                        user a signature that cannot succeed.
+//
+// The live pool above also predates the router: it carries no pool id and no
+// protocol_controller, so it is not registered and `swap_exact_in` cannot
+// reach it. Routing needs pools created through `create_pool`.
 export const FACTORY_CONTRACT_ID: string | null = null;
 
 // OWNERSHIP HANDOVER: the address a creator can hand a pool to when they no
 // longer want to run it themselves ("give it back to Spreadless"). The pool
 // page offers it as the first option in the transfer dialog; while null that
 // option is listed as "Soon" and only a custom address can be entered.
+//
+// NOTE, unresolved: ownership no longer decides who may move A. The pool
+// constructor takes an `amp_control` of `Locked` or `ProtocolManaged`, chosen
+// once and irreversibly, and a ProtocolManaged pool is ramped by the router as
+// protocol_controller regardless of who owns the pool. The flexible/fixed
+// model in poolParams.ts still describes the old contract. Do not wire this
+// constant before that is settled.
 export const PROTOCOL_OWNER: string | null = null;
 
-// TRANCHE 2 / D2 — the atomic multi-hop Router. Until this is deployed a
-// multi-hop route can be *quoted* (each leg simulates fine on its own pool) but
-// must never be signed: without the Router there is no single transaction that
+// The Router again, as the swap path sees it. Until this is set a multi-hop
+// route can be *quoted* (each leg simulates fine on its own pool) but must
+// never be signed: without the Router there is no single transaction that
 // holds the intermediate token, so a failing second leg would leave the user
-// holding it. The swap CTA enforces this.
+// holding it. The swap CTA enforces this. See the note above for why the
+// deployed address is not filled in yet.
 export const ROUTER_CONTRACT_ID: string | null = null;
 
 // POOL CREATION, before the Factory: the pool contract's WASM hash as
 // installed on testnet. With it set, "Create pool" deploys a vault directly
 // through the SDK's Client.deploy(); with both this and the Factory null the
 // builder runs in demo mode (the pool is created locally, nothing is signed).
-// Ask the contract team for the hash from deployments/testnet.json.
+//
+// The hash is known, from the router's `pool_wasm_hash`:
+//   52dd16bb8eed388a1914922488533a5e4eb2fe69575662b5c7a141e4d7a7ac20
+//
+// It stays null for the constructor-arity reason above: setting it flips
+// createBackend() to "deploy", and Client.deploy() would pass 8 of the 12
+// arguments the constructor wants. Once the builder goes through `create_pool`
+// this direct path is redundant anyway. The contract README is explicit that
+// new pools should be created through the router.
 export const POOL_WASM_HASH: string | null = null;
 
 // POOL CREATION — the protocol's fee beneficiary, the same for every pool.
@@ -54,6 +105,11 @@ export const POOL_WASM_HASH: string | null = null;
 // pool earns no share of it: the deployer is the owner, nothing more. Null
 // until the multisig address is handed over; the builder then falls back to
 // the deployer, which in practice only happens in demo mode.
+//
+// Going through `create_pool` this becomes moot: the router copies its own
+// defaults into each new pool, today a 33% share paid to the deployer address
+// GBQNJHJJRTKU43GOW34BQXLMTRZFOZERDGQPBUZGXTJK3HQEEDXXL73B, which is not yet a
+// multisig. PROTOCOL_SHARE_PCT in poolParams.ts is display-only from then on.
 export const PROTOCOL_BENEFICIARY: string | null = null;
 
 /**
@@ -64,7 +120,7 @@ export const PROTOCOL_BENEFICIARY: string | null = null;
  * with a stablecoin). The builder enforces this, see familyOf() in
  * poolParams.ts.
  */
-export type AssetFamily = "USD" | "EUR" | "BTC" | "ETH" | "XLM";
+export type AssetFamily = "USD" | "EUR" | "BTC" | "ETH" | "XLM" | "XRP";
 
 export interface FamilyInfo {
   /** Heading over the family's chips in the pool builder. */
@@ -79,14 +135,13 @@ export const FAMILIES: Record<AssetFamily, FamilyInfo> = {
   BTC: { label: "Bitcoin", noun: "BTC" },
   ETH: { label: "Ether", noun: "ETH" },
   XLM: { label: "Lumens", noun: "XLM" },
+  XRP: { label: "XRP", noun: "XRP" },
 };
 
 /** Every family, in the order the builder lists them. */
-export const FAMILY_ORDER: AssetFamily[] = ["USD", "EUR", "BTC", "ETH", "XLM"];
+export const FAMILY_ORDER: AssetFamily[] = ["USD", "EUR", "BTC", "ETH", "XLM", "XRP"];
 
 export interface TokenInfo {
-  /** Canonical index in the pool's token order (from get_tokens()). */
-  index: number;
   symbol: string;
   contractId: string;
   decimals: number;
@@ -112,15 +167,19 @@ export interface TokenInfo {
   family: AssetFamily;
 }
 
-// TRANCHE 2 RELABEL: the contract's index-0/1 tokens are still deployed as
-// "sDAI"/"sUSDT" under the hood (same contractId, same actual asset) — the
-// contract engineer hasn't cut new tranche-2 tokens yet. Symbol here is
-// display-only (see metaFor() in pool.ts and the `.symbol` usages, which
-// are UI labels, never on-chain lookup keys), so relabeling is safe until
-// the SDK is updated with the real tranche-2 token set.
-export const TOKENS: TokenInfo[] = [
+// The four tokens of the live pool at POOL_CONTRACT_ID, in its canonical
+// token order. They are deployed as sDAI/sUSDT/SUSD/sUSDC under the hood; the
+// first two are relabelled here because symbol is display-only (see metaFor()
+// in pool.ts and the `.symbol` usages, which are UI labels, never on-chain
+// lookup keys).
+//
+// The 2026-09-05 catalog below ships real tokens and collides with neither
+// name, so the relabel is now a naming choice rather than a stopgap. Undoing
+// it is a copy change, not a config change: "USDx" and "PYUSD" are written
+// into the docs pages, PoolCard, TokenSelectModal, mockPoolStats and the demo
+// vaults in demo.ts.
+export const POOL_TOKENS: TokenInfo[] = [
   {
-    index: 0,
     symbol: "USDx",
     contractId: "CBXN4CMLFVDNVFSGNXFGP5EWI77ISC5KH5UXSDBQETZCJHYHA3KEP4JJ",
     decimals: 7,
@@ -128,7 +187,6 @@ export const TOKENS: TokenInfo[] = [
     family: "USD",
   },
   {
-    index: 1,
     symbol: "PYUSD",
     contractId: "CB2NS6KYG5ZBHHVKXCHYWLRRH4AKFXNWRYNSQTKNFW23CAY4SGSQVG75",
     decimals: 7,
@@ -136,7 +194,6 @@ export const TOKENS: TokenInfo[] = [
     family: "USD",
   },
   {
-    index: 2,
     symbol: "SUSD",
     contractId: "CDDE66QMXWVUVEHLA5IRUJBHPJK3RFH6JIXCIJ5S6HOAXAPYR2AIZUWD",
     decimals: 7,
@@ -148,7 +205,6 @@ export const TOKENS: TokenInfo[] = [
     },
   },
   {
-    index: 3,
     symbol: "sUSDC",
     contractId: "CDKFYHC3EPRCZY4DIMCIBQ3PO5QPD6KZFFXNMLS4XENY2QNTZN2KLMRM",
     decimals: 7,
@@ -156,6 +212,54 @@ export const TOKENS: TokenInfo[] = [
     family: "USD",
   },
 ];
+
+// The token catalog from the 2026-09-05 deployment: what the pool builder can
+// build a pool out of. None of these sits in a pool yet.
+//
+// Each catalog token was deployed twice, as a native Soroban token and as a
+// SAC wrapping a classic asset of the same name. The Soroban variant is the
+// one listed here: it is open-mint, so the faucet can hand it out, and it
+// needs no trustline. The SAC addresses are in `@spreadless-dex/sdk/deployments`
+// under the same token's `sac` key; nothing picks them yet, and a token can
+// only be listed once because demo.ts and the picker key on symbol.
+//
+// The deployment's own `category` is coarser than a pool may be: it files BTC,
+// ETH, XLM and XRP together as "crypto", while a pool may hold only one of
+// them. The family below is the split the builder enforces.
+//
+// XCR is in the deployment but deliberately not here: Lucas flagged it as
+// wrong on 08.09.2026. Re-add it only if the contract team confirms it.
+const CATALOG_TOKENS: TokenInfo[] = [
+  { symbol: "abUSDC", contractId: "CCCF52BTMLYFGCUZUKV67QUE7DHP3MHVIN7G7UMCBI2TN5R7FB7EG5YT", decimals: 7, openMint: true, family: "USD" },
+  { symbol: "apUSDC", contractId: "CABMCMK4VDPYZYJAHTUSZJMEGNYSE26DNZUV5RDULZP3QOUK3RCVUW4F", decimals: 7, openMint: true, family: "USD" },
+  { symbol: "BnUSD", contractId: "CA5OEH6LG73HQOGD7SOP5NQSKU3IFRUQSJM453ZUYZO5AKD2BUXU4IHR", decimals: 7, openMint: true, family: "USD" },
+  { symbol: "oUSD", contractId: "CBG6LSYHUNBEYRUAEREKS6D7TH752S4OIKROPFN4ZT6K5RJ2X5OIDCSG", decimals: 7, openMint: true, family: "USD" },
+  { symbol: "POM", contractId: "CBP4VFKL7TJDODDBYLOX5OZDDL6QZBHD4LFAFNYNOAH6LKT5NCI4NM64", decimals: 7, openMint: true, family: "USD" },
+  { symbol: "RLUSD", contractId: "CBUNEWTFCY7LSWZOZECPDSAODO7EGH4DYBZS55EX7JRPOEFHMF2XJW2E", decimals: 7, openMint: true, family: "USD" },
+  { symbol: "USDC", contractId: "CD2Z4HLXN6726L7B5NYYK2YELFV4EVWLAT5W4KRJHL73IERVXXVR22ZO", decimals: 7, openMint: true, family: "USD" },
+  { symbol: "USDGLO", contractId: "CB7BFIYHMDVTF7PYBZH3AQE66TR7LISVVXGWZ6ELI44BCAPOYVYK4DH4", decimals: 7, openMint: true, family: "USD" },
+  { symbol: "USDM", contractId: "CDDT6MUPQ2RCC2TBNIJYRV3HC2BPFH4GC66Z36JCJQE4YCCIR55H7H3U", decimals: 7, openMint: true, family: "USD" },
+  { symbol: "USDM1", contractId: "CBP7QXKBROFKJWGEF3ZQ5S3ASALEVI3LSCYZ4EYSTS5I3EVWVHD3LSGT", decimals: 7, openMint: true, family: "USD" },
+  { symbol: "USDP", contractId: "CD6VUH76JBC34P42GUH4BHD4UCKA6TMK3FXBXQC5QBG5SS5GRJWQNVAC", decimals: 7, openMint: true, family: "USD" },
+  { symbol: "USDT0", contractId: "CBBYP4J5JXO7ZTRZO4RU3T4MYO53J2YHRWV2FJIVJDQXXMOHJPUKSHVJ", decimals: 7, openMint: true, family: "USD" },
+  { symbol: "yUSDC", contractId: "CCQ4KSBII5J3WPNIW6H4SRG4NDYMXL3Q64BFUO6H7WGEU3D45J24BMQO", decimals: 7, openMint: true, family: "USD" },
+  { symbol: "ZUSD", contractId: "CD5LGJIXSRRVCLEXUEYNDC7KLDJABJFZ6QXMYXA5VIOHJVRA3BBKY2ID", decimals: 7, openMint: true, family: "USD" },
+  { symbol: "EURC", contractId: "CACQCZVWAOVFUHSAE7RTUNKEGGN4YVPBVEJ47OOYLHOC2NCMBH36RRFA", decimals: 7, openMint: true, family: "EUR" },
+  { symbol: "EURx", contractId: "CCJG4Y6FQTDZCCACSD3YQAYQCQLTRWLNC7XUURHQDQJ2I3JFXIOAIQZR", decimals: 7, openMint: true, family: "EUR" },
+  { symbol: "BTC", contractId: "CDWEAOXHL6FRJNUMHRXWWJ2QTQAZHSMITVQWV33G6QXCMDUQET4WIEL6", decimals: 7, openMint: true, family: "BTC" },
+  { symbol: "SolvBTC", contractId: "CCFMQ4452IA6M2Q4YNGRKACJY3R5UPIYI5XUU56WF5MLJF75QHDA3RDL", decimals: 7, openMint: true, family: "BTC" },
+  { symbol: "xSolvBTC", contractId: "CDFNZVN3ODKWLMSU3SGAZOCRJABWLZDUSUO4LUKW4FS2XL63RGZFMUD4", decimals: 7, openMint: true, family: "BTC" },
+  { symbol: "yBTC", contractId: "CAOV3NBZP637QXNM3ZVXI3Z77PHZWIQGDFDACYOAGCFFKLW5ORQ4JNBX", decimals: 7, openMint: true, family: "BTC" },
+  { symbol: "ETH", contractId: "CAX2IOWT3LXA52Y7WXV6VMULGZ46I545QSNW2DTSVIISIMMIFB76KXMQ", decimals: 7, openMint: true, family: "ETH" },
+  { symbol: "yETH", contractId: "CDOWWMOCQRT6UTHHNSNBHWM5VET5KPLOJLUUQ5II57WJRKAYVYDMM4YN", decimals: 7, openMint: true, family: "ETH" },
+  { symbol: "XLM", contractId: "CBWAT5MWPEZVZQAXH5NHGGF3FKUY62GQSQVAEUCGPRBPHSF45QYAU7AX", decimals: 7, openMint: true, family: "XLM" },
+  { symbol: "yXLM", contractId: "CBUW6BKN2ADRZBCAP6HWEID6VAADZCQOUETYSIPKXL5G3EATPS5TXODM", decimals: 7, openMint: true, family: "XLM" },
+  { symbol: "XRP", contractId: "CAUBDT5XVJF4C3XTLIZPFZHZ6JG2N3UHUYBHPJNGQHBBQUS6KHDTC4Q7", decimals: 7, openMint: true, family: "XRP" },
+  { symbol: "yXRP", contractId: "CAYVBFOJZ4XMFJ2H6JRSPTEQJEKZQMKQATSI5OHNEAVHE4ORD5AWD4WN", decimals: 7, openMint: true, family: "XRP" },
+];
+
+/** Everything the app knows by address: the live pool's tokens, then the catalog. */
+export const TOKENS: TokenInfo[] = [...POOL_TOKENS, ...CATALOG_TOKENS];
 
 /** Tokens the faucet can mint (open-mint test tokens only). */
 export const FAUCET_TOKENS = TOKENS.filter((t) => t.openMint);

@@ -12,8 +12,8 @@ import { toRawUnits } from "./units";
 // ── Limits ───────────────────────────────────────────────────────────────
 
 export const MIN_TOKENS = 2;
-/** Vault C has four, so four is known to work. */
-export const MAX_TOKENS = 4;
+/** The contract accepts 2 to 5; the live pool has four. */
+export const MAX_TOKENS = 5;
 export const AMP_MIN = 1;
 /** Raised from 1 000 to 50 000 per DEX-61. */
 export const AMP_MAX = 50_000;

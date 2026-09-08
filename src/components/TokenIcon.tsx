@@ -7,12 +7,14 @@ import { tokenAvatarLabel } from '../lib/utils'
 //     NOT Synthetix's Ethereum sUSD — an earlier pass wrongly used that logo.
 //   - USDx: FxDAO's Decentralized USD Coin (assets.fxdao.io).
 //   - PYUSD: PayPal USD.
-//   - sUSDC: open-license crypto-icon set (spothq/cryptocurrency-icons, CC0).
+//   - sUSDC and the catalog's USDC: open-license crypto-icon set
+//     (spothq/cryptocurrency-icons, CC0).
 const ICON_SRC: Record<string, string> = {
   USDx: '/tokens/usdx.png',
   PYUSD: '/tokens/pyusd.png',
   SUSD: '/tokens/susd.png',
   sUSDC: '/tokens/usdc.svg',
+  USDC: '/tokens/usdc.svg',
   // Native lumens, shown in the profile panel. Simplified monochrome mark.
   XLM: '/tokens/xlm.svg',
 }

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useAppStore } from "../store/useAppStore";
 import { shortenAddress } from "../lib/utils";
-import { FAUCET_TOKENS, type TokenInfo } from "../lib/stellar/config";
+import { FAMILIES, FAMILY_ORDER, FAUCET_TOKENS, type TokenInfo } from "../lib/stellar/config";
 import { toRawUnits } from "../lib/stellar/units";
 import { mintToken } from "../lib/stellar/faucet";
 import { mapTxError } from "../lib/stellar/errors";
@@ -11,6 +11,15 @@ import TxStatus, { type TxUiStatus } from "./TxStatus";
 import TokenIcon from "./TokenIcon";
 
 const DEFAULT_AMOUNT = "1000";
+
+// The faucet used to list three tokens; the 2026-09-05 catalog brings it to
+// thirty, which is past the point where one flat list is usable. Same grouping
+// the pool builder's asset picker uses, computed once because FAUCET_TOKENS is
+// static.
+const FAUCET_GROUPS = FAMILY_ORDER.map((family) => ({
+  family,
+  tokens: FAUCET_TOKENS.filter((t) => t.family === family),
+})).filter((g) => g.tokens.length > 0);
 
 function TokenDropdown({
   value,
@@ -64,26 +73,38 @@ function TokenDropdown({
             boxShadow: "var(--c-widget-shadow)",
           }}
         >
-          {FAUCET_TOKENS.map((t) => (
-            <button
-              key={t.symbol}
-              onClick={() => {
-                onChange(t);
-                setOpen(false);
-              }}
-              className="w-full flex items-center gap-3 text-left px-4 py-3 text-sm transition-colors"
-              style={{
-                color: t.symbol === value.symbol ? "var(--c-text)" : "var(--c-text-muted)",
-                backgroundColor: t.symbol === value.symbol ? "var(--c-surface-2)" : "transparent",
-              }}
-            >
-              <TokenIcon symbol={t.symbol} size={20} />
-              <span className="font-semibold">{t.symbol}</span>
-              <span className="text-[11px]" style={{ color: "var(--c-text-faint)" }}>
-                {t.decimals} decimals
-              </span>
-            </button>
-          ))}
+          <div className="max-h-72 overflow-y-auto">
+            {FAUCET_GROUPS.map((g) => (
+              <div key={g.family}>
+                <p
+                  className="text-[11px] font-medium uppercase tracking-wider px-4 pt-3 pb-1"
+                  style={{ color: "var(--c-text-muted)" }}
+                >
+                  {FAMILIES[g.family].label}
+                </p>
+                {g.tokens.map((t) => (
+                  <button
+                    key={t.symbol}
+                    onClick={() => {
+                      onChange(t);
+                      setOpen(false);
+                    }}
+                    className="w-full flex items-center gap-3 text-left px-4 py-3 text-sm transition-colors"
+                    style={{
+                      color: t.symbol === value.symbol ? "var(--c-text)" : "var(--c-text-muted)",
+                      backgroundColor: t.symbol === value.symbol ? "var(--c-surface-2)" : "transparent",
+                    }}
+                  >
+                    <TokenIcon symbol={t.symbol} size={20} />
+                    <span className="font-semibold">{t.symbol}</span>
+                    <span className="text-[11px]" style={{ color: "var(--c-text-faint)" }}>
+                      {t.decimals} decimals
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

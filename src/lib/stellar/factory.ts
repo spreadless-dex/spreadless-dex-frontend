@@ -3,22 +3,16 @@
 //   factory  FACTORY_CONTRACT_ID set. Tranche 2 / D1: the Factory validates
 //            the config, deploys deterministically and inserts the registry
 //            entry in one call. Not wired yet (method names unknown).
-//   deploy   POOL_WASM_HASH set. Deploys the pool contract directly through
-//            the SDK's Client.deploy(). Real vault, real signature; the pool
-//            is remembered locally so /pools shows it until the registry lands.
+//   deploy   POOL_WASM_HASH set. Deployed the pool contract directly through
+//            the SDK's Client.deploy(). Out of date since the 2026-09-05
+//            contracts, see deployDirect(); POOL_WASM_HASH is null to match.
 //   demo     Neither set. Walks the same phases with a delay and registers a
 //            local pool. Nothing is signed. Every screen that shows a demo pool
 //            says so.
 //
 // Callers never branch on the backend except to label the result.
 
-import { getWalletSigner } from "../../store/useAppStore";
-import {
-  FACTORY_CONTRACT_ID,
-  NETWORK_PASSPHRASE,
-  POOL_WASM_HASH,
-  RPC_URL,
-} from "./config";
+import { FACTORY_CONTRACT_ID, POOL_WASM_HASH } from "./config";
 import { protocolOwnerFor, renounceOwnership, type ARightState } from "./ownership";
 import { invalidateVaults, shortAddress } from "./registry";
 import { invalidateVaultTvl } from "./vaultTvl";
@@ -133,36 +127,22 @@ async function createViaFactory(): Promise<CreatePoolResult> {
   );
 }
 
+// Same stance as createViaFactory(): refuse rather than hand the user a
+// signature that cannot succeed. The 2026-09-05 pool constructor grew from 8
+// arguments to 12 (protocol_controller, amp_control, lp_name and lp_symbol
+// were added) and toConstructorArgs() still builds the old eight, so
+// Client.deploy() would fail in simulation. Unreachable today because
+// POOL_WASM_HASH is null for this very reason; the contract README also says
+// new pools should be created through the router's create_pool.
 async function deployDirect(
-  ctor: ReturnType<typeof toConstructorArgs>,
-  owner: string,
-  onPhase?: OnPhase,
+  _ctor: ReturnType<typeof toConstructorArgs>,
+  _owner: string,
+  _onPhase?: OnPhase,
 ): Promise<Omit<CreatePoolResult, "aRight">> {
-  onPhase?.("preparing");
-  const sdk = await import("@spreadless-dex/sdk");
-  const signer = await getWalletSigner();
-
-  // Client.deploy() builds the create-contract op with the constructor args,
-  // simulates it, and hands back an AssembledTransaction whose result is a
-  // Client bound to the new contract id.
-  const tx = await sdk.Client.deploy(ctor, {
-    wasmHash: POOL_WASM_HASH!,
-    rpcUrl: RPC_URL,
-    networkPassphrase: NETWORK_PASSPHRASE,
-    publicKey: owner,
-    signAuthEntry: signer.signAuthEntry,
-    signTransaction: async (...a: Parameters<typeof signer.signTransaction>) => {
-      onPhase?.("signing");
-      const res = await signer.signTransaction(...a);
-      onPhase?.("submitting");
-      return res;
-    },
-  });
-  const sent = await tx.signAndSend();
-  const client = sent.result as { options?: { contractId?: string } };
-  const address = client?.options?.contractId;
-  if (!address) throw new Error("Deploy succeeded but the SDK returned no contract id.");
-  return { address, hash: sent.sendTransactionResponse?.hash ?? "", backend: "deploy" };
+  throw new Error(
+    "Direct pool deploy is out of date: the pool constructor now takes 12 arguments " +
+      "and toConstructorArgs() builds 8. Create pools through the router instead.",
+  );
 }
 
 // Demo pools get an id in the same shape as the routing demo's vaults: a

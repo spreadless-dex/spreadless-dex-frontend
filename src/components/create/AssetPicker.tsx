@@ -4,6 +4,7 @@ import { getTokenBalance } from '../../lib/stellar/token'
 import { fromRawUnits } from '../../lib/stellar/units'
 import { MAX_TOKENS, familyConflict, type TokenMeta } from '../../lib/stellar/poolParams'
 import TokenIcon from '../TokenIcon'
+import SegmentedControl, { type SegmentOption } from './SegmentedControl'
 import { Search } from 'lucide-react'
 
 // Step 1: which assets the pool holds. Every listed token is a chip with the
@@ -16,10 +17,34 @@ import { Search } from 'lucide-react'
 // what it tracks, so an address field could only ever take the creator's word
 // for it, and the rule below has to hold on facts.
 //
-// The chips are grouped by asset family and the first pick locks the pool to
-// one: USD stables with USD stables, BTC with wrapped BTC, never BTC with a
-// dollar. Everything outside that family goes flat and stops responding, so
-// the rule is visible before it is enforced (poolParams.ts blocks the deploy).
+// A pool holds exactly one asset family, so the family is not a grouping laid
+// over the list, it is the first decision. The control on top is therefore the
+// primary navigation and the list under it shows one family at a time: USD
+// stables with USD stables, BTC with wrapped BTC, never BTC with a dollar.
+// Thirty tokens in six flat groups was a wall to scroll past; one family is at
+// most three rows of chips.
+//
+// The rule still has to be visible before it is enforced (poolParams.ts blocks
+// the deploy). Once a chip is picked the family is locked, and rather than
+// hiding the other families the control shows them shut, with the reason on
+// hover. One dimmed row carries what a screenful of dimmed chips used to.
+//
+// "All" spans every family and is what a search falls back to, because a
+// symbol you type is worth finding wherever it lives. Choosing a family clears
+// the query so the control always describes what is on screen.
+
+// TOKENS is static, so the chip list and the families it spans are too.
+const KNOWN_CHIPS: TokenMeta[] = TOKENS.map((t) => ({
+  address: t.contractId,
+  symbol: t.symbol,
+  decimals: t.decimals,
+  family: t.family,
+}))
+
+const LISTED_FAMILIES = FAMILY_ORDER.filter((f) => KNOWN_CHIPS.some((m) => m.family === f))
+
+/** Which family the list is showing. 'all' spans them. */
+type FamilyTab = AssetFamily | 'all'
 
 interface AssetPickerProps {
   selected: TokenMeta[]
@@ -37,6 +62,9 @@ export default function AssetPicker({
   const [balances, setBalances] = useState<Record<string, string>>({})
   const [shaking, setShaking] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  // Opening on the largest family beats opening on a wall of everything; the
+  // control is right there to move.
+  const [familyTab, setFamilyTab] = useState<FamilyTab>(LISTED_FAMILIES[0] ?? 'all')
 
   useEffect(() => {
     if (!walletAddress) {
@@ -75,33 +103,51 @@ export default function AssetPicker({
     onToggle(meta)
   }
 
-  const knownChips: TokenMeta[] = TOKENS.map((t) => ({
-    address: t.contractId,
-    symbol: t.symbol,
-    decimals: t.decimals,
-    family: t.family,
-  }))
+  // What the list is showing. A pick decides it outright; otherwise a search
+  // widens to every family and the tab holds the rest of the time. The control
+  // renders this value, never the raw tab, so it cannot claim a family the
+  // list is not showing.
+  const q = query.trim().toLowerCase()
+  const shownFamily: FamilyTab = lockedFamily ?? (q ? 'all' : familyTab)
 
   // "usdc" finds the symbol, "bitcoin" finds the family.
-  const q = query.trim().toLowerCase()
   const isHit = (m: TokenMeta) =>
     !q ||
     m.symbol.toLowerCase().includes(q) ||
     (m.family !== undefined && FAMILIES[m.family].label.toLowerCase().includes(q))
-  const hits = knownChips.filter(isHit)
+  const inShownFamily = (m: TokenMeta) => shownFamily === 'all' || m.family === shownFamily
+  // Hits are counted inside the shown family, so the empty line below answers
+  // the question actually on screen.
+  const hits = KNOWN_CHIPS.filter((m) => inShownFamily(m) && isHit(m))
   // A chip already in the draft stays on screen whatever the query says, so a
   // search never looks like it dropped one of your picks. It is not a hit
   // though: with no real hit the empty line still says so, and the chip that
   // stayed does not get to pose as the answer.
-  const onScreen = (m: TokenMeta) => isHit(m) || isSelected(m.address)
+  const onScreen = (m: TokenMeta) => inShownFamily(m) && (isHit(m) || isSelected(m.address))
 
-  // Headings come from the catalogue, not from the query, so they hold still
-  // while you type. With one family on the list they would label the obvious.
-  const listedFamilies = FAMILY_ORDER.filter((f) => knownChips.some((m) => m.family === f))
-  const grouped = listedFamilies.length > 1
-  const groups = listedFamilies
-    .map((family) => ({ family, chips: knownChips.filter((m) => m.family === family && onScreen(m)) }))
+  const groups = LISTED_FAMILIES
+    .map((family) => ({ family, chips: KNOWN_CHIPS.filter((m) => m.family === family && onScreen(m)) }))
     .filter((g) => g.chips.length > 0)
+  // One family on screen needs no heading over it: the control already says so.
+  const grouped = groups.length > 1
+
+  const tabs: SegmentOption<FamilyTab>[] = [
+    ...LISTED_FAMILIES.map((f) => ({
+      key: f as FamilyTab,
+      label: f,
+      disabled: lockedFamily !== undefined && f !== lockedFamily,
+      title:
+        lockedFamily !== undefined && f !== lockedFamily
+          ? `This pool holds ${FAMILIES[lockedFamily].noun}. Deselect to build a pool of another kind.`
+          : FAMILIES[f].label,
+    })),
+    {
+      key: 'all' as FamilyTab,
+      label: 'All',
+      disabled: lockedFamily !== undefined,
+      title: lockedFamily !== undefined ? `This pool holds ${FAMILIES[lockedFamily].noun}.` : 'Every family',
+    },
+  ]
 
   // Enter takes the pick when the query has narrowed it to exactly one asset.
   const unpickedHits = hits.filter((m) => !isSelected(m.address))
@@ -139,6 +185,21 @@ export default function AssetPicker({
 
   return (
     <div>
+      <div className="mb-2.5">
+        <SegmentedControl
+          ariaLabel="Asset family"
+          size="sm"
+          options={tabs}
+          value={shownFamily}
+          onChange={(key) => {
+            // The control is the authority on what is listed, so taking a
+            // family drops a query that would otherwise still be filtering it.
+            setFamilyTab(key)
+            setQuery('')
+          }}
+        />
+      </div>
+
       <div className="relative max-w-xs mb-3">
         <Search
           size={15}
@@ -181,11 +242,13 @@ export default function AssetPicker({
 
       {q && hits.length === 0 && (
         <p className="text-[12px] mt-2.5" style={{ color: 'var(--c-text-muted)' }}>
-          Nothing on the list matches "{query.trim()}".
+          {shownFamily === 'all'
+            ? `Nothing on the list matches "${query.trim()}".`
+            : `Nothing in ${FAMILIES[shownFamily].label} matches "${query.trim()}".`}
         </p>
       )}
 
-      {grouped && lockedFamily && (
+      {LISTED_FAMILIES.length > 1 && lockedFamily && (
         <>
           <p className="text-[12px] mt-2.5" style={{ color: 'var(--c-text)' }}>
             {FAMILIES[lockedFamily].label} only, now that one is picked. Deselect to build a pool of another kind.

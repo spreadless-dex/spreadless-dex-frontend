@@ -2,12 +2,15 @@
 import Layout from '../../layouts/Layout.astro'
 import Header from '../../components/Header'
 import PoolDetailPage from '../../components/PoolDetailPage'
-import { TOKENS } from '../../lib/stellar/config'
+import { POOL_TOKENS } from '../../lib/stellar/config'
 
 export function getStaticPaths() {
-  // One static page per pool token; slug is the lowercased symbol (eurc, pyusd,
-  // susd, susdc). The live on-chain data is fetched client-side in the island.
-  return TOKENS.map((t) => ({
+  // One static page per token of the live pool; slug is the lowercased symbol
+  // (usdx, pyusd, susd, susdc). The live on-chain data is fetched client-side
+  // in the island. Deliberately POOL_TOKENS and not TOKENS: the catalog's
+  // tokens sit in no pool, so a page each would only render the "not in the
+  // pool" empty state.
+  return POOL_TOKENS.map((t) => ({
     params: { token: t.symbol.toLowerCase() },
     props: { symbol: t.symbol },
   }))

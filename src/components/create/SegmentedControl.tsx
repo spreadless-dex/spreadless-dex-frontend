@@ -6,11 +6,19 @@ import { useLayoutEffect, useRef, useState } from 'react'
 // narrow screen four hints do not fit beside each other without wrapping, so
 // there the control shows labels only and the picked option's hint sits
 // below it as a single quiet line, crossfading as the choice changes.
+//
+// An option can be disabled. It stays on the control rather than disappearing,
+// because a choice that is gone teaches nothing while one that is visibly shut
+// says a rule is at work; the caller supplies the reason as its title.
 
 export interface SegmentOption<K extends string | number> {
   key: K
   label: string
   hint?: string
+  /** Shown but not choosable, for an option a rule has ruled out. */
+  disabled?: boolean
+  /** Hover text, normally the reason a disabled option is shut. */
+  title?: string
 }
 
 interface SegmentedControlProps<K extends string | number> {
@@ -82,10 +90,13 @@ export default function SegmentedControl<K extends string | number>({
               key={String(o.key)}
               type="button"
               aria-pressed={active}
+              disabled={o.disabled}
+              title={o.title}
               onClick={() => onChange(o.key)}
-              className={`relative z-10 rounded-lg text-center transition-colors ${size === 'sm' ? 'px-2.5 py-1 text-[12px]' : 'px-2 py-1.5'}`}
+              className={`relative z-10 rounded-lg text-center transition-colors disabled:cursor-not-allowed ${size === 'sm' ? 'px-2.5 py-1 text-[12px]' : 'px-2 py-1.5'}`}
               style={{
                 color: active ? 'var(--c-text)' : 'var(--c-text-muted)',
+                opacity: o.disabled ? 0.3 : 1,
               }}
             >
               <span className="block text-[13px] font-semibold leading-tight">{o.label}</span>
