@@ -219,19 +219,32 @@ export const useAppStore = create<AppState>((set, get) => ({
   setPrivyBackend: (backend) => {
     privyBackend = backend;
     const enabled = backend !== null || Boolean(PRIVY_APP_ID);
-    if (get().walletKind !== "privy") {
-      set({ privyEnabled: enabled });
-      return;
-    }
-    // Privy mode: the connection state mirrors Privy's auth state.
+    const kind = get().walletKind;
+    // A live Privy session with a wallet is adopted even when the mode still
+    // reads "extension". Google login leaves the page for an OAuth redirect,
+    // so connectPrivy()'s walletKind and privyPending are gone when we come
+    // back, and MODE_KEY is only written once a session exists: on that first
+    // load after the redirect nothing says "privy" any more, and the early
+    // return below used to drop the restored session on the floor. Privy's
+    // own session is the reliable signal. Email never hit this because its
+    // one-time code stays on the page.
     if (backend?.ready && backend.authenticated && backend.address) {
-      privyPending = false;
-      persistMode("privy");
-      set({
-        privyEnabled: enabled,
-        walletConnected: true,
-        walletAddress: backend.address,
-      });
+      // An extension that is already connected wins: a leftover Privy session
+      // must not displace the wallet the user is actually using.
+      if (kind === "privy" || !get().walletConnected) {
+        privyPending = false;
+        persistMode("privy");
+        set({
+          privyEnabled: enabled,
+          walletKind: "privy",
+          walletConnected: true,
+          walletAddress: backend.address,
+        });
+        return;
+      }
+    }
+    if (kind !== "privy") {
+      set({ privyEnabled: enabled });
       return;
     }
     // Privy is up but holds no session and nobody is mid-login: the session
