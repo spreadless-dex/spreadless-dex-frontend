@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { sceneTransition } from '../../lib/sceneTransition'
 import { useAppStore } from '../../store/useAppStore'
@@ -45,7 +45,6 @@ export default function CreatePoolPage() {
   const [draft, setDraft] = useState<PoolDraft>(emptyDraft)
   const [ampCustom, setAmpCustom] = useState(false)
   const [feeCustom, setFeeCustom] = useState(false)
-  const [customTokens, setCustomTokens] = useState<TokenMeta[]>([])
   const [existing, setExisting] = useState<ExistingPool[]>([])
   const [limitHit, setLimitHit] = useState(false)
   const [deploying, setDeploying] = useState(false)
@@ -59,10 +58,9 @@ export default function CreatePoolPage() {
       .catch(() => setExisting(listLocalPools()))
   }, [])
 
-  const metaFor = useMemo(() => {
-    return (address: string): TokenMeta | undefined =>
-      knownTokenMeta(address) ?? customTokens.find((t) => t.address === address)
-  }, [customTokens])
+  // Only listed tokens can go into a pool, so the token list is the whole
+  // lookup: an address that is not on it has no metadata and no way in.
+  const metaFor = knownTokenMeta
 
   // Everything downstream (preview, review, the stored label) shows tokens in
   // canonical order, the order the contract will hold them in. Chips reorder
@@ -146,7 +144,7 @@ export default function CreatePoolPage() {
       <div className="grid lg:grid-cols-[1.55fr_1fr] gap-5 items-start">
         <div className="min-w-0">
           <Step n={1} title="Assets" done={unlocked} locked={false}
-            tooltip="Pick 2 to 4 stablecoins that trade near 1:1. Order is set automatically."
+            tooltip="Pick 2 to 4 assets that trade near 1:1: stables of one currency, or a native asset with its wrapped versions. Order is set automatically."
             value={name}
           >
             <AssetPicker
@@ -154,8 +152,6 @@ export default function CreatePoolPage() {
               onToggle={toggleToken}
               onLimit={() => setLimitHit(true)}
               walletAddress={walletAddress}
-              customTokens={customTokens}
-              onAddCustom={(meta) => setCustomTokens((c) => [...c.filter((x) => x.address !== meta.address), meta])}
             />
             <p className="text-[12px] mt-2.5 min-h-[18px]" style={{ color: assetHint.warn ? '#d97706' : 'var(--c-text-muted)' }}>
               {assetHint.text}

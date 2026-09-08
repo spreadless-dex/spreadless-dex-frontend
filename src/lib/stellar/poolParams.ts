@@ -6,7 +6,7 @@
 // design/pool-creation-plan.md, section 5). Each one is a single constant so
 // a confirmed number is a one-line change.
 
-import { PROTOCOL_BENEFICIARY, TOKENS, type Peg } from "./config";
+import { FAMILIES, PROTOCOL_BENEFICIARY, TOKENS, type AssetFamily } from "./config";
 import { toRawUnits } from "./units";
 
 // ── Limits ───────────────────────────────────────────────────────────────
@@ -212,7 +212,48 @@ export interface TokenMeta {
   address: string;
   symbol: string;
   decimals: number;
-  peg?: Peg;
+  /**
+   * What the asset tracks. Every listed token has one, and only listed tokens
+   * can be picked, so a draft's assets always carry a family.
+   */
+  family?: AssetFamily;
+}
+
+// ── Asset families ───────────────────────────────────────────────────────
+//
+// A pool holds one family and nothing else. USD stables pool with USD
+// stables, EUR with EUR, and a native asset only with wrapped versions of
+// itself: BTC with wBTC, never BTC with USDC. The curve is the reason. The
+// StableSwap invariant prices its assets as interchangeable near 1:1, so a
+// pool mixing families would quote BTC at the price of a dollar and be
+// drained on the first swap.
+//
+// Every poolable asset comes from the token list, so its family is known.
+// Adding a token by contract address is out for now: nothing on a token
+// contract says what it tracks, so that path could only take the creator's
+// word for it, and a rule resting on a claim is not a rule.
+
+/** The family a set of assets is locked to, ignoring unverified tokens. */
+export function draftFamily(
+  tokens: string[],
+  metaFor: (address: string) => TokenMeta | undefined,
+): AssetFamily | undefined {
+  for (const address of tokens) {
+    const family = metaFor(address)?.family;
+    if (family) return family;
+  }
+  return undefined;
+}
+
+/** Why `meta` cannot join a pool already holding `family`, or null when it can. */
+export function familyConflict(meta: TokenMeta, family: AssetFamily | undefined): string | null {
+  if (!family || !meta.family || meta.family === family) return null;
+  return mixedFamilies(family, meta.family);
+}
+
+function mixedFamilies(a: AssetFamily, b: AssetFamily): string {
+  const first = FAMILIES[a].noun;
+  return `${first.charAt(0).toUpperCase()}${first.slice(1)} and ${FAMILIES[b].noun} do not trade 1:1, so they cannot share a pool.`;
 }
 
 export function isContractAddress(s: string): boolean {
@@ -238,12 +279,17 @@ export function validateDraft(
   } else if (new Set(draft.tokens).size !== n) {
     issues.push({ field: "tokens", message: "Each asset can only be in the pool once.", severity: "error" });
   } else {
-    const pegs = new Set(draft.tokens.map((a) => metaFor(a)?.peg).filter(Boolean));
-    if (pegs.size > 1) {
+    // Mixing families is not a matter of taste, it breaks the curve, so this
+    // blocks the deploy rather than warning about it.
+    const families = draft.tokens
+      .map((a) => metaFor(a)?.family)
+      .filter((f): f is AssetFamily => f !== undefined);
+    const mixed = families.find((f) => f !== families[0]);
+    if (mixed) {
       issues.push({
         field: "tokens",
-        message: "Mixed pegs. StableSwap expects assets that trade near 1:1.",
-        severity: "warning",
+        message: mixedFamilies(families[0], mixed),
+        severity: "error",
       });
     }
   }
@@ -512,7 +558,7 @@ export function logToSlider(value: number, min: number, max: number): number {
 /** Display metadata for a known token; unknown addresses fall through. */
 export function knownTokenMeta(address: string): TokenMeta | undefined {
   const t = TOKENS.find((x) => x.contractId === address);
-  return t ? { address, symbol: t.symbol, decimals: t.decimals, peg: t.peg } : undefined;
+  return t ? { address, symbol: t.symbol, decimals: t.decimals, family: t.family } : undefined;
 }
 
 export function poolName(symbols: string[]): string {

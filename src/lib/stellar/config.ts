@@ -56,8 +56,33 @@ export const POOL_WASM_HASH: string | null = null;
 // the deployer, which in practice only happens in demo mode.
 export const PROTOCOL_BENEFICIARY: string | null = null;
 
-/** What a stablecoin tracks. StableSwap only makes sense within one peg. */
-export type Peg = "USD" | "EUR";
+/**
+ * What an asset tracks. A StableSwap pool only holds together while its assets
+ * trade near 1:1 with each other, so the family is also the boundary of a
+ * pool: USD stables with USD stables, EUR with EUR, and a native asset only
+ * with wrapped versions of itself (BTC with wBTC, never with ETH and never
+ * with a stablecoin). The builder enforces this, see familyOf() in
+ * poolParams.ts.
+ */
+export type AssetFamily = "USD" | "EUR" | "BTC" | "ETH" | "XLM";
+
+export interface FamilyInfo {
+  /** Heading over the family's chips in the pool builder. */
+  label: string;
+  /** How the family reads inside a sentence: "a USD stable", "BTC". */
+  noun: string;
+}
+
+export const FAMILIES: Record<AssetFamily, FamilyInfo> = {
+  USD: { label: "USD stables", noun: "a USD stable" },
+  EUR: { label: "EUR stables", noun: "a EUR stable" },
+  BTC: { label: "Bitcoin", noun: "BTC" },
+  ETH: { label: "Ether", noun: "ETH" },
+  XLM: { label: "Lumens", noun: "XLM" },
+};
+
+/** Every family, in the order the builder lists them. */
+export const FAMILY_ORDER: AssetFamily[] = ["USD", "EUR", "BTC", "ETH", "XLM"];
 
 export interface TokenInfo {
   /** Canonical index in the pool's token order (from get_tokens()). */
@@ -79,8 +104,12 @@ export interface TokenInfo {
    * this token's contractId.
    */
   classicAsset?: ClassicAsset;
-  /** Peg the asset tracks. Used to warn when a pool mixes pegs. */
-  peg: Peg;
+  /**
+   * What the asset tracks. Wrapped assets carry the family of the thing they
+   * wrap, so wBTC is "BTC" and pools with BTC. A pool may only hold one
+   * family; the builder blocks anything else.
+   */
+  family: AssetFamily;
 }
 
 // TRANCHE 2 RELABEL: the contract's index-0/1 tokens are still deployed as
@@ -96,7 +125,7 @@ export const TOKENS: TokenInfo[] = [
     contractId: "CBXN4CMLFVDNVFSGNXFGP5EWI77ISC5KH5UXSDBQETZCJHYHA3KEP4JJ",
     decimals: 7,
     openMint: true,
-    peg: "USD",
+    family: "USD",
   },
   {
     index: 1,
@@ -104,7 +133,7 @@ export const TOKENS: TokenInfo[] = [
     contractId: "CB2NS6KYG5ZBHHVKXCHYWLRRH4AKFXNWRYNSQTKNFW23CAY4SGSQVG75",
     decimals: 7,
     openMint: true,
-    peg: "USD",
+    family: "USD",
   },
   {
     index: 2,
@@ -112,7 +141,7 @@ export const TOKENS: TokenInfo[] = [
     contractId: "CDDE66QMXWVUVEHLA5IRUJBHPJK3RFH6JIXCIJ5S6HOAXAPYR2AIZUWD",
     decimals: 7,
     openMint: false, // Stellar Asset Contract — only the issuer can mint.
-    peg: "USD",
+    family: "USD",
     classicAsset: {
       code: "SUSD",
       issuer: "GCYFVS3J6JNJLJZ6JVPFCW7IGILIWEFGFPUAFBOBR4PQARR6OIBZHOAU",
@@ -124,7 +153,7 @@ export const TOKENS: TokenInfo[] = [
     contractId: "CDKFYHC3EPRCZY4DIMCIBQ3PO5QPD6KZFFXNMLS4XENY2QNTZN2KLMRM",
     decimals: 7,
     openMint: true,
-    peg: "USD",
+    family: "USD",
   },
 ];
 
