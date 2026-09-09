@@ -251,6 +251,81 @@ export async function depositSingleSided({
   return { result: unwrapResult(sent.result), hash: sent.sendTransactionResponse?.hash ?? "" };
 }
 
+interface DepositAllArgs {
+  /** Recipient + signer. Must be the connected wallet's public key. */
+  to: string;
+  /**
+   * One amount per pool token, in raw units, indexed by canonical token order
+   * (the order `get_tokens()` returns). This is `amounts_in` as the contract
+   * takes it, which is why it is not a map keyed by address: the contract has
+   * no idea what an address means here, only what slot 0 means.
+   */
+  amounts: bigint[];
+  /** Slippage tolerance in basis points (100 = 1%). */
+  toleranceBps?: bigint;
+  onPhase?: OnPhase;
+  poolId?: string;
+}
+
+// Every deposit in the app used to be single-sided, which is the one shape a
+// *fresh* pool refuses: the first deposit into a pool must fund every token,
+// or the contract raises #12 FirstDepositNotFull. The reason is that a
+// StableSwap pool has no notion of balance until something establishes one,
+// and the first deposit is what does. So seeding needs a call that fills all
+// slots at once, and that is this pair.
+//
+// It is not restricted to seeding. A balanced deposit into a running pool is
+// the cheapest kind (no imbalance fee), it just was not reachable before.
+
+function alignAmounts(amounts: bigint[], tokenCount: number): bigint[] {
+  if (amounts.length !== tokenCount) {
+    throw new Error(
+      `This pool holds ${tokenCount} tokens, but ${amounts.length} amounts were given.`,
+    );
+  }
+  return amounts;
+}
+
+/** Simulate-only: LP shares a deposit across all tokens would mint right now. */
+export async function quoteDepositAll({
+  to,
+  amounts,
+  poolId,
+}: Omit<DepositAllArgs, "toleranceBps" | "onPhase">): Promise<bigint> {
+  if (amounts.every((a) => a <= 0n)) return 0n;
+  const pool = await writeClient(to, undefined, poolId);
+  const tokens = (await pool.get_tokens()).result;
+  const amounts_in = alignAmounts(amounts, tokens.length);
+  const quote = await pool.deposit({ to, amounts_in, min_lp_out: 0n });
+  return unwrapResult(quote.result);
+}
+
+/** Deposit across every token at once. Returns LP minted. */
+export async function depositAll({
+  to,
+  amounts,
+  toleranceBps = 100n,
+  onPhase,
+  poolId,
+}: DepositAllArgs): Promise<TxResult<bigint>> {
+  onPhase?.("preparing");
+  const pool = await writeClient(to, onPhase, poolId);
+  const tokens = (await pool.get_tokens()).result;
+  const amounts_in = alignAmounts(amounts, tokens.length);
+
+  // Same two-phase shape as the single-sided path: simulate with no floor to
+  // read the quoted LP, then submit with min_lp_out derived from it. On a
+  // first deposit there is nothing to slip against yet, but the pool may have
+  // been seeded by someone else between quote and submit, so the guard stays.
+  const quote = await pool.deposit({ to, amounts_in, min_lp_out: 0n });
+  const quotedLp = unwrapResult(quote.result);
+  const minLpOut = quotedLp - (quotedLp * toleranceBps) / 10_000n;
+
+  const tx = await pool.deposit({ to, amounts_in, min_lp_out: minLpOut });
+  const sent = await tx.signAndSend();
+  return { result: unwrapResult(sent.result), hash: sent.sendTransactionResponse?.hash ?? "" };
+}
+
 interface SwapArgs {
   /** Recipient of token_out + signer. Must be the connected wallet's public key. */
   to: string;

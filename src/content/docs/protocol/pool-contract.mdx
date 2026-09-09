@@ -55,6 +55,11 @@ swap_exact_in({
 Add liquidity. `amounts_in` is indexed by canonical token order; single-sided
 means one non-zero slot and zeros elsewhere.
 
+The **first** deposit into a pool is the exception: every slot must be non-zero,
+or the call reverts with `FirstDepositNotFull` (`#12`). Until something has
+established a balance there is nothing to value an imbalanced contribution
+against, so the seeding deposit both funds the pool and defines its ratio.
+
 ```ts
 deposit({
   to,          // recipient of LP + signer

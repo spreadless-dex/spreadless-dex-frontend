@@ -92,7 +92,7 @@ export default function ReviewDeploy({
               {name} is live.
             </p>
             <p className="text-[13px] mt-0.5 mb-3" style={{ color: 'var(--c-text-muted)' }}>
-              It has no liquidity yet. Seed it so it can quote.
+              It has no liquidity yet. Seeding funds every asset in one transaction, and the ratio you pick is the price it starts quoting at.
             </p>
             <p className="text-[12px] mb-3 flex items-center gap-1.5 flex-wrap" style={{ color: 'var(--c-text-faint)' }}>
               <span className="font-mono">{shortenAddress(created.address)}</span>

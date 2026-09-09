@@ -10,6 +10,15 @@ ratio. If you only hold one, you first have to sell half of it, paying fees and
 price impact, just to provide liquidity. Spreadless removes that step: you
 deposit **one** asset and the pool handles the rest.
 
+<Callout kind="note" title="Except for the very first deposit">
+  A pool that has never been deposited into has no balance to value your
+  contribution against, so the *first* deposit must fund every asset at once.
+  The contract enforces it (`FirstDepositNotFull`), and the ratio that first
+  deposit sets is the pool's starting point. Every deposit after it can be
+  single-sided. Seeding a pool you just created is therefore a different screen
+  from adding to a running one.
+</Callout>
+
 ## Why it works here
 
 Single-sided deposits are only sane because the invariant already **assumes the

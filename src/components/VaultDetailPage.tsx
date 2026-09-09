@@ -8,6 +8,7 @@ import { useLocalPools, type LocalPool } from '../lib/stellar/localPools'
 import { explorerContractUrl } from '../lib/stellar/config'
 import { formatSharePct } from '../lib/stellar/poolParams'
 import PoolDetailModal from './PoolDetailModal'
+import SeedLiquidityModal from './SeedLiquidityModal'
 import OwnershipPanel from './OwnershipPanel'
 import { aRightOf, A_RIGHT_LABEL, A_RIGHT_TIP } from '../lib/stellar/ownership'
 import TokenIcon from './TokenIcon'
@@ -44,6 +45,7 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
   const [load, setLoad] = useState<LoadState>({ kind: isDemo ? 'demo' : 'loading' })
   const [lpBalance, setLpBalance] = useState<bigint | null>(null)
   const [action, setAction] = useState<{ token: PoolToken; mode: 'deposit' | 'withdraw' } | null>(null)
+  const [seeding, setSeeding] = useState(false)
   const [seedRequested, setSeedRequested] = useState(false)
 
   useEffect(() => {
@@ -134,15 +136,30 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
   const ampMode = state?.ampMode
   const aRight = aRightOf(ampMode)
   const lpHuman = lpBalance !== null ? fromRawUnits(lpBalance, LP_DECIMALS) : null
+  // No LP shares in existence means nobody has deposited yet, and the contract
+  // treats that case apart: the first deposit has to fund every token at once
+  // (#12 FirstDepositNotFull). So the whole page routes to the seed modal
+  // instead of the single-token one until that has happened. Reading it off
+  // lpSupply rather than TVL is deliberate: TVL is a display number that can
+  // be zero for other reasons, lpSupply is the contract's own answer.
+  const needsSeed = state !== null && state.lpSupply === 0n
 
-  // The builder's Seed CTA: open the deposit modal on the first asset as
-  // soon as tokens are known. Demo pools show the banner instead.
+  // Deposit means two different transactions depending on that, so one place
+  // decides which, and every button on the page goes through it.
+  const openDeposit = (token: PoolToken) => {
+    if (needsSeed) setSeeding(true)
+    else setAction({ token, mode: 'deposit' })
+  }
+
+  // The builder's Seed CTA: open the right deposit surface as soon as the
+  // pool's state is in. Demo pools show the banner instead.
   useEffect(() => {
-    if (seedRequested && !isDemo && tokens.length > 0 && !action) {
-      setAction({ token: tokens[0], mode: 'deposit' })
+    if (seedRequested && !isDemo && tokens.length > 0 && !action && !seeding && state) {
+      openDeposit(tokens[0])
       setSeedRequested(false)
     }
-  }, [seedRequested, isDemo, tokens, action])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedRequested, isDemo, tokens, action, seeding, state, needsSeed])
 
   const backLink = (
     <a
@@ -230,11 +247,13 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
       {!isDemo && empty && (
         <div className="mb-6 flex items-center justify-between gap-4 flex-wrap px-4 py-3 rounded-xl" style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)' }}>
           <p className="text-[13px]" style={{ color: 'var(--c-text-muted)' }}>
-            This pool is empty. It can't quote swaps until someone seeds it.
+            {needsSeed
+              ? "This pool is empty. Its first deposit has to fund every asset at once, and that is what sets the ratio it starts quoting at."
+              : "This pool is empty. It can't quote swaps until someone seeds it."}
           </p>
           {tokens.length > 0 && (
             <button
-              onClick={() => setAction({ token: tokens[0], mode: 'deposit' })}
+              onClick={() => openDeposit(tokens[0])}
               className="px-4 py-2 text-[13px] font-semibold rounded-xl btn-lift"
               style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
             >
@@ -273,7 +292,7 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
               {!isDemo && (
                 <div className="flex gap-1.5 shrink-0">
                   <button
-                    onClick={() => setAction({ token: t, mode: 'deposit' })}
+                    onClick={() => openDeposit(t)}
                     className="px-3 py-1.5 text-[12px] font-semibold rounded-lg btn-lift"
                     style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
                   >
@@ -327,6 +346,16 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
           )}
         </div>
       </Section>
+
+      {seeding && (
+        <SeedLiquidityModal
+          tokens={tokens}
+          poolId={address}
+          poolLabel={label}
+          onClose={() => { setSeeding(false); fetchState() }}
+          onSeeded={fetchState}
+        />
+      )}
 
       {action && (
         <PoolDetailModal

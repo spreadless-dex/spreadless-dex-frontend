@@ -146,6 +146,17 @@ export function mapTxError(err: unknown, ctx: TxErrorContext = {}): MappedTxErro
     return { message: "This pool cannot be given up. Ownership can only be transferred to another address." };
   }
 
+  // Pool #12 — the first deposit into a pool has to fund every one of its
+  // tokens; only later deposits may be single-sided. Reaching this means a
+  // single-sided deposit was aimed at a pool nobody has seeded yet, so the fix
+  // is a different *shape* of deposit, not a different amount.
+  if (contractCode(raw, 12) || /FirstDepositNotFull/i.test(raw)) {
+    return {
+      message:
+        "This pool is empty, and the first deposit has to fund every asset in it at once. Use Seed liquidity and enter an amount for each one.",
+    };
+  }
+
   // Pool #15 — deposit would push the token past its pool cap.
   if (contractCode(raw, 15) || /CapExceeded/i.test(raw)) {
     return { message: "This deposit would exceed the pool's cap for this token. Try a smaller amount." };
