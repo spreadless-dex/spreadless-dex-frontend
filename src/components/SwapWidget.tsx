@@ -26,6 +26,8 @@ import TxDetailDrawer from './TxDetailDrawer'
 import TokenSelectModal from './TokenSelectModal'
 import Tooltip from './Tooltip'
 import { TrustlineNotice, trustlineCtaLabel, useTrustline } from './TrustlineGate'
+import HairlineSlider from './create/HairlineSlider'
+import { logToSlider, sliderToLog } from '../lib/stellar/poolParams'
 
 type Slippage = 'auto' | '0.1' | '0.5' | '1' | 'custom'
 
@@ -37,6 +39,28 @@ const MIN_PPM = 1n
 const MAX_PPM = 500_000n // 50%
 const AUTO_PPM = 10_000n // 1%
 const PPM_PER_PCT = 10_000
+
+// The same two bounds as percentages, for the slider, which works in percent
+// because that is what the custom field and every label speak.
+const MIN_PCT = Number(MIN_PPM) / PPM_PER_PCT
+const MAX_PCT = Number(MAX_PPM) / PPM_PER_PCT
+
+// Tolerance spans nearly six decades, so the slider is logarithmic: the stops
+// that matter (0.1%, 0.5%, 1%) would otherwise all sit in the first pixel of a
+// linear track. Ticks land on the decades so the ruler says where you are.
+const DECADE_MARKS = (() => {
+  const span = Math.log10(MAX_PCT) - Math.log10(MIN_PCT)
+  const marks: number[] = []
+  for (let e = Math.log10(MIN_PCT); e <= Math.log10(MAX_PCT); e++) {
+    marks.push((e - Math.log10(MIN_PCT)) / span)
+  }
+  return marks
+})()
+
+// Two significant digits, so a drag lands on a number worth reading back.
+function sliderToPct(v: number): string {
+  return String(Number(sliderToLog(v, MIN_PCT, MAX_PCT).toPrecision(2)))
+}
 
 // Converts the UI selection to ppm for swapExactIn's tolerancePpm. Clamped so a
 // fat-fingered custom value can't zero out slippage protection (0 or negative)
@@ -53,11 +77,13 @@ function formatPpmPct(ppm: bigint): string {
   return String(parseFloat((Number(ppm) / PPM_PER_PCT).toFixed(4)))
 }
 
-// What the pill button itself displays — the live selected value, not just an icon.
+// What the pill button itself displays. The word is on the button, not only
+// inside the popover: a slider icon and a bare "1%" tell nobody that this is
+// where slippage lives.
 function slippageLabel(slippage: Slippage, custom: string): string {
-  if (slippage === 'auto') return 'Auto'
-  if (slippage === 'custom') return custom ? `${custom}%` : 'Custom'
-  return `${slippage}%`
+  if (slippage === 'auto') return 'Slippage Auto'
+  if (slippage === 'custom') return custom ? `Slippage ${custom}%` : 'Slippage Custom'
+  return `Slippage ${slippage}%`
 }
 
 function TransactionSettings({
@@ -65,11 +91,14 @@ function TransactionSettings({
   custom,
   onSlippageChange,
   onCustomChange,
+  disabled = false,
 }: {
   slippage: Slippage
   custom: string
   onSlippageChange: (s: Slippage) => void
   onCustomChange: (c: string) => void
+  /** Signing is under way: the floor is already in the transaction. */
+  disabled?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -81,6 +110,12 @@ function TransactionSettings({
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
+
+  // A tolerance the wallet is already signing against can't be edited, so the
+  // popover shuts rather than showing a number that no longer applies.
+  useEffect(() => {
+    if (disabled) setOpen(false)
+  }, [disabled])
 
   const presets: { key: Slippage; label: string }[] = [
     { key: 'auto', label: 'Auto' },
@@ -97,7 +132,9 @@ function TransactionSettings({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-colors"
+        disabled={disabled}
+        title={disabled ? 'Locked while the transaction is being signed' : 'Slippage tolerance'}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         style={{
           backgroundColor: 'var(--c-surface-2)',
           color: open ? 'var(--c-text)' : 'var(--c-text-faint)',
@@ -114,7 +151,7 @@ function TransactionSettings({
 
       {open && (
         <div
-          className="absolute right-0 top-full mt-2 w-64 rounded-xl p-4 z-30"
+          className="absolute right-0 top-full mt-2 w-72 rounded-xl p-4 z-30"
           style={{
             backgroundColor: 'var(--c-surface)',
             border: '1px solid var(--c-border-2)',
@@ -160,6 +197,19 @@ function TransactionSettings({
               <span className="pr-2 text-xs" style={{ color: 'var(--c-text-faint)' }}>%</span>
             </div>
           </div>
+          <HairlineSlider
+            min={0}
+            max={100}
+            step={1}
+            value={logToSlider(Number(formatPpmPct(slippageToPpm(slippage, custom))), MIN_PCT, MAX_PCT)}
+            onChange={(v) => { onCustomChange(sliderToPct(v)); onSlippageChange('custom') }}
+            ariaLabel="Slippage tolerance"
+            ariaValueText={`${formatPpmPct(slippageToPpm(slippage, custom))}%`}
+            marks={DECADE_MARKS}
+            ticks={41}
+            dimThumb={slippage !== 'custom'}
+            className="mt-2"
+          />
           <p className="learn-only text-[11px] mt-3 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
             Applied on-chain as your minimum received, measured against the quote you see. The trade
             reverts instead of settling below it. Down to {formatPpmPct(MIN_PPM)}%.
@@ -484,6 +534,23 @@ export default function SwapWidget() {
   const minReceived = quotedOutRaw - (quotedOutRaw * tolerancePpm) / 1_000_000n
   const slippagePct = formatPpmPct(tolerancePpm)
 
+  // The floor above is recomputed from the tolerance on every render, so it
+  // already follows the slider. The quote it is measured against does not: it
+  // was simulated when the amount was entered and may be up to a refresh cycle
+  // old. Changing the tolerance is the user reconsidering the trade, so the
+  // route is re-quoted too and the new floor sits on a fresh simulation.
+  // Debounced, because the slider fires on every step and one search costs a
+  // simulation per leg per candidate. Not while a signature is in flight: that
+  // quote is frozen on purpose.
+  const knownTolerance = useRef(tolerancePpm)
+  useEffect(() => {
+    if (knownTolerance.current === tolerancePpm) return
+    knownTolerance.current = tolerancePpm
+    if (!amountEntered || txPhase !== null || execution !== null) return
+    const t = setTimeout(refreshRoutes, 500)
+    return () => clearTimeout(t)
+  }, [tolerancePpm, amountEntered, txPhase, execution, refreshRoutes])
+
   const loadingPool = poolStatus === 'idle' || poolStatus === 'loading' || !fromToken || !toToken
 
   if (poolStatus === 'error') {
@@ -585,6 +652,7 @@ export default function SwapWidget() {
           custom={customSlippage}
           onSlippageChange={setSlippage}
           onCustomChange={setCustomSlippage}
+          disabled={txPhase !== null}
         />
       </div>
 
