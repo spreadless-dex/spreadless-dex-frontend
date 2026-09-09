@@ -335,8 +335,14 @@ async function bootWalletKit() {
         // forever, which is exactly the "WalletConnect… loading" stall: not
         // a timeout or a crash, a session request the wallet can't satisfy
         // and silently never responds to.
+        //
+        // The cast is only for the compiler: stellar-base 15 types the
+        // Networks members as literals, so with NETWORK pinned to TESTNET
+        // above, TypeScript calls this comparison of two disjoint literals an
+        // error. It is the one line that exists so switching NETWORK stays a
+        // one-word change, so it is widened rather than deleted.
         allowedChains: [
-          NETWORK === Networks.PUBLIC
+          (NETWORK as string) === Networks.PUBLIC
             ? WalletConnectTargetChain.PUBLIC
             : WalletConnectTargetChain.TESTNET,
         ],

@@ -5,13 +5,21 @@
 // contracts repo; keep this file in sync with it. Everything below is from the
 // 2026-09-05 deployment.
 //
-// That file also ships as `@spreadless-dex/sdk/deployments`, but only from SDK
-// 0.1.0, and this app is deliberately still on 0.0.1: the 0.1.0 bundle carries
-// the new pool spec, whose 12-input constructor exceeds the 10-input cap in
-// the XDR of stellar-base 14 ("saw 12 length VarArray, max allowed is 10").
-// The Client constructor parses that spec, so on 0.1.0 every pool read fails.
-// Only stellar-sdk 15 lifts the cap, and the SDK pins `^14.5.0`. Upgrading
-// needs a republished SDK, not a change here.
+// That file also ships as `deployments` from `@spreadless-dex/sdk`, which this
+// app is now on (0.1.0). The values below are still written out by hand: the
+// SDK's copy is the deployment record, this file is what the UI needs from it,
+// and the two differ on purpose (relabelled symbols, families, the dropped
+// XCR). Cross-check against `deployments.testnet` when the contracts move.
+//
+// Getting onto 0.1.0 took a resolution fix, not a new publish. The 0.1.0
+// bundle carries the new pool spec, whose 12-input constructor exceeds the
+// 10-input cap in the XDR of stellar-base 14 ("saw 12 length VarArray, max
+// allowed is 10"), and the Client constructor parses that spec, so every pool
+// read fails there. stellar-base 15 lifts the cap to 2^31-1. The SDK asks for
+// `@stellar/stellar-sdk: ^14.5.0`, which npm resolved to 14.6.1 and so to
+// base 14; the `overrides` entry in package.json lifts that one dependency to
+// 15.1.0. It is scoped to @spreadless-dex/sdk, because the wallets kit
+// resolves its own stellar-sdk 16 and is deliberately left alone.
 //
 // For pool operations, do NOT assume this token order. Read it live with
 // `get_tokens()`. The lists below are used by the faucet (which needs fixed
