@@ -112,9 +112,12 @@ interface RenounceArgs {
 }
 
 /**
- * Give the pool up for good. After this get_owner() is None: nobody can ramp
- * A, change the fee or pause, and there is no way back. Refused by the
- * contract while a transfer offer is open (#2101).
+ * Kept because the contract keeps it, and called by nothing.
+ *
+ * `renounce_ownership()` is part of the standard Ownable interface, but this
+ * contract always refuses it (#22 OwnershipRenunciationDisabled): ownership can
+ * only be transferred. The UI no longer offers it, and this is not the place to
+ * find that out, so it stays here as the one call that names the fact.
  */
 export async function renounceOwnership({ from, poolId, onPhase }: RenounceArgs): Promise<TxResult<null>> {
   onPhase?.("preparing");

@@ -80,13 +80,16 @@ export const FACTORY_CONTRACT_ID: string | null = null;
 // This is now a narrower role than it was. Ownership no longer decides who may
 // move A: `amp_control` does, it is fixed in the constructor, and the owner has
 // no say in it either way. What an owner still holds is the swap fee, the
-// caps, the LP supply cap, the beneficiary and pause. See ARight in
+// per-token caps, the LP supply cap and pause; the beneficiary is NOT among
+// them, set_beneficiary authenticates the protocol_controller. See ARight in
 // poolParams.ts for how the builder presents the two axes.
 //
 // Still null: the address is a team decision, not a deployment value, and it
-// does not appear in `deployments/testnet.json`. A flexible pool cannot be
-// built until it is set, and createPool() says so rather than substituting
-// one. PROTOCOL_CONTROLLER below is a different address and a different role.
+// does not appear in `deployments/testnet.json`. Nothing is blocked by that
+// any more, since pool creation no longer hands ownership anywhere; while it
+// is null the pool page's transfer dialog lists "Spreadless" as "Soon" and
+// only a custom address can be entered. PROTOCOL_CONTROLLER below is a
+// different address and a different role.
 export const PROTOCOL_OWNER: string | null = null;
 
 // The pool's immutable `protocol_controller`, a constructor argument since
@@ -146,7 +149,7 @@ export const PROTOCOL_BENEFICIARY: string | null = null;
  * trade near 1:1 with each other, so the family is also the boundary of a
  * pool: USD stables with USD stables, EUR with EUR, and a native asset only
  * with wrapped versions of itself (BTC with wBTC, never with ETH and never
- * with a stablecoin). The builder enforces this, see familyOf() in
+ * with a stablecoin). The builder enforces this, see draftFamily() and familyConflict() in
  * poolParams.ts.
  */
 export type AssetFamily = "USD" | "EUR" | "BTC" | "ETH" | "XLM" | "XRP";

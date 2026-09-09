@@ -78,9 +78,10 @@ interface CreatePoolArgs {
 //     what an owner still holds is the fee, the caps and pause.
 //   - a second signature that failed used to strand a pool in "undecided",
 //     the flow's worst state, for a step the creator can take any time.
-//   - the contract has an OwnershipRenunciationDisabled error (#22) and the
-//     bindings do not say when it fires. Making it a mandatory step of every
-//     Fixed deploy would be building the happy path on an unverified call.
+//   - it could not have worked. renounce_ownership() is kept in the standard
+//     Ownable interface but always fails (#22 OwnershipRenunciationDisabled);
+//     the SDK README says so in as many words. Every Fixed deploy would have
+//     ended on a signature the contract was always going to refuse.
 export async function createPool(args: CreatePoolArgs): Promise<CreatePoolResult> {
   const backend = createBackend();
   const ctor = toConstructorArgs(args.draft, args.creator, args.metaFor);

@@ -107,11 +107,14 @@ export function formatSharePct(pct: number): string {
  *
  * This used to be a choice of *owner*, because the old contract had one role
  * for everything and the only way to freeze A was to leave the pool with no
- * owner. It no longer is. The owner still holds the swap fee, the caps, the LP
- * supply cap, the beneficiary and pause, and the creator keeps all of that
- * either way. Giving it up is a separate decision, offered on the pool page
- * where it can be taken back up or retried; it is deliberately not folded into
- * pool creation any more. See ARightState in ownership.ts.
+ * owner. It no longer is. The owner still holds the swap fee, the per-token
+ * caps, the LP supply cap and pause, and the creator keeps all of that either
+ * way. The beneficiary is not on that list: set_beneficiary authenticates the
+ * protocol_controller, like set_protocol_fee and the protocol pause. Handing
+ * ownership on is a separate decision, offered on the pool page where it can
+ * be retried; it is deliberately not folded into pool creation any more. Note
+ * that handing it *back to nobody* is not on offer anywhere, because the
+ * contract refuses it. See ARightState in ownership.ts.
  */
 export type ARight = "flexible" | "fixed";
 

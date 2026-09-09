@@ -12,6 +12,10 @@ that sets how flat the curve is near parity. Higher `A` means less slippage whil
 balanced and a sharper penalty when imbalanced. See
 [Amplification Factor](/docs/concepts/amplification).
 
+**`amp_control`**: the pool setting that decides who may ramp `A`, fixed at
+creation and immutable. `Locked` means nobody ever can; `ProtocolManaged` means
+Spreadless can. Independent of who owns the pool.
+
 **Constant-product curve**: the `x · y = k` pricing rule used by conventional
 AMMs. Curved everywhere, so every trade has price impact. StableSwap approaches it
 as `A → 0`.
@@ -42,9 +46,10 @@ pool contract *is* the LP token; `SLP` uses 9 decimals.
 tolerance. The transaction reverts rather than filling below it. See
 [Slippage & Safety](/docs/protocol/slippage-and-safety).
 
-**Ownership (pool)**: the single role that may ramp `A`, set the fee and pause a
-pool. Held by Spreadless (flexible), by nobody (fixed) or still by the creator
-(undecided). See [Pool Ownership](/docs/guides/pool-ownership).
+**Ownership (pool)**: the role that sets the swap fee, the caps and the pause
+switch. Held by the creator and transferable to another address, never
+surrendered. It does not cover `A`; see `amp_control` and
+[Pool Ownership](/docs/guides/pool-ownership).
 
 **Price impact**: how much your own trade moves the price against you, from walking
 along the curve as you trade.

@@ -67,16 +67,18 @@ included.
 ## Who can change A
 
 The creator picks `A` once, in the builder, and never touches it again. What
-they decide is who may:
+they decide alongside it is who may, and that answer is written into the pool as
+`amp_control` and is immutable from the first ledger:
 
-- **Flexible.** Spreadless owns the pool and can retune `A`, only as a ramp.
+- **Flexible** (`ProtocolManaged`). Spreadless can retune `A`, only as a ramp.
   `set_amp_ramp()` moves the value in a straight line to the new target over a
   set duration, so the curve never jumps.
-- **Fixed.** The creator gives ownership up right after the deploy. Nobody can
-  change `A` again.
+- **Fixed** (`Locked`). Nobody can change `A` again, Spreadless included.
 
-A pool whose creator still holds ownership shows as **Undecided**. The full flow,
-including handing a pool to another wallet, is in
+Owning the pool has nothing to do with it. The creator keeps ownership either
+way, and a pool that changes hands takes its `amp_control` with it unchanged.
+Pools deployed before this setting existed cannot answer the question at all and
+show as **Unknown**. What ownership does cover, and how to hand a pool on, is in
 [Pool Ownership](/docs/guides/pool-ownership).
 
 Next: how this curvature turns into the number you care about at trade time,

@@ -89,9 +89,12 @@ export function mapTxError(err: unknown, ctx: TxErrorContext = {}): MappedTxErro
   if (/InvalidAmp|AmpOutOfRange/i.test(raw)) {
     return { message: "The contract rejected this amplification. Pick a value inside the allowed range." };
   }
-  // Pool #8 InvalidCap. (This read #107 before, which is not a code the pool
-  // contract has; the enum is the one in `Errors` in the SDK bindings.)
-  if (contractCode(raw, 8) || /InvalidCap/i.test(raw)) {
+  // InvalidCap under two different numbers, because the pool contract carries
+  // two error enums. #8 is the pool's own (`Errors`), raised by the constructor
+  // for a max_caps entry above the ceiling. #107 is OpenZeppelin's
+  // FungibleTokenError, raised on the LP-token side by set_max_supply. The pool
+  // *is* the LP token, so both reach the same UI; one message fits both.
+  if (contractCode(raw, 8) || contractCode(raw, 107) || /InvalidCap/i.test(raw)) {
     return { message: "The contract rejected a cap value. Lower it or leave it unset." };
   }
   if (/wasm|WasmHash|not installed|MissingValue/i.test(raw)) {
@@ -113,11 +116,12 @@ export function mapTxError(err: unknown, ctx: TxErrorContext = {}): MappedTxErro
     return { message: "This pool's A was locked when it was created. It cannot be changed by anyone." };
   }
 
-  // Pool #22 — the contract refused to give ownership up. When it fires is not
-  // documented in the bindings, so this says what happened and leaves the pool
-  // where it is; nothing is lost, the owner is simply still the owner.
+  // Pool #22 — renounce_ownership() is kept in the standard Ownable interface
+  // but always refuses; the SDK README says so outright. Nothing in the UI
+  // offers it any more, so this is a backstop for a stale tab or a hand-built
+  // call. Nothing is lost when it fires: the owner is simply still the owner.
   if (contractCode(raw, 22) || /OwnershipRenunciationDisabled/i.test(raw)) {
-    return { message: "This pool does not allow ownership to be given up. You are still the owner; you can transfer it to another address instead." };
+    return { message: "This pool cannot be given up. Ownership can only be transferred to another address." };
   }
 
   // Pool #15 — deposit would push the token past its pool cap.

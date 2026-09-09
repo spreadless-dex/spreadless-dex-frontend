@@ -13,7 +13,6 @@ import {
   looksLikeAddress,
   offerOwnership,
   protocolOwnerFor,
-  renounceOwnership,
   usePendingOffers,
   validateAddress,
   withdrawOffer,
@@ -35,8 +34,8 @@ import { Check, ClipboardPaste, Copy, Landmark, Lock, Wallet } from 'lucide-reac
 // offer, the recipient accepts. The panel therefore has three faces and shows
 // exactly one of them beneath the address:
 //   - the owner, no open offer:  a quiet "Transfer" action that opens the dialog,
-//                                where the pool goes to Spreadless (flexible A),
-//                                to nobody (fixed A) or to another wallet
+//                                where the pool goes to Spreadless or to another
+//                                wallet. Ownership no longer decides A.
 //   - the owner, offer open:     who it went to, until when, copy the invite,
 //                                or take it back
 //   - the offered wallet:        one card, one button: Accept
@@ -55,8 +54,13 @@ interface OwnershipPanelProps {
   onOwnerChanged: () => void
 }
 
-type Recipient = 'protocol' | 'fixed' | 'custom'
-type Step = 'offer' | 'withdraw' | 'accept' | 'renounce'
+// Giving the pool up is deliberately not one of these. The contract keeps
+// renounce_ownership() in the standard Ownable interface but always refuses it
+// (#22 OwnershipRenunciationDisabled): ownership can only ever be transferred.
+// The option is still listed, disabled, because the old flow offered it and
+// somebody looking for it deserves to read why it is gone rather than wonder.
+type Recipient = 'protocol' | 'custom'
+type Step = 'offer' | 'withdraw' | 'accept'
 
 function shortDate(ts: number): string {
   return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
@@ -112,14 +116,8 @@ export default function OwnershipPanel({ poolId, poolLabel, owner, ampMode, isDe
   // ── dialog ──
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [open, setOpen] = useState(false)
-  const [sent, setSent] = useState<{ to: string; hash: string; kind: 'offer' | 'fixed' } | null>(null)
+  const [sent, setSent] = useState<{ to: string; hash: string } | null>(null)
   const [recipient, setRecipient] = useState<Recipient>(protocolOwner ? 'protocol' : 'custom')
-  // Giving the pool up is the one step with no way back, so the button asks
-  // twice: the first press arms it, the second within a few seconds fires.
-  const [armed, setArmed] = useState(false)
-  const armTimer = useRef<number>(0)
-  useEffect(() => () => window.clearTimeout(armTimer.current), [])
-  useEffect(() => { setArmed(false) }, [recipient, open])
   const [custom, setCustom] = useState('')
   const [customValid, setCustomValid] = useState<boolean | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -151,8 +149,8 @@ export default function OwnershipPanel({ poolId, poolLabel, owner, ampMode, isDe
     if (open && recipient === 'custom') inputRef.current?.focus()
   }, [open, recipient])
 
-  const target = recipient === 'protocol' ? protocolOwner : recipient === 'fixed' ? null : custom.trim()
-  const targetOk = recipient === 'protocol' ? !!protocolOwner : recipient === 'fixed' ? true : customValid === true
+  const target = recipient === 'protocol' ? protocolOwner : custom.trim()
+  const targetOk = recipient === 'protocol' ? !!protocolOwner : customValid === true
   const targetIsSelf = !!walletAddress && target === walletAddress
   const targetIsOwner = !!owner && target === owner
 
@@ -196,30 +194,9 @@ export default function OwnershipPanel({ poolId, poolLabel, owner, ampMode, isDe
     }, setDialogStatus)
     if (!res) return
     setOffer({ pool: poolId, from: walletAddress, to: target, liveUntilLedger: res.liveUntilLedger, hash: res.hash, createdAt: Date.now() })
-    setSent({ to: target, hash: res.hash, kind: 'offer' })
+    setSent({ to: target, hash: res.hash })
     recordOwnership({ walletAddress, status: 'completed', step: 'offer', poolLabel, poolAddress: poolId, counterparty: target, txHash: res.hash })
       .catch((e) => console.error('Failed to record activity:', e))
-  }
-
-  const giveUp = async () => {
-    if (!walletAddress) return
-    if (!armed) {
-      setArmed(true)
-      window.clearTimeout(armTimer.current)
-      armTimer.current = window.setTimeout(() => setArmed(false), 6000)
-      return
-    }
-    setArmed(false)
-    const res = await run('renounce', async () => {
-      if (isDemo) return demoTx(setPhase)
-      return renounceOwnership({ from: walletAddress, poolId, onPhase: setPhase })
-    }, setDialogStatus)
-    if (!res) return
-    setSent({ to: '', hash: res.hash, kind: 'fixed' })
-    recordOwnership({ walletAddress, status: 'completed', step: 'renounce', poolLabel, poolAddress: poolId, txHash: res.hash })
-      .catch((e) => console.error('Failed to record activity:', e))
-    if (isDemo) setLocalOwner(poolId, '')
-    else onOwnerChanged()
   }
 
   const takeBack = async () => {
@@ -431,29 +408,23 @@ export default function OwnershipPanel({ poolId, poolLabel, owner, ampMode, isDe
                 <Check size={26} strokeWidth={2.5} />
               </span>
               <p className="stamp-late mt-4 text-base font-semibold" style={{ color: 'var(--c-text)' }}>
-                {sent.kind === 'fixed' ? 'A is fixed for good' : 'Offer sent'}
+                Offer sent
               </p>
               <p className="stamp-late mt-1 text-[13px] leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
-                {sent.kind === 'fixed'
-                  ? 'The pool has no owner now. Nobody can change A, the fee or pause it, ever.'
-                  : `Share the link so ${shortenAddress(sent.to)} can accept it. You stay the owner until they do, for up to ${OFFER_VALID_DAYS} days.`}
+                {`Share the link so ${shortenAddress(sent.to)} can accept it. You stay the owner until they do, for up to ${OFFER_VALID_DAYS} days.`}
               </p>
-              {sent.kind === 'offer' && (
-                <button
-                  onClick={copyInvite}
-                  className="stamp-late mt-5 w-full inline-flex items-center justify-center gap-2 py-3 text-sm font-semibold rounded-xl btn-lift"
-                  style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
-                >
-                  {copied ? <Check size={15} strokeWidth={2.5} /> : <Copy size={15} />}
-                  {copied ? 'Copied' : 'Copy invite link'}
-                </button>
-              )}
+              <button
+                onClick={copyInvite}
+                className="stamp-late mt-5 w-full inline-flex items-center justify-center gap-2 py-3 text-sm font-semibold rounded-xl btn-lift"
+                style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
+              >
+                {copied ? <Check size={15} strokeWidth={2.5} /> : <Copy size={15} />}
+                {copied ? 'Copied' : 'Copy invite link'}
+              </button>
               <button
                 onClick={() => setOpen(false)}
-                className={`stamp-late ${sent.kind === 'fixed' ? 'mt-5' : 'mt-2'} w-full py-2.5 text-sm font-semibold rounded-xl btn-lift`}
-                style={sent.kind === 'fixed'
-                  ? { backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }
-                  : { border: '1px solid var(--c-border-2)', color: 'var(--c-text)' }}
+                className="stamp-late mt-2 w-full py-2.5 text-sm font-semibold rounded-xl btn-lift"
+                style={{ border: '1px solid var(--c-border-2)', color: 'var(--c-text)' }}
               >
                 Done
               </button>
@@ -466,7 +437,7 @@ export default function OwnershipPanel({ poolId, poolLabel, owner, ampMode, isDe
           ) : (
             <div className="px-3 pb-4">
               <p className="learn-only text-[12px] mx-2 mb-3 leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
-                The owner is the one address that can ramp A, pause the pool or change the fee. Give it to Spreadless, to nobody, or to another wallet. An offer to a wallet only takes effect once that wallet accepts it.
+                The owner is the one address that can change the swap fee, the caps and the pause switch. Hand it to Spreadless or to another wallet; an offer only takes effect once that wallet accepts it. A is not part of this: who may move it was settled when the pool was created.
               </p>
 
               <div role="radiogroup" aria-label="New owner" className="flex flex-col gap-2">
@@ -484,10 +455,11 @@ export default function OwnershipPanel({ poolId, poolLabel, owner, ampMode, isDe
                   index={1}
                   icon={<Lock size={18} />}
                   title="Nobody, fix it for good"
-                  hint="Fixed A: give ownership up. Nothing about the pool can change again."
-                  tag={null}
-                  checked={recipient === 'fixed'}
-                  onSelect={() => setRecipient('fixed')}
+                  hint="The contract refuses this. Ownership can only be transferred, never given up. Whether A can move was settled when the pool was created."
+                  tag="Off"
+                  checked={false}
+                  disabled
+                  onSelect={() => {}}
                 />
                 <div>
                   <ChoiceRow
@@ -553,40 +525,24 @@ export default function OwnershipPanel({ poolId, poolLabel, owner, ampMode, isDe
                 <FlowLine
                   from={walletAddress ?? ''}
                   to={targetOk && !targetIsSelf && target ? target : ''}
-                  toLabel={recipient === 'fixed' ? 'no owner' : recipient === 'protocol' && targetOk ? 'Spreadless' : undefined}
-                  live={busy === 'offer' || busy === 'renounce'}
+                  toLabel={recipient === 'protocol' && targetOk ? 'Spreadless' : undefined}
+                  live={busy === 'offer'}
                 />
                 <p className="text-[11px] mt-2 flex items-center" style={{ color: 'var(--c-text-faint)' }}>
-                  {recipient === 'fixed'
-                    ? 'One signature · not reversible · no funds move'
-                    : `Open for ${OFFER_VALID_DAYS} days · they must accept · no funds move`}
-                  <Tooltip text="Ownership means control, not money. The owner can pause the pool, ramp A and change the swap fee. LP shares and reserves stay exactly where they are." label="About what transfers" />
+                  {`Open for ${OFFER_VALID_DAYS} days · they must accept · no funds move`}
+                  <Tooltip text="Ownership means control, not money. The owner sets the swap fee, the caps and the pause switch. Who may ramp A was fixed when the pool was created and does not travel with ownership. LP shares and reserves stay exactly where they are." label="About what transfers" />
                 </p>
               </div>
 
-              {recipient === 'fixed' ? (
-                <RainButton
-                  onClick={giveUp}
-                  disabled={busy !== null}
-                  enableLoader={armed}
-                  className="w-full py-3 text-sm font-semibold rounded-xl btn-lift disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={armed
-                    ? { backgroundColor: 'transparent', color: 'var(--c-text)', border: '1px solid var(--c-text)' }
-                    : { backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
-                >
-                  {armed ? 'Press again to confirm. This cannot be undone.' : 'Give up ownership'}
-                </RainButton>
-              ) : (
-                <RainButton
-                  onClick={sendOffer}
-                  disabled={!targetOk || targetIsSelf || targetIsOwner || busy !== null}
-                  className="w-full py-3 text-sm font-semibold rounded-xl btn-lift disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
-                >
-                  {recipient === 'protocol' ? 'Hand to Spreadless' : 'Send offer'}
-                </RainButton>
-              )}
-              <TxStatus phase={busy === 'offer' || busy === 'renounce' ? phase : null} status={dialogStatus} />
+              <RainButton
+                onClick={sendOffer}
+                disabled={!targetOk || targetIsSelf || targetIsOwner || busy !== null}
+                className="w-full py-3 text-sm font-semibold rounded-xl btn-lift disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
+              >
+                {recipient === 'protocol' ? 'Hand to Spreadless' : 'Send offer'}
+              </RainButton>
+              <TxStatus phase={busy === 'offer' ? phase : null} status={dialogStatus} />
             </div>
           )}
         </div>
