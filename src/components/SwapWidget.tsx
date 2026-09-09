@@ -6,7 +6,7 @@ import { routeLabel } from '../lib/stellar/router'
 import {
   ROUTE_DEADLINE_SECS,
   RouteExecutionError,
-  canExecuteRoute,
+  routeBlocker,
   executeRoute,
   isDemoRoute,
 } from '../lib/stellar/routerContract'
@@ -482,7 +482,7 @@ export default function SwapWidget() {
         .catch(() => {})
     } catch (err) {
       console.error('Swap failed:', err)
-      const mapped = mapTxError(err, { spend: fromToken.symbol, receive: toToken.symbol })
+      const mapped = mapTxError(err, { spend: fromToken.symbol, receive: toToken.symbol, route: routed })
       setStatus({ kind: 'error', ...mapped })
       if (routed) {
         setExecution({
@@ -513,11 +513,13 @@ export default function SwapWidget() {
   // proxy for price impact — same peg assumption pool.ts uses for TVL.
   const priceImpact = hasAmount ? ((fromNum - toNum) / fromNum) * 100 : 0
 
-  // Multi-hop routes can be quoted today — each leg simulates fine on its own
-  // pool — but not signed until the atomic Router is deployed (or, for the
-  // team's evaluation, unless the route runs through the local demo vaults).
+  // Multi-hop routes can be quoted more widely than they can be signed: every
+  // leg simulates fine on its own pool, but the Router names a leg by registry
+  // id, so a route through a pool it did not create can be shown and not
+  // executed. canExecuteRoute() is the one place that decides.
   const bestHopCount = bestRouteResult?.candidate.hops.length ?? 1
-  const routeNeedsRouter = bestRouteResult ? !canExecuteRoute(bestRouteResult.candidate) : false
+  const routeBlocked = bestRouteResult ? routeBlocker(bestRouteResult.candidate) : null
+  const routeNeedsRouter = routeBlocked !== null
   const bestIsDemo = bestRouteResult ? isDemoRoute(bestRouteResult.candidate) : false
 
   const insufficientBalance =
@@ -980,11 +982,13 @@ export default function SwapWidget() {
                 ? `Insufficient ${fromToken.symbol} balance`
                 : insufficientLiquidity
                   ? 'Insufficient liquidity'
-                  : routeNeedsRouter
-                    ? 'Best route needs the multi-hop Router'
-                    : bestHopCount > 1
-                      ? `Exchange via ${bestHopCount} hops${bestIsDemo ? ' (demo)' : ''}`
-                      : `Exchange ${fromToken.symbol} → ${toToken.symbol}`}
+                  : routeBlocked === 'unregisteredPool'
+                    ? 'Best route crosses an unregistered pool'
+                    : routeBlocked === 'routerMissing'
+                      ? 'Best route needs the multi-hop Router'
+                      : bestHopCount > 1
+                        ? `Exchange via ${bestHopCount} hops${bestIsDemo ? ' (demo)' : ''}`
+                        : `Exchange ${fromToken.symbol} → ${toToken.symbol}`}
       </RainButton>
 
       <TxStatus

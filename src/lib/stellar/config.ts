@@ -56,18 +56,18 @@ export const POOL_CONTRACT_ID =
 // binding; the interface there is that spec, written down. `create_pool` was
 // simulated against it on 2026-09-09 and builds a pool in one call.
 //
-// ROUTER_CONTRACT_ID is a different question and stays null. It gates the
-// *swap path*, and routerContract.ts still encodes `route(user, recipient,
-// token_in, amount_in, token_out, min_out, deadline, hops)` with each hop
-// keyed by pool *address*. The contract has `swap_exact_in(to, token_in, path,
-// amount_in, min_out)`, each hop keyed by pool *id* (u32), and no deadline
-// argument at all. Setting this before that rewrite turns canExecuteRoute()
-// green for multi-hop and hands the user a signature that cannot succeed.
+// ROUTER_CONTRACT_ID takes the same address, now that routerContract.ts calls
+// the method the contract actually has. It used to encode `route(user,
+// recipient, token_in, amount_in, token_out, min_out, deadline, hops)` with
+// each hop keyed by pool *address*; the contract has `swap_exact_in(to,
+// token_in, path, amount_in, min_out)` where a hop is `{pool_id: u32,
+// token_out: address}`, with no recipient and no deadline.
 //
 // The live pool above predates the Router: it carries no pool id and no
 // protocol_controller, so it is not registered and `swap_exact_in` can never
-// reach it. Routing needs pools created through `create_pool`, which is
-// exactly what the builder now makes.
+// reach it. It stays in the graph as a single hop, which needs no Router at
+// all, and routeBlocker() refuses it as a *leg*. Routing needs pools created
+// through `create_pool`, which is exactly what the builder now makes.
 export const FACTORY_CONTRACT_ID: string | null =
   "CA4VB4SJQAPWBRTMEHCTX7GZ7KC2DGS7PXV6BEZUI3WUOKRGOQ7VCV6M";
 
@@ -96,22 +96,29 @@ export const PROTOCOL_OWNER: string | null = null;
 // them the owner's: ramping A on a pool built as `ProtocolManaged`, and the
 // protocol-side lane of `set_protocol_fee` and `protocol_pause`.
 //
-// Wired even though ROUTER_CONTRACT_ID below is null, and the two are not in
-// conflict. That constant gates the *swap path*, which is unwired because
-// routerContract.ts encodes a call the contract no longer has. This one is
-// just an address written into a new pool, and it must be this address: the
-// Router makes itself the protocol_controller of every pool it creates, so a
-// pool we deploy directly has to name the same one or it would answer to
-// nobody once the Factory path lands.
+// The same address as the two constants around it, and deliberately its own
+// constant: this one is not a switch but a value written into a new pool, and
+// it must be this address, because the Router makes itself the
+// protocol_controller of every pool it creates, so a pool deployed directly
+// through the fallback path has to name the same one or it would answer to
+// nobody.
 export const PROTOCOL_CONTROLLER = "CA4VB4SJQAPWBRTMEHCTX7GZ7KC2DGS7PXV6BEZUI3WUOKRGOQ7VCV6M";
 
-// The Router again, as the swap path sees it. Until this is set a multi-hop
-// route can be *quoted* (each leg simulates fine on its own pool) but must
-// never be signed: without the Router there is no single transaction that
-// holds the intermediate token, so a failing second leg would leave the user
-// holding it. The swap CTA enforces this. See the note above for why the
-// deployed address is not filled in yet.
-export const ROUTER_CONTRACT_ID: string | null = null;
+// The Router again, as the swap path sees it, and the switch that lets a
+// multi-hop route be signed. Without it a route can still be *quoted* (each leg
+// simulates fine on its own pool) but never signed: there would be no single
+// transaction holding the intermediate token, so a failing second leg would
+// leave the user holding it.
+//
+// Set on 2026-09-09, after routerContract.ts was rewritten onto `swap_exact_in`
+// and the encoding was checked against the deployed contract: a path naming an
+// unregistered id simulates to #3 PoolNotRegistered and an empty one to #5
+// EmptySwapPath, which is the contract reaching its own logic rather than
+// rejecting the arguments. Nothing was signed to establish that. What has not
+// been exercised is a route that *succeeds*, because the registry is still
+// empty; the first pool built through the builder is what will do it.
+export const ROUTER_CONTRACT_ID: string | null =
+  "CA4VB4SJQAPWBRTMEHCTX7GZ7KC2DGS7PXV6BEZUI3WUOKRGOQ7VCV6M";
 
 // POOL CREATION without the Router: the pool contract's WASM hash as installed
 // on testnet. Setting it makes createBackend() return "deploy", and the builder

@@ -64,11 +64,27 @@ export interface RouterClient {
   get_pool_wasm_hash: (opts?: contract.MethodOptions) => Promise<contract.AssembledTransaction<Buffer>>;
   /** The default cut of the swap fee written into every pool it creates, 1e9 = 100%. */
   get_default_protocol_fee: (opts?: contract.MethodOptions) => Promise<contract.AssembledTransaction<bigint>>;
-  /** Atomic multi-hop. `path` is pool ids, so it can only reach registered pools. */
+  /**
+   * Atomic multi-hop. `to` is the signer, the payer of `token_in` and the
+   * recipient of the last hop's output: the contract has no separate recipient
+   * argument, and no deadline argument either. Legs are named by registry id,
+   * so it can only ever reach pools the Router itself created.
+   */
   swap_exact_in: (
-    args: { to: string; token_in: string; path: number[]; amount_in: bigint; min_out: bigint },
+    args: { to: string; token_in: string; path: SwapHop[]; amount_in: bigint; min_out: bigint },
     opts?: contract.MethodOptions,
   ) => Promise<contract.AssembledTransaction<bigint>>;
+}
+
+/**
+ * One leg of a route, as `swap_exact_in` takes it. A leg says which pool and
+ * what to buy; what it sells is the previous leg's output, or `token_in` for
+ * the first, which is why the struct has no `token_in` of its own.
+ */
+export interface SwapHop {
+  /** The pool's Router registry id, the `id` of `pool_at`. */
+  pool_id: number;
+  token_out: string;
 }
 
 export interface RouterSigner {

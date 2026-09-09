@@ -1,41 +1,55 @@
 // The atomic Router: one transaction, N hops, all or nothing.
 //
-// This is the execution half of Tranche 2 / D2. The pathfinder (router.ts)
-// decides *which* hops; this module turns them into a single Router
-// invocation, simulates it, collects the authorization footprint, signs
-// through the wallet and submits.
+// The pathfinder (router.ts) decides *which* hops; this module turns them into
+// a single `swap_exact_in` call on the Router, simulates it, signs through the
+// wallet and submits. The contract itself lives in routerClient.ts.
 //
-// PROVISIONAL INTERFACE. The Router contract is not deployed and its ABI is
-// not final. Everything that depends on the contract's exact shape lives in
-// the two functions marked ROUTER ABI below (`routeArgs` and `decodeRouteResult`)
-// so the day the contract lands, that is the whole diff. The doc's argument
-// list is followed literally: user, recipient, input token, input amount,
-// final output token, minimum final output, deadline, ordered hops.
+// The call, as deployed:
 //
-// While ROUTER_CONTRACT_ID is null, a multi-hop route can only execute in the
-// routing demo (see demo.ts), where these phases are staged locally and
-// nothing is signed.
+//   swap_exact_in(to, token_in, path: Vec<SwapHop{pool_id, token_out}>,
+//                 amount_in, min_out) -> i128
+//
+// Three things follow from that shape, and each of them used to be assumed
+// otherwise here:
+//
+//   • a leg is named by REGISTRY ID, not by pool address. Only pools the Router
+//     created have one, so the config pool and anything deployed directly can
+//     be a single hop but never a leg of a route. canExecuteRoute() enforces it
+//     rather than letting the user sign a call that cannot resolve.
+//   • there is no recipient argument. `to` signs, pays the input and receives
+//     the output, all one address.
+//   • there is no deadline argument. See ROUTE_DEADLINE_SECS.
+//
+// ROUTER_CONTRACT_ID is what turns this path on. While it is null a multi-hop
+// route can only execute in the routing demo (see demo.ts), where these phases
+// are staged locally and nothing is signed.
 
 import { getWalletSigner } from "../../store/useAppStore";
-import { NETWORK_PASSPHRASE, ROUTER_CONTRACT_ID, RPC_URL } from "./config";
+import { ROUTER_CONTRACT_ID } from "./config";
 import { DEMO_STEP_MS, DEMO_TX_HASH, isDemoVault, useRoutingDemo } from "./demo";
+import { unwrapResult } from "./pool";
+import { routerClient, type SwapHop } from "./routerClient";
 import type { RouteCandidate } from "./router";
 import type { OnPhase, TxResult } from "./types";
 
 /**
- * How long a signed route stays valid. Short on purpose: a route was chosen
- * against reserves that existed at quote time, and the deadline is what stops
- * a transaction that sat in a wallet from settling against a different market.
- * The same number bounds the transaction itself (time bounds), so the two can
- * never disagree.
+ * How long a signed route stays valid, as the transaction's own time bound.
+ *
+ * Short on purpose: a route was chosen against reserves that existed at quote
+ * time, and this is what stops a transaction that sat unsigned in a wallet from
+ * settling against a different market. It is only the transaction's horizon,
+ * not the contract's: `swap_exact_in` takes no deadline, so what protects the
+ * user *inside* the call is `min_out` on the final output and nothing else.
  */
 export const ROUTE_DEADLINE_SECS = 180;
 
 export interface ExecuteRouteArgs {
-  /** The connected wallet: pays the input, signs, and is the tx source. */
+  /**
+   * The connected wallet. It pays the input, signs, is the transaction source
+   * and receives the output: the contract takes one address for all of it, so
+   * a route cannot be sent to a third party.
+   */
   user: string;
-  /** Where the final output goes. Defaults to `user`. */
-  recipient?: string;
   candidate: RouteCandidate;
   amountIn: bigint;
   /**
@@ -51,7 +65,7 @@ export interface ExecuteRouteArgs {
 export class RouteExecutionError extends Error {
   constructor(
     message: string,
-    /** 1-based index of the hop the Router reported, when it reported one. */
+    /** 1-based index of the hop the failure names, when anything names one. */
     readonly failedHop: number | null,
   ) {
     super(message);
@@ -59,11 +73,27 @@ export class RouteExecutionError extends Error {
   }
 }
 
+/**
+ * Why this route cannot be signed, or null when it can. Two different reasons
+ * now, and they are not interchangeable: "routerMissing" is a deployment that
+ * will change, "unregisteredPool" is a fact about this particular route and
+ * will not, so the UI says so instead of promising a Router that is already
+ * there.
+ */
+export type RouteBlocker = "routerMissing" | "unregisteredPool";
+
+export function routeBlocker(candidate: RouteCandidate): RouteBlocker | null {
+  // A single hop goes straight to its pool and never touches the Router.
+  if (candidate.hops.length <= 1) return null;
+  if (isDemoRoute(candidate)) return useRoutingDemo.getState().enabled ? null : "routerMissing";
+  if (!ROUTER_CONTRACT_ID) return "routerMissing";
+  // Every leg has to be one the Router can name, or the call cannot be built.
+  return candidate.hops.every((h) => h.poolId !== undefined) ? null : "unregisteredPool";
+}
+
 /** True when this route can be signed right now, in any mode. */
 export function canExecuteRoute(candidate: RouteCandidate): boolean {
-  if (candidate.hops.length <= 1) return true;
-  if (ROUTER_CONTRACT_ID) return true;
-  return useRoutingDemo.getState().enabled && candidate.hops.some((h) => isDemoVault(h.vault));
+  return routeBlocker(candidate) === null;
 }
 
 /** Whether this route runs through the local demo instead of the chain. */
@@ -79,159 +109,89 @@ export async function executeRoute(args: ExecuteRouteArgs): Promise<TxResult<big
       null,
     );
   }
-  return executeOnChain(ROUTER_CONTRACT_ID, args);
+  return executeOnChain(args);
 }
 
 // ── On-chain path ────────────────────────────────────────────────────────
 
-type Sdk = typeof import("@stellar/stellar-sdk");
-
-// ROUTER ABI: the argument vector for `route(...)`. A hop is encoded as a
-// struct {pool, token_in, token_out}; Soroban serialises structs as maps with
-// symbol keys in sorted order, which is why the keys below are alphabetical.
-function routeArgs(
-  sdk: Sdk,
-  a: Required<Pick<ExecuteRouteArgs, "user" | "recipient" | "candidate" | "amountIn" | "minOut">>,
-  deadlineUnix: number,
-) {
-  const { Address, nativeToScVal, xdr } = sdk;
-  const address = (s: string) => new Address(s).toScVal();
-  const sym = (s: string) => xdr.ScVal.scvSymbol(s);
-  const hops = xdr.ScVal.scvVec(
-    a.candidate.hops.map((h) =>
-      xdr.ScVal.scvMap([
-        new xdr.ScMapEntry({ key: sym("pool"), val: address(h.vault) }),
-        new xdr.ScMapEntry({ key: sym("token_in"), val: address(h.tokenIn) }),
-        new xdr.ScMapEntry({ key: sym("token_out"), val: address(h.tokenOut) }),
-      ]),
-    ),
-  );
-  const first = a.candidate.hops[0];
-  const last = a.candidate.hops[a.candidate.hops.length - 1];
-  return [
-    address(a.user),
-    address(a.recipient),
-    address(first.tokenIn),
-    nativeToScVal(a.amountIn, { type: "i128" }),
-    address(last.tokenOut),
-    nativeToScVal(a.minOut, { type: "i128" }),
-    nativeToScVal(deadlineUnix, { type: "u64" }),
-    hops,
-  ];
-}
-
-// ROUTER ABI: `route` returns the final output amount as i128.
-function decodeRouteResult(sdk: Sdk, value: InstanceType<Sdk["xdr"]["ScVal"]> | undefined): bigint {
-  if (!value) return 0n;
-  const native = sdk.scValToNative(value);
-  return typeof native === "bigint" ? native : BigInt(native);
-}
-
-function base64ToBytes(b64: string): Uint8Array {
-  const bin = atob(b64);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
-
-async function executeOnChain(
-  routerId: string,
-  { user, recipient = user, candidate, amountIn, minOut, onPhase }: ExecuteRouteArgs,
-): Promise<TxResult<bigint>> {
-  onPhase?.("preparing");
-  // Dynamic like every Stellar import here: the SDK touches browser globals
-  // at module scope and breaks Astro's prerender if pulled into SSR.
-  const sdk = await import("@stellar/stellar-sdk");
-  const { Address, Contract, TransactionBuilder, BASE_FEE, rpc, xdr, authorizeEntry } = sdk;
-
-  const server = new rpc.Server(RPC_URL);
-  const account = await server.getAccount(user);
-  const deadlineUnix = Math.floor(Date.now() / 1000) + ROUTE_DEADLINE_SECS;
-
-  const tx = new TransactionBuilder(account, {
-    fee: BASE_FEE,
-    networkPassphrase: NETWORK_PASSPHRASE,
-  })
-    .addOperation(
-      new Contract(routerId).call(
-        "route",
-        ...routeArgs(sdk, { user, recipient, candidate, amountIn, minOut }, deadlineUnix),
-      ),
-    )
-    // Same horizon as the contract-level deadline, see ROUTE_DEADLINE_SECS.
-    .setTimeout(ROUTE_DEADLINE_SECS)
-    .build();
-
-  // Simulating the complete Router invocation is what yields the footprint
-  // and the authorization tree: the user's transfer of the input token sits
-  // *under* the Router call, not beside it.
-  const sim = await server.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(sim)) {
-    throw new RouteExecutionError(sim.error, hopFromError(sim.error));
-  }
-
-  // Authorization footprint. Because the user is also the transaction source,
-  // the simulator normally returns source-account credentials for every entry
-  // the user must approve, and the transaction signature covers them. Any
-  // entry that instead carries address credentials for the user has to be
-  // signed on its own, through the wallet, with a ledger bound that matches
-  // the deadline.
-  const signer = await getWalletSigner();
-  const latest = await server.getLatestLedger();
-  const validUntil = latest.sequence + Math.ceil(ROUTE_DEADLINE_SECS / 5) + 12;
-  const auth = await Promise.all(
-    (sim.result?.auth ?? []).map(async (entry) => {
-      const creds = entry.credentials();
-      if (creds.switch() !== xdr.SorobanCredentialsType.sorobanCredentialsAddress()) return entry;
-      const who = Address.fromScAddress(creds.address().address()).toString();
-      if (who !== user) return entry;
-      return authorizeEntry(
-        entry,
-        async (preimage) => {
-          const { signedAuthEntry } = await signer.signAuthEntry(preimage.toXDR("base64"), {
-            address: user,
-            networkPassphrase: NETWORK_PASSPHRASE,
-          });
-          return base64ToBytes(signedAuthEntry);
-        },
-        validUntil,
-        NETWORK_PASSPHRASE,
+// The path the contract wants. Refusing here, before a wallet is asked for
+// anything, is the whole point: an unregistered pool is not a transient
+// failure, and the user should be told which leg is unreachable rather than
+// watch a simulation come back with PoolNotRegistered.
+function routePath(candidate: RouteCandidate): SwapHop[] {
+  return candidate.hops.map((hop, i) => {
+    if (hop.poolId === undefined) {
+      throw new RouteExecutionError(
+        `Leg ${i + 1} goes through ${hop.vaultLabel}, which the Router does not know. ` +
+          "Only pools it created can be part of a multi-hop route.",
+        i + 1,
       );
-    }),
-  );
-  if (sim.result) sim.result.auth = auth;
-
-  const assembled = rpc.assembleTransaction(tx, sim).build();
-
-  onPhase?.("signing");
-  const { signedTxXdr } = await signer.signTransaction(assembled.toXDR(), {
-    address: user,
-    networkPassphrase: NETWORK_PASSPHRASE,
+    }
+    return { pool_id: hop.poolId, token_out: hop.tokenOut };
   });
-
-  onPhase?.("submitting");
-  const signed = TransactionBuilder.fromXDR(signedTxXdr, NETWORK_PASSPHRASE);
-  const sent = await server.sendTransaction(signed);
-  if (sent.status === "ERROR") {
-    const detail = sent.errorResult?.toXDR("base64") ?? sent.status;
-    throw new RouteExecutionError(`Transaction rejected: ${detail}`, null);
-  }
-
-  const final = await server.pollTransaction(sent.hash, {
-    attempts: Math.ceil(ROUTE_DEADLINE_SECS / 2),
-    sleepStrategy: () => 2000,
-  });
-  if (final.status !== rpc.Api.GetTransactionStatus.SUCCESS) {
-    const raw =
-      "resultXdr" in final && final.resultXdr ? final.resultXdr.toXDR("base64") : final.status;
-    throw new RouteExecutionError(`Route reverted: ${raw}`, hopFromError(raw));
-  }
-  return { result: decodeRouteResult(sdk, final.returnValue), hash: sent.hash };
 }
 
-// The Router is expected to name the hop in its error (the doc asks for a
-// route execution event; the error path should carry the same index). Until
-// the enum exists, recognise the obvious spellings.
+async function executeOnChain({
+  user,
+  candidate,
+  amountIn,
+  minOut,
+  onPhase,
+}: ExecuteRouteArgs): Promise<TxResult<bigint>> {
+  onPhase?.("preparing");
+  const path = routePath(candidate);
+
+  const signer = await getWalletSigner();
+  // Signer wrapped exactly as pool.ts wraps it, so the swap widget's phase
+  // labels line up with the wallet popping up.
+  const router = await routerClient(user, {
+    signAuthEntry: signer.signAuthEntry,
+    signTransaction: async (...a: Parameters<typeof signer.signTransaction>) => {
+      onPhase?.("signing");
+      const res = await signer.signTransaction(...a);
+      onPhase?.("submitting");
+      return res;
+    },
+  });
+
+  try {
+    // Building the AssembledTransaction is what simulates it, and the
+    // simulation is what yields the footprint and the authorization tree: the
+    // user's transfer of the input token sits *under* the Router call, not
+    // beside it. Because the user is also the transaction source, those
+    // entries carry source-account credentials and the transaction signature
+    // covers them, so there is no separate auth entry to sign.
+    const tx = await router.swap_exact_in(
+      {
+        to: user,
+        token_in: candidate.hops[0].tokenIn,
+        path,
+        amount_in: amountIn,
+        min_out: minOut,
+      },
+      { timeoutInSeconds: ROUTE_DEADLINE_SECS },
+    );
+    // A failed simulation comes back as a Rust-style Err on the assembled
+    // transaction rather than throwing, so it has to be looked at: without
+    // this the wallet would pop up for a call already known to revert.
+    if (tx.simulation && "error" in tx.simulation && tx.simulation.error) {
+      throw new Error(String(tx.simulation.error));
+    }
+    const sent = await tx.signAndSend();
+    return { result: unwrapResult(sent.result), hash: sent.sendTransactionResponse?.hash ?? "" };
+  } catch (err) {
+    if (err instanceof RouteExecutionError) throw err;
+    const message = err instanceof Error ? err.message : String(err);
+    throw new RouteExecutionError(message, hopFromError(message));
+  }
+}
+
+// Neither the Router nor the pool names the leg that failed: a revert comes
+// back as a bare contract code (#3 PoolNotRegistered and #5 EmptySwapPath are
+// the Router's own, a slippage or pause error belongs to whichever pool threw
+// it) and there is no index in it. So this recognises the one spelling that
+// does carry a hop number, which today is the demo's, and otherwise says it
+// does not know instead of guessing an edge for the graph to blame.
 function hopFromError(raw: string): number | null {
   const m = /hop\s*#?(\d+)/i.exec(raw);
   return m ? Number(m[1]) : null;
@@ -266,7 +226,7 @@ async function executeDemoRoute({
     // natural "try again" story after a revert.
     useRoutingDemo.getState().setFailHop(null);
     throw new RouteExecutionError(
-      `Route reverted at hop #${failHop}: HostError: Error(Contract, #12) SlippageExceeded`,
+      `Route reverted at hop #${failHop}: HostError: Error(Contract, #14) SlippageExceeded`,
       failHop,
     );
   }
@@ -276,7 +236,7 @@ async function executeDemoRoute({
   const { amountOut } = await quoteRoute(candidate, amountIn, user);
   if (amountOut < minOut) {
     throw new RouteExecutionError(
-      `Route reverted: final output below minimum: Error(Contract, #12) SlippageExceeded`,
+      `Route reverted: final output below minimum: Error(Contract, #14) SlippageExceeded`,
       candidate.hops.length,
     );
   }

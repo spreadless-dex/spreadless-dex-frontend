@@ -11,6 +11,13 @@ export interface TxErrorContext {
   spend?: string;
   /** Symbol of the token being received — used for trustline errors. */
   receive?: string;
+  /**
+   * Set when the failing call was the Router's `swap_exact_in`. The Router has
+   * its own error enum whose low numbers overlap the pool's, and a raw message
+   * carries only the number, so those rules stay behind this flag rather than
+   * risk translating a pool error into a routing one.
+   */
+  route?: boolean;
 }
 
 export interface MappedTxError {
@@ -99,6 +106,21 @@ export function mapTxError(err: unknown, ctx: TxErrorContext = {}): MappedTxErro
   }
   if (/wasm|WasmHash|not installed|MissingValue/i.test(raw)) {
     return { message: "The pool code is not installed on this network. Check POOL_WASM_HASH." };
+  }
+
+  // Router #3 PoolNotRegistered and #5 EmptySwapPath, both only reachable
+  // through swap_exact_in. Neither is a market condition: the route named a
+  // pool the registry does not hold, or named nothing at all, so retrying the
+  // same route cannot help. Both were confirmed against the deployed contract
+  // on 2026-09-09 by simulating a path with an unregistered id and an empty one.
+  if (ctx.route && (contractCode(raw, 3) || /PoolNotRegistered/i.test(raw))) {
+    return {
+      message:
+        "This route runs through a pool the Router doesn't know. Only pools created through the Router can be routed across.",
+    };
+  }
+  if (ctx.route && (contractCode(raw, 5) || /EmptySwapPath/i.test(raw))) {
+    return { message: "The route arrived empty. Re-enter the amount to search again." };
   }
 
   // Pool #14 — the on-chain minimum-received floor kicked in.

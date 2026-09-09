@@ -10,23 +10,26 @@ Spreadless splits that problem in two: an **off-chain pathfinder** that finds an
 prices candidate routes in the browser, and an **on-chain Router** that executes
 the chosen route as a single Soroban transaction.
 
-<Callout kind="note" title="Tranche 2 status">
-  The pathfinder and the swap UI are live. The Router contract and the Vault
-  Factory are not deployed yet, so a multi-hop route can be quoted but not
-  signed. The swap page includes a routing demo with two local vaults so the
-  full flow, including the atomic rollback, can be evaluated before deployment.
+<Callout kind="note" title="Status">
+  The pathfinder, the swap UI and the Router are all live on testnet. One
+  contract does both jobs: it deploys and registers pools, and it executes
+  multi-hop swaps across the pools it registered. A route can only cross pools
+  it created, so the pre-Router pool is a single hop and never a leg. The swap
+  page also includes a routing demo with two local vaults, where the full flow
+  including the atomic rollback runs without signing anything.
 </Callout>
 
 ## The pathfinder
 
-1. **Read the registry.** The set of vaults comes from the Factory registry, or
-   from the single configured pool while the Factory is not deployed.
+1. **Read the registry.** The set of vaults is the Router's registry, walked
+   from `next_pool_id()` and `pool_at(id)`, plus the pool that predates it.
 2. **Build the graph.** Tokens are nodes, vaults are edges, keyed by contract id.
    Symbols are display labels only and never take part in the search.
 3. **Enumerate candidates.** A bounded depth-first search with a maximum of
    three hops. A token never repeats along a route, and neither does a vault:
    routing through the same pool twice moves its reserves against you on the
-   second leg, and it is the case the Router rejects on-chain.
+   second leg, so the search never proposes it. The contract does not forbid it,
+   which is exactly why the pathfinder does.
 4. **Quote every candidate.** Each leg is simulated against the vault that holds
    the pair, feeding one leg's output into the next. Results stream into the
    graph as they land, so a fast route never waits behind a slow one.
@@ -39,18 +42,34 @@ are shown as such.
 
 ## The Router
 
-A multi-hop swap is one call to the Router with the user, the recipient, the
-input token and amount, the final output token, a minimum final output, a
-deadline, and the ordered list of hops.
+A multi-hop swap is one call:
+
+```ts
+swap_exact_in({
+  to,         // signer, payer of token_in, and recipient of the output
+  token_in,   // address of the token being sold
+  path,       // [{ pool_id, token_out }, ...], one entry per leg
+  amount_in,  // bigint, raw units of token_in
+  min_out,    // bigint, floor on the FINAL output
+}) // -> bigint  (last token_out received)
+```
+
+A leg names a **pool id**, the number the Router handed out when it created the
+pool, and never a contract address. Only pools it created have one, so a pool
+deployed any other way can be swapped against directly but can never be a leg of
+a route. The app refuses such a route before asking for a signature rather than
+letting it simulate into `PoolNotRegistered`.
+
+A leg carries no `token_in` of its own either: what it sells is the previous
+leg's output, or `token_in` for the first. Token continuity is therefore a
+property of the call, not something to be checked.
 
 Inside that one call the Router:
 
-- takes the input token from the user under the user's authorization,
-- checks the deadline, the route length, token continuity and that every pool is
-  registered with the Factory,
+- takes the input token from `to` under that address's authorization,
 - executes each leg in order, holding the intermediate token itself,
-- transfers the final output to the recipient,
-- enforces the minimum final output.
+- transfers the final output back to `to`,
+- enforces `min_out` on that final amount.
 
 If any of those steps fails, the whole invocation reverts. There is no state in
 which the user holds an intermediate token they did not ask for.
@@ -69,12 +88,14 @@ which the user holds an intermediate token they did not ask for.
 
 ## Deadline and minimum
 
-The route carries a deadline of three minutes from signing. The transaction's
-own time bounds use the same number, so the contract and the network can never
-disagree about whether a signed route is still valid.
+`swap_exact_in` takes no deadline. What bounds a signed route is the
+transaction's own time bounds, set to three minutes, so a route that sat unsigned
+in a wallet expires at the network layer instead of settling against a market
+that has moved on.
 
-The minimum final output is the quote the user saw minus their slippage
-tolerance, exactly as for a direct swap. See
+Inside the call, the only protection is `min_out`: the quote the user saw minus
+their slippage tolerance, on the final output only, exactly as for a direct
+swap. See
 [Slippage & Safety](/docs/protocol/slippage-and-safety).
 
 ## Testing locally

@@ -3,7 +3,7 @@ import { fromRawUnits } from '../lib/stellar/units'
 import { tokenDecimals, tokenSymbol } from '../lib/stellar/registry'
 import { isOk, shortfallBps, type RouteResult } from '../lib/stellar/router'
 import { isDemoVault, useRoutingDemo } from '../lib/stellar/demo'
-import { ROUTER_CONTRACT_ID } from '../lib/stellar/config'
+import { routeBlocker, type RouteBlocker } from '../lib/stellar/routerContract'
 import RouteGraph, { type ExecutionView } from './RouteGraph'
 
 interface Props {
@@ -49,6 +49,7 @@ export default function RoutePanel({ results, bestId, searching, error, executio
   const path = shown?.candidate.path ?? []
   const bestHops = best?.candidate.hops.length ?? 0
   const bestIsDemo = best?.candidate.hops.some((h) => isDemoVault(h.vault)) ?? false
+  const blocked = best ? routeBlocker(best.candidate) : null
 
   return (
     <div
@@ -129,7 +130,7 @@ export default function RoutePanel({ results, bestId, searching, error, executio
             ))}
           </div>
           {bestHops > 1 && !execution && (
-            <AtomicNote demo={bestIsDemo} />
+            <AtomicNote demo={bestIsDemo} blocked={blocked} />
           )}
           {results.length > 1 && !execution && (
             <p className="learn-only text-[10px] mt-2.5 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
@@ -146,13 +147,21 @@ export default function RoutePanel({ results, bestId, searching, error, executio
 }
 
 /** One line under the graph that says what the transaction will do, in the
- *  user's terms. How atomicity works is Learn mode only; that the Router is
- *  missing, or that nothing gets signed, holds in both modes. */
-function AtomicNote({ demo }: { demo: boolean }) {
-  if (!ROUTER_CONTRACT_ID && !demo) {
+ *  user's terms. How atomicity works is Learn mode only; why the route cannot
+ *  be signed, or that nothing gets signed, holds in both modes. */
+function AtomicNote({ demo, blocked }: { demo: boolean; blocked: RouteBlocker | null }) {
+  if (blocked === 'routerMissing' && !demo) {
     return (
       <p className="text-[10px] mt-2.5 leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
         This route needs the atomic Router, which is not deployed on testnet yet.
+      </p>
+    )
+  }
+  if (blocked === 'unregisteredPool') {
+    return (
+      <p className="text-[10px] mt-2.5 leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
+        One leg of this route is a pool the Router never created, so it has no id to route by. It
+        can still be swapped on its own.
       </p>
     )
   }
@@ -163,7 +172,7 @@ function AtomicNote({ demo }: { demo: boolean }) {
         . The Router holds the intermediate token for the duration of the call; if any leg fails,
         every leg is rolled back and nothing leaves your wallet.
       </p>
-      {demo && !ROUTER_CONTRACT_ID && (
+      {demo && (
         <p className="text-[10px] mt-2.5 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
           Demo vaults: nothing is signed.
         </p>

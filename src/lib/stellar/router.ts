@@ -20,6 +20,13 @@ export const MAX_CANDIDATES = 6;
 export interface RouteHop {
   /** Vault contract address this leg swaps against. */
   vault: string;
+  /**
+   * The Router's registry id for that vault, when it has one. `swap_exact_in`
+   * names a leg by id and never by address, so a hop without one cannot be part
+   * of a multi-hop route. It is still a perfectly good single hop, which swaps
+   * against the pool directly, so such vaults stay in the graph.
+   */
+  poolId?: number;
   vaultLabel: string;
   feeBps?: number;
   /** Token contract addresses, not symbols. Symbols are display-only. */
@@ -67,9 +74,9 @@ export function routeLabel(c: RouteCandidate): string {
 //
 //   • a token may not repeat, because a path that revisits a token is a cycle and
 //     can never beat the shorter path that skipped it;
-//   • a vault may not repeat, because routing through the same pool twice moves its
-//     reserves against you on the second leg, and it is exactly the
-//     self-routing case the Router contract has to reject on-chain. It also
+//   • a vault may not repeat, because routing through the same pool twice moves
+//     its reserves against you on the second leg. The Router does not forbid it
+//     (its error enum has no such case), which is the reason this does. It also
 //     means each leg simulates against a pool no earlier leg has touched,
 //     which is what makes sequential quoting below correct.
 
@@ -95,6 +102,7 @@ export function findRoutes(
         if (next === current || seenTokens.has(next)) continue;
         const hop: RouteHop = {
           vault: vault.address,
+          poolId: vault.poolId,
           vaultLabel: vault.label || shortAddress(vault.address),
           feeBps: vault.feeBps,
           tokenIn: current,
