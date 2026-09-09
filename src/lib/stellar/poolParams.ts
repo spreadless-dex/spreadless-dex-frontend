@@ -81,8 +81,14 @@ export const DEFAULT_FEE_PCT = 0.04;
  * Share of the swap fee routed to the protocol, in percent; the rest stays
  * with the LPs. Fixed by the protocol: a pool creator sets the swap fee, not
  * how it is split, and gets no cut for having deployed the pool.
+ *
+ * 33, not 100/3. Read from the Router on 2026-09-09: `get_default_protocol_fee()`
+ * is 330_000_000 on the 1e9 scale, and that is the value it writes into every
+ * pool it creates. This constant was a third, which displayed as 33.3% and
+ * would have been written as 333_333_333 by the direct-deploy path, so pools
+ * differed by a hair depending on how they were made.
  */
-export const PROTOCOL_SHARE_PCT = 100 / 3;
+export const PROTOCOL_SHARE_PCT = 33;
 
 /** A for UI copy: "50,000" rather than "50000". */
 export function fmtAmp(a: number): string {
@@ -419,6 +425,43 @@ export interface PoolConstructorArgs {
   lp_symbol: string;
 }
 
+/**
+ * The same pool, as the Router's `create_pool` wants it: nine arguments, not
+ * twelve. It drops the four the Router decides for itself, and each of those is
+ * a reason to prefer this path over deploying directly:
+ *
+ *   owner                 the creator, from the signer, not an argument
+ *   protocol_controller   the Router writes itself in, by definition
+ *   protocol_fee          its own default, 33%
+ *   beneficiary           its own default
+ *
+ * Derived from toConstructorArgs() rather than built beside it, so the two
+ * paths can never drift on the seven fields they share.
+ */
+export function toRouterArgs(ctor: PoolConstructorArgs): {
+  creator: string;
+  tokens: string[];
+  amp_factor: number;
+  amp_control: AmpControl;
+  swap_fee: bigint;
+  max_caps: bigint[];
+  lp_max_supply: bigint;
+  lp_name: string;
+  lp_symbol: string;
+} {
+  return {
+    creator: ctor.owner,
+    tokens: ctor.tokens,
+    amp_factor: ctor.amp_factor,
+    amp_control: ctor.amp_control,
+    swap_fee: ctor.swap_fee,
+    max_caps: ctor.max_caps,
+    lp_max_supply: ctor.lp_max_supply,
+    lp_name: ctor.lp_name,
+    lp_symbol: ctor.lp_symbol,
+  };
+}
+
 export const LP_DECIMALS = 9;
 
 export function toConstructorArgs(
@@ -427,7 +470,12 @@ export function toConstructorArgs(
   metaFor: (address: string) => TokenMeta | undefined,
 ): PoolConstructorArgs {
   const tokens = canonicalOrder(draft.tokens);
-  const symbols = tokens.map((address) => metaFor(address)?.symbol ?? address.slice(0, 4));
+  // The LP name follows the order the creator picked, not the canonical one.
+  // The contract needs the tokens sorted by address, which is arbitrary to a
+  // reader: a BTC pool picked as BTC, SolvBTC, yBTC sorts to yBTC, SolvBTC, BTC
+  // and would ship as "sp-yBTC-SolvBTC-BTC" while every screen calls it
+  // "BTC / SolvBTC / yBTC". The name is display, so it uses the display order.
+  const symbols = draft.tokens.map((address) => metaFor(address)?.symbol ?? address.slice(0, 4));
   return {
     owner,
     // The Router, always. It is immutable, and a pool that named anything else

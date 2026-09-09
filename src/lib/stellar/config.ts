@@ -50,27 +50,26 @@ export const POOL_CONTRACT_ID =
 // (`swap_exact_in`), and is the immutable `protocol_controller` of every pool
 // it creates. Both constants below take that same address once wired.
 //
-// They stay null because wiring either one today ships a call that fails:
+// FACTORY_CONTRACT_ID is now set, and it took no new package. The Router
+// carries its own spec in its deployed WASM, and `contract.Client.from()`
+// reads it off the network, so router.ts has a full client without a generated
+// binding; the interface there is that spec, written down. `create_pool` was
+// simulated against it on 2026-09-09 and builds a pool in one call.
 //
-//   FACTORY_CONTRACT_ID  createViaFactory() is unimplemented, and
-//                        toConstructorArgs() builds the 8 arguments the old
-//                        constructor took. The pool constructor now takes 12:
-//                        protocol_controller, amp_control, lp_name and
-//                        lp_symbol were added. `create_pool` also no longer
-//                        accepts protocol_fee or beneficiary at all.
-//   ROUTER_CONTRACT_ID   routerContract.ts encodes `route(user, recipient,
-//                        token_in, amount_in, token_out, min_out, deadline,
-//                        hops)` with each hop keyed by pool *address*. The
-//                        contract has `swap_exact_in(to, token_in, path,
-//                        amount_in, min_out)`, each hop keyed by pool *id*
-//                        (u32), and no deadline argument. Setting this turns
-//                        canExecuteRoute() green for multi-hop and hands the
-//                        user a signature that cannot succeed.
+// ROUTER_CONTRACT_ID is a different question and stays null. It gates the
+// *swap path*, and routerContract.ts still encodes `route(user, recipient,
+// token_in, amount_in, token_out, min_out, deadline, hops)` with each hop
+// keyed by pool *address*. The contract has `swap_exact_in(to, token_in, path,
+// amount_in, min_out)`, each hop keyed by pool *id* (u32), and no deadline
+// argument at all. Setting this before that rewrite turns canExecuteRoute()
+// green for multi-hop and hands the user a signature that cannot succeed.
 //
-// The live pool above also predates the router: it carries no pool id and no
-// protocol_controller, so it is not registered and `swap_exact_in` cannot
-// reach it. Routing needs pools created through `create_pool`.
-export const FACTORY_CONTRACT_ID: string | null = null;
+// The live pool above predates the Router: it carries no pool id and no
+// protocol_controller, so it is not registered and `swap_exact_in` can never
+// reach it. Routing needs pools created through `create_pool`, which is
+// exactly what the builder now makes.
+export const FACTORY_CONTRACT_ID: string | null =
+  "CA4VB4SJQAPWBRTMEHCTX7GZ7KC2DGS7PXV6BEZUI3WUOKRGOQ7VCV6M";
 
 // OWNERSHIP HANDOVER: the address a creator can hand a pool to when they no
 // longer want to run it themselves ("give it back to Spreadless"). The pool
@@ -114,23 +113,22 @@ export const PROTOCOL_CONTROLLER = "CA4VB4SJQAPWBRTMEHCTX7GZ7KC2DGS7PXV6BEZUI3WU
 // deployed address is not filled in yet.
 export const ROUTER_CONTRACT_ID: string | null = null;
 
-// POOL CREATION, before the Factory: the pool contract's WASM hash as
-// installed on testnet, taken from the router's own `pool_wasm_hash`. With it
-// set, createBackend() returns "deploy" and "Create pool" deploys a vault
-// directly through the SDK's Client.deploy(); with both this and the Factory
-// null the builder runs in demo mode (nothing is signed).
+// POOL CREATION without the Router: the pool contract's WASM hash as installed
+// on testnet. Setting it makes createBackend() return "deploy", and the builder
+// deploys a pool straight through the SDK's Client.deploy() instead of asking
+// the Router to. It works, and it was the live path for exactly one commit.
 //
-// This was null until the SDK reached 0.1.0, because Client.deploy() would
-// have passed 8 of the 12 arguments the constructor wants. toConstructorArgs()
-// now builds all twelve and the spec is readable, so the path works.
+// Back to null, because the Router is wired and does it better. A pool deployed
+// directly is real but unregistered: no pool id, so `swap_exact_in` cannot
+// reach it and it is invisible to anyone whose browser did not create it. The
+// contract README is explicit that new pools belong to the Router.
 //
-// It stays a stopgap. A pool deployed this way is not in the Router's registry,
-// so it carries no pool id and multi-hop routing cannot reach it, exactly like
-// the live pool above. Single-hop swaps go straight to the pool contract and
-// are unaffected. Once `create_pool` is wired this constant should go back to
-// null; the contract README is explicit that new pools belong to the router.
-export const POOL_WASM_HASH: string | null =
-  "52dd16bb8eed388a1914922488533a5e4eb2fe69575662b5c7a141e4d7a7ac20";
+// The path stays in factory.ts as a fallback for a Router outage or a testnet
+// where only the pool WASM is installed. Fill this in and the builder uses it;
+// it is config, not dead code. If it is ever filled in again, cross-check it
+// against the Router's own `get_pool_wasm_hash()` first: the two matched
+// exactly when this was verified on 2026-09-09.
+export const POOL_WASM_HASH: string | null = null;
 
 // POOL CREATION — the protocol's fee beneficiary, the same for every pool.
 // The fee split is protocol policy, not a creator's choice, and deploying a

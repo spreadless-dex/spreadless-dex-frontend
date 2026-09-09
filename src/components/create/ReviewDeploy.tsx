@@ -96,6 +96,15 @@ export default function ReviewDeploy({
             </p>
             <p className="text-[12px] mb-3 flex items-center gap-1.5 flex-wrap" style={{ color: 'var(--c-text-faint)' }}>
               <span className="font-mono">{shortenAddress(created.address)}</span>
+              {created.poolId !== undefined && (
+                <span
+                  className="px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold"
+                  style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border)' }}
+                  title="The Router's registry id. Routed swaps address the pool by this."
+                >
+                  Pool #{created.poolId}
+                </span>
+              )}
               {created.backend === 'demo' ? (
                 <span
                   className="px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-semibold"

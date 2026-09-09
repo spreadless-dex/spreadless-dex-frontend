@@ -2,13 +2,14 @@
 // deployed". Everything downstream (the router, the hook, the graph) asks
 // this module for the set of vaults and never learns where the list came from.
 //
-// TRANCHE 2: FACTORY_CONTRACT_ID is still null, so listVaults() reports the
-// single pool from config. When the Factory lands, only readFactoryVaults()
-// below needs a body; no caller changes.
+// FACTORY_CONTRACT_ID is set, so listVaults() reports the Router's registry
+// plus the live pool from config, which predates the Router and is in no
+// registry. No caller changed when that switched over.
 
 import { FACTORY_CONTRACT_ID, POOL_CONTRACT_ID, RPC_URL, NETWORK_PASSPHRASE, TOKENS } from "./config";
 import { DEMO_VAULTS, isRoutingDemo } from "./demo";
 import { listLocalPools } from "./localPools";
+import { listPoolIds, routerClient } from "./routerClient";
 
 export interface VaultInfo {
   /** Pool contract address: the id every swap simulation is sent to. */
@@ -26,6 +27,12 @@ export interface VaultInfo {
   feeBps?: number;
   /** Amplification, when the source knows it. Same caveat as `feeBps`. */
   amp?: number;
+  /**
+   * The Router's registry id. Multi-hop `swap_exact_in` addresses pools by this
+   * and not by contract address, so a vault without one can only ever be a
+   * single hop: the live pool, and anything deployed outside the Router.
+   */
+  poolId?: number;
 }
 
 export function shortAddress(address: string): string {
@@ -109,13 +116,44 @@ async function readSingleVault(): Promise<VaultInfo[]> {
   return [{ address: POOL_CONTRACT_ID, tokens, label: "Stableswap Pool", amp }];
 }
 
-// TRANCHE 2 / D1: read the Factory's paginated registry (address, tokens,
-// version and active status per entry) and drop inactive vaults. Left
-// unimplemented on purpose: guessing the Factory's method names now would ship
-// a call that silently fails against the real contract later.
+// The Router's registry: `next_pool_id()` is the count, `pool_at(id)` the
+// address at each. There is no batch getter and no paging, so this is one call
+// per pool and then one pool read per pool; the 60s cache above is what keeps
+// that off the hot path. Fine at today's size, and the place to add batching if
+// the registry ever grows into the hundreds.
+//
+// The live pool from config is always included. It predates the Router, is in
+// no registry, and dropping it would take the only pool with real liquidity out
+// of the swap graph.
+//
+// One pool failing to answer must not empty the list, so each read is settled
+// on its own and a failure drops that entry.
 async function readFactoryVaults(factoryId: string): Promise<VaultInfo[]> {
-  throw new Error(
-    `Factory registry not wired yet (factory ${shortAddress(factoryId)}). ` +
-      `Implement readFactoryVaults() in src/lib/stellar/registry.ts.`,
+  const [sdk, client] = await Promise.all([import("@spreadless-dex/sdk"), routerClient()]);
+  const ids = await listPoolIds(client);
+
+  const registered = await Promise.all(
+    ids.map(async (id): Promise<VaultInfo | null> => {
+      try {
+        const address = (await client.pool_at({ id })).result;
+        if (!address) return null;
+        const pool = new sdk.Client({ contractId: address, rpcUrl: RPC_URL, networkPassphrase: NETWORK_PASSPHRASE });
+        const [tokens, amp] = await Promise.all([
+          pool.get_tokens().then((t) => t.result),
+          pool.get_amp().then((t) => t.result),
+        ]);
+        return { address, tokens, label: poolLabel(tokens), amp, poolId: id };
+      } catch (err) {
+        console.error(`Registry: pool ${id} of ${shortAddress(factoryId)} could not be read:`, err);
+        return null;
+      }
+    }),
   );
+
+  return [...(await readSingleVault()), ...registered.filter((v): v is VaultInfo => v !== null)];
+}
+
+/** "USDC / USDT0", from whatever symbols are known. */
+function poolLabel(tokens: string[]): string {
+  return tokens.map(tokenSymbol).join(" / ");
 }

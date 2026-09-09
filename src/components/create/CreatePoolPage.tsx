@@ -39,6 +39,12 @@ import { ArrowLeft, Check } from 'lucide-react'
 // shows how much is left. The sticky preview on the right is the payoff:
 // it is the row this pool will occupy in /pools, updating on every input.
 
+/** First entry per address wins: the chain read is listed before local records. */
+function byAddress<T extends { address: string }>(pools: T[]): T[] {
+  const seen = new Set<string>()
+  return pools.filter((p) => (seen.has(p.address) ? false : (seen.add(p.address), true)))
+}
+
 export default function CreatePoolPage() {
   const { walletAddress, connectWallet } = useAppStore()
 
@@ -52,10 +58,12 @@ export default function CreatePoolPage() {
 
   // The twin check needs every known vault: live registry plus pools this
   // browser created (both kinds; a demo pool should also refuse an exact twin).
+  // Deduped by address, because a pool created through the Router is in both
+  // lists, and counting it twice would call it its own twin.
   useEffect(() => {
     listVaults()
-      .then((vaults) => setExisting([...vaults, ...listLocalPools()]))
-      .catch(() => setExisting(listLocalPools()))
+      .then((vaults) => setExisting(byAddress([...vaults, ...listLocalPools()])))
+      .catch(() => setExisting(byAddress(listLocalPools())))
   }, [])
 
   // Only listed tokens can go into a pool, so the token list is the whole

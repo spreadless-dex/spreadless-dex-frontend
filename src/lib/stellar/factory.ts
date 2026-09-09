@@ -1,12 +1,13 @@
 // Creating a pool. One entry point, three backends, chosen from config:
 //
-//   factory  FACTORY_CONTRACT_ID set. Tranche 2 / D1: the Factory validates
-//            the config, deploys deterministically and inserts the registry
-//            entry in one call. Not wired yet (method names unknown).
-//   deploy   POOL_WASM_HASH set. Deploys the pool contract directly through
-//            the SDK's Client.deploy(). This is the live path today. A pool
-//            built this way is real but unregistered, so it routes single-hop
-//            only; see POOL_WASM_HASH in config.ts.
+//   factory  FACTORY_CONTRACT_ID set. The Router deploys the pool, makes
+//            itself its protocol_controller, applies the protocol fee defaults
+//            and registers it under a numeric id, all in one call. This is the
+//            live path, and the only one that yields a routable pool.
+//   deploy   POOL_WASM_HASH set, Factory not. Deploys the pool contract
+//            directly through the SDK's Client.deploy(). Real, but outside the
+//            registry: no pool id, single-hop only, invisible to other
+//            browsers. A fallback, see POOL_WASM_HASH in config.ts.
 //   demo     Neither set. Walks the same phases with a delay and registers a
 //            local pool. Nothing is signed. Every screen that shows a demo pool
 //            says so.
@@ -20,7 +21,7 @@ import {
   RPC_URL,
 } from "./config";
 import { getWalletSigner } from "../../store/useAppStore";
-import { invalidateVaults, shortAddress } from "./registry";
+import { invalidateVaults } from "./registry";
 import { invalidateVaultTvl } from "./vaultTvl";
 import {
   localPoolFromArgs,
@@ -31,10 +32,12 @@ import {
   percentToBps,
   PROTOCOL_SHARE_PCT,
   toConstructorArgs,
+  toRouterArgs,
   type ARight,
   type PoolDraft,
   type TokenMeta,
 } from "./poolParams";
+import { routerClient } from "./routerClient";
 import type { OnPhase } from "./types";
 
 export function createBackend(): CreateBackend {
@@ -48,6 +51,12 @@ export interface CreatePoolResult {
   /** Empty for demo pools. */
   hash: string;
   backend: CreateBackend;
+  /**
+   * The Router's registry id, set only for pools it created and only when the
+   * read-back confirmed it. Multi-hop routing addresses pools by this, not by
+   * contract address, so a pool without one is single-hop until it is re-read.
+   */
+  poolId?: number;
   /** Echoed from the draft. It is now a constructor argument, so it is settled the moment the pool exists. */
   aRight: ARight;
 }
@@ -70,9 +79,9 @@ interface CreatePoolArgs {
 // by the same signature that created it, and a Flexible one is delegated to
 // the protocol_controller the same way. Neither needs a handover.
 //
-// Ownership therefore stays with the creator in both cases, and giving it up
-// moved to the pool page, where OwnershipPanel already offers transfer and
-// renounce. Three reasons it does not belong here:
+// Ownership therefore stays with the creator in both cases, and handing it on
+// moved to the pool page, where OwnershipPanel already offers the transfer.
+// Three reasons it does not belong here:
 //
 //   - it is no longer part of the promise the builder makes. A is settled;
 //     what an owner still holds is the fee, the caps and pause.
@@ -92,14 +101,17 @@ export async function createPool(args: CreatePoolArgs): Promise<CreatePoolResult
 
   let result: Omit<CreatePoolResult, "aRight">;
   if (backend === "factory") {
-    result = await createViaFactory();
+    result = await createViaFactory(ctor, args.creator, args.onPhase);
   } else if (backend === "deploy") {
     result = await deployDirect(ctor, args.creator, args.onPhase);
   } else {
     result = await createDemo(ctor, args.onPhase);
   }
 
-  const local = localPoolFromArgs(result.address, ctor, args.label, backend, result.hash, meta);
+  const local = localPoolFromArgs(result.address, ctor, args.label, backend, result.hash, {
+    ...meta,
+    poolId: result.poolId,
+  });
   useLocalPools.getState().add(local);
   invalidateVaults();
   invalidateVaultTvl();
@@ -109,13 +121,52 @@ export async function createPool(args: CreatePoolArgs): Promise<CreatePoolResult
 
 // ── Backends ─────────────────────────────────────────────────────────────
 
-async function createViaFactory(): Promise<CreatePoolResult> {
-  // Same stance as readFactoryVaults(): guessing the Factory's create method
-  // would ship a call that fails silently against the real contract.
-  throw new Error(
-    `Factory create not wired yet (factory ${shortAddress(FACTORY_CONTRACT_ID!)}). ` +
-      `Implement createViaFactory() in src/lib/stellar/factory.ts.`,
-  );
+// Ask the Router to build the pool. One call does all of it: it deploys from
+// the WASM it holds, writes itself in as protocol_controller, applies its own
+// fee defaults, registers the pool under the next id and returns its address.
+//
+// The pool id is what this path is for, and the contract does not return it, so
+// it is read around the call: `next_pool_id()` before is the id this pool will
+// take, and `pool_at()` after confirms it rather than trusting the arithmetic.
+// If someone else's pool lands in between, the check fails and the id is left
+// undefined; the pool exists either way, and an unknown id costs a re-read, not
+// a pool.
+async function createViaFactory(
+  ctor: ReturnType<typeof toConstructorArgs>,
+  creator: string,
+  onPhase?: OnPhase,
+): Promise<Omit<CreatePoolResult, "aRight">> {
+  onPhase?.("preparing");
+  const signer = await getWalletSigner();
+  const router = await routerClient(creator, {
+    signAuthEntry: signer.signAuthEntry,
+    signTransaction: async (...a: Parameters<typeof signer.signTransaction>) => {
+      onPhase?.("signing");
+      const res = await signer.signTransaction(...a);
+      onPhase?.("submitting");
+      return res;
+    },
+  });
+
+  const expectedId = (await router.next_pool_id()).result;
+  const tx = await router.create_pool(toRouterArgs(ctor));
+  const sent = await tx.signAndSend();
+  const address = sent.result;
+
+  let poolId: number | undefined;
+  try {
+    const at = (await router.pool_at({ id: Number(expectedId) })).result;
+    if (at === address) poolId = Number(expectedId);
+  } catch {
+    // The registry read is a confirmation, not part of creating the pool.
+  }
+
+  return {
+    address,
+    hash: sent.sendTransactionResponse?.hash ?? "",
+    backend: "factory",
+    poolId,
+  };
 }
 
 // Deploy the pool contract straight from the installed WASM, with the twelve

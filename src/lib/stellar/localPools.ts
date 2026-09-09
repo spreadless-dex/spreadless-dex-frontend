@@ -1,12 +1,15 @@
-// Pools this browser created, kept in localStorage until the Factory registry
-// exists. Two kinds live here:
-//   - "deploy": a real vault deployed straight through the SDK. The registry
-//     appends these so /pools and the router see them like any other vault.
-//   - "demo":   created in demo mode, nothing on chain. Shown in /pools with a
+// Pools this browser created, kept in localStorage. Three kinds live here:
+//   - "factory": created through the Router and in its registry. Chain is the
+//     source of truth for these; the record exists so the builder's result is
+//     on screen before the registry read comes back, and it carries the pool id.
+//   - "deploy":  a real vault deployed straight through the SDK, outside the
+//     registry. The registry module appends these so /pools and the router see
+//     them; nothing else can.
+//   - "demo":    created in demo mode, nothing on chain. Shown in /pools with a
 //     Demo badge so the flow can be evaluated end to end; never routed.
 //
-// Delete this module when readFactoryVaults() is wired; the Factory's registry
-// is the source of truth from then on.
+// Now that readFactoryVaults() reads the Router, this module is a cache for the
+// first kind and the only home of the second.
 
 import { create } from "zustand";
 import type { PoolConstructorArgs } from "./poolParams";
@@ -23,6 +26,11 @@ export interface LocalPool {
   protocolSharePct: number;
   owner: string;
   backend: CreateBackend;
+  /**
+   * The Router's registry id. Set for pools the Router created, absent for
+   * directly deployed and demo ones, which have no id to carry.
+   */
+  poolId?: number;
   /** Tx hash for deploy-backed pools, empty for demo. */
   hash: string;
   createdAt: number;
@@ -92,7 +100,7 @@ export function localPoolFromArgs(
   label: string,
   backend: CreateBackend,
   hash: string,
-  meta: { feeBps: number; protocolSharePct: number },
+  meta: { feeBps: number; protocolSharePct: number; poolId?: number },
 ): LocalPool {
   return {
     address,
@@ -103,6 +111,7 @@ export function localPoolFromArgs(
     protocolSharePct: meta.protocolSharePct,
     owner: args.owner,
     backend,
+    poolId: meta.poolId,
     hash,
     createdAt: Date.now(),
   };
