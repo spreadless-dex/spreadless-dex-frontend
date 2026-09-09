@@ -3,17 +3,23 @@
 //   factory  FACTORY_CONTRACT_ID set. Tranche 2 / D1: the Factory validates
 //            the config, deploys deterministically and inserts the registry
 //            entry in one call. Not wired yet (method names unknown).
-//   deploy   POOL_WASM_HASH set. Deployed the pool contract directly through
-//            the SDK's Client.deploy(). Out of date since the 2026-09-05
-//            contracts, see deployDirect(); POOL_WASM_HASH is null to match.
+//   deploy   POOL_WASM_HASH set. Deploys the pool contract directly through
+//            the SDK's Client.deploy(). This is the live path today. A pool
+//            built this way is real but unregistered, so it routes single-hop
+//            only; see POOL_WASM_HASH in config.ts.
 //   demo     Neither set. Walks the same phases with a delay and registers a
 //            local pool. Nothing is signed. Every screen that shows a demo pool
 //            says so.
 //
 // Callers never branch on the backend except to label the result.
 
-import { FACTORY_CONTRACT_ID, POOL_WASM_HASH } from "./config";
-import { protocolOwnerFor, renounceOwnership, type ARightState } from "./ownership";
+import {
+  FACTORY_CONTRACT_ID,
+  NETWORK_PASSPHRASE,
+  POOL_WASM_HASH,
+  RPC_URL,
+} from "./config";
+import { getWalletSigner } from "../../store/useAppStore";
 import { invalidateVaults, shortAddress } from "./registry";
 import { invalidateVaultTvl } from "./vaultTvl";
 import {
@@ -25,6 +31,7 @@ import {
   percentToBps,
   PROTOCOL_SHARE_PCT,
   toConstructorArgs,
+  type ARight,
   type PoolDraft,
   type TokenMeta,
 } from "./poolParams";
@@ -41,48 +48,47 @@ export interface CreatePoolResult {
   /** Empty for demo pools. */
   hash: string;
   backend: CreateBackend;
-  /**
-   * What the deploy ended with. "undecided" means a fixed pool whose second
-   * signature (giving ownership up) was declined or failed: the pool exists
-   * and the creator owns it; the pool page offers to finish the step.
-   */
-  aRight: ARightState;
+  /** Echoed from the draft. It is now a constructor argument, so it is settled the moment the pool exists. */
+  aRight: ARight;
 }
-
-/** A fixed pool takes two signatures; the UI labels each. */
-export type CreateStage = "deploy" | "renounce";
 
 interface CreatePoolArgs {
   draft: PoolDraft;
-  /** Signer. Must be the connected wallet. Owner too, unless the draft hands the pool to Spreadless. */
+  /** Signer and owner. The creator owns every pool they deploy; see below. */
   creator: string;
   label: string;
   metaFor: (address: string) => TokenMeta | undefined;
   onPhase?: OnPhase;
-  onStage?: (stage: CreateStage) => void;
 }
 
+// ONE SIGNATURE, and the creator owns what they made.
+//
+// This used to be two. "Fixed" meant the creator deployed and then gave
+// ownership up, because the old contract had a single owner role and leaving
+// the pool ownerless was the only way to freeze A. That is over: amp_control
+// is a constructor argument, so a Fixed pool is frozen the moment it exists,
+// by the same signature that created it, and a Flexible one is delegated to
+// the protocol_controller the same way. Neither needs a handover.
+//
+// Ownership therefore stays with the creator in both cases, and giving it up
+// moved to the pool page, where OwnershipPanel already offers transfer and
+// renounce. Three reasons it does not belong here:
+//
+//   - it is no longer part of the promise the builder makes. A is settled;
+//     what an owner still holds is the fee, the caps and pause.
+//   - a second signature that failed used to strand a pool in "undecided",
+//     the flow's worst state, for a step the creator can take any time.
+//   - the contract has an OwnershipRenunciationDisabled error (#22) and the
+//     bindings do not say when it fires. Making it a mandatory step of every
+//     Fixed deploy would be building the happy path on an unverified call.
 export async function createPool(args: CreatePoolArgs): Promise<CreatePoolResult> {
   const backend = createBackend();
-  const flexible = args.draft.aRight === "flexible";
-
-  // The right to change A is the owner. Flexible: Spreadless from the first
-  // ledger, no handover needed. Fixed: the creator deploys and then gives
-  // the pool up, because an owner who kept it could still ramp A.
-  const protocolOwner = protocolOwnerFor(backend === "demo");
-  if (flexible && !protocolOwner) {
-    throw new Error(
-      "The Spreadless owner address is not configured yet (PROTOCOL_OWNER), so a flexible pool cannot be deployed. Choose Fixed, or ask the team for the address.",
-    );
-  }
-  const owner = flexible ? protocolOwner! : args.creator;
-  const ctor = toConstructorArgs(args.draft, owner, args.metaFor);
+  const ctor = toConstructorArgs(args.draft, args.creator, args.metaFor);
   const meta = {
     feeBps: percentToBps(args.draft.feePct),
     protocolSharePct: PROTOCOL_SHARE_PCT,
   };
 
-  args.onStage?.("deploy");
   let result: Omit<CreatePoolResult, "aRight">;
   if (backend === "factory") {
     result = await createViaFactory();
@@ -97,23 +103,7 @@ export async function createPool(args: CreatePoolArgs): Promise<CreatePoolResult
   invalidateVaults();
   invalidateVaultTvl();
 
-  if (flexible) return { ...result, aRight: "flexible" };
-
-  // Second signature. The pool is already registered above, so a declined
-  // signature leaves a real, creator-owned pool behind rather than nothing.
-  args.onStage?.("renounce");
-  try {
-    if (backend === "demo") {
-      await demoRenounce(args.onPhase);
-    } else {
-      await renounceOwnership({ from: args.creator, poolId: result.address, onPhase: args.onPhase });
-    }
-  } catch (err) {
-    console.error("Giving up ownership failed after the deploy:", err);
-    return { ...result, aRight: "undecided" };
-  }
-  useLocalPools.getState().setOwner(result.address, "");
-  return { ...result, aRight: "fixed" };
+  return { ...result, aRight: args.draft.aRight };
 }
 
 // ── Backends ─────────────────────────────────────────────────────────────
@@ -127,22 +117,44 @@ async function createViaFactory(): Promise<CreatePoolResult> {
   );
 }
 
-// Same stance as createViaFactory(): refuse rather than hand the user a
-// signature that cannot succeed. The 2026-09-05 pool constructor grew from 8
-// arguments to 12 (protocol_controller, amp_control, lp_name and lp_symbol
-// were added) and toConstructorArgs() still builds the old eight, so
-// Client.deploy() would fail in simulation. Unreachable today because
-// POOL_WASM_HASH is null for this very reason; the contract README also says
-// new pools should be created through the router's create_pool.
+// Deploy the pool contract straight from the installed WASM, with the twelve
+// constructor arguments toConstructorArgs() built.
+//
+// Client.deploy() fetches the spec by wasm hash to encode those arguments, so
+// a wrong or uninstalled hash fails here rather than on chain; mapTxError maps
+// that to "the pool code is not installed". The deployed address comes back
+// through the SDK's own result parser, which hands us a Client bound to the
+// new contract, so it is read off that rather than decoded a second time.
+//
+// The signer is wrapped exactly as writeClient() wraps it, so the builder's
+// phase labels ("signing", "submitting") line up with the wallet popping up.
 async function deployDirect(
-  _ctor: ReturnType<typeof toConstructorArgs>,
-  _owner: string,
-  _onPhase?: OnPhase,
+  ctor: ReturnType<typeof toConstructorArgs>,
+  owner: string,
+  onPhase?: OnPhase,
 ): Promise<Omit<CreatePoolResult, "aRight">> {
-  throw new Error(
-    "Direct pool deploy is out of date: the pool constructor now takes 12 arguments " +
-      "and toConstructorArgs() builds 8. Create pools through the router instead.",
-  );
+  onPhase?.("preparing");
+  const sdk = await import("@spreadless-dex/sdk");
+  const signer = await getWalletSigner();
+
+  const tx = await sdk.Client.deploy(ctor, {
+    wasmHash: POOL_WASM_HASH!,
+    format: "hex",
+    rpcUrl: RPC_URL,
+    networkPassphrase: NETWORK_PASSPHRASE,
+    publicKey: owner,
+    signAuthEntry: signer.signAuthEntry,
+    signTransaction: async (...a: Parameters<typeof signer.signTransaction>) => {
+      onPhase?.("signing");
+      const res = await signer.signTransaction(...a);
+      onPhase?.("submitting");
+      return res;
+    },
+  });
+
+  const sent = await tx.signAndSend();
+  const address = sent.result.options.contractId;
+  return { address, hash: sent.sendTransactionResponse?.hash ?? "", backend: "deploy" };
 }
 
 // Demo pools get an id in the same shape as the routing demo's vaults: a
@@ -165,14 +177,4 @@ async function createDemo(
   const tag = ctor.tokens.length.toString();
   const address = `CDEMO${"0".repeat(56 - 5 - n.length - tag.length - 4)}${tag}${n}POOL`.slice(0, 56);
   return { address, hash: "", backend: "demo" };
-}
-
-async function demoRenounce(onPhase?: OnPhase): Promise<void> {
-  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-  onPhase?.("preparing");
-  await wait(400);
-  onPhase?.("signing");
-  await wait(800);
-  onPhase?.("submitting");
-  await wait(700);
 }

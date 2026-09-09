@@ -77,13 +77,31 @@ export const FACTORY_CONTRACT_ID: string | null = null;
 // page offers it as the first option in the transfer dialog; while null that
 // option is listed as "Soon" and only a custom address can be entered.
 //
-// NOTE, unresolved: ownership no longer decides who may move A. The pool
-// constructor takes an `amp_control` of `Locked` or `ProtocolManaged`, chosen
-// once and irreversibly, and a ProtocolManaged pool is ramped by the router as
-// protocol_controller regardless of who owns the pool. The flexible/fixed
-// model in poolParams.ts still describes the old contract. Do not wire this
-// constant before that is settled.
+// This is now a narrower role than it was. Ownership no longer decides who may
+// move A: `amp_control` does, it is fixed in the constructor, and the owner has
+// no say in it either way. What an owner still holds is the swap fee, the
+// caps, the LP supply cap, the beneficiary and pause. See ARight in
+// poolParams.ts for how the builder presents the two axes.
+//
+// Still null: the address is a team decision, not a deployment value, and it
+// does not appear in `deployments/testnet.json`. A flexible pool cannot be
+// built until it is set, and createPool() says so rather than substituting
+// one. PROTOCOL_CONTROLLER below is a different address and a different role.
 export const PROTOCOL_OWNER: string | null = null;
+
+// The pool's immutable `protocol_controller`, a constructor argument since
+// 2026-09-05 and the Router's own address. Two powers hang off it, neither of
+// them the owner's: ramping A on a pool built as `ProtocolManaged`, and the
+// protocol-side lane of `set_protocol_fee` and `protocol_pause`.
+//
+// Wired even though ROUTER_CONTRACT_ID below is null, and the two are not in
+// conflict. That constant gates the *swap path*, which is unwired because
+// routerContract.ts encodes a call the contract no longer has. This one is
+// just an address written into a new pool, and it must be this address: the
+// Router makes itself the protocol_controller of every pool it creates, so a
+// pool we deploy directly has to name the same one or it would answer to
+// nobody once the Factory path lands.
+export const PROTOCOL_CONTROLLER = "CA4VB4SJQAPWBRTMEHCTX7GZ7KC2DGS7PXV6BEZUI3WUOKRGOQ7VCV6M";
 
 // The Router again, as the swap path sees it. Until this is set a multi-hop
 // route can be *quoted* (each leg simulates fine on its own pool) but must
@@ -94,19 +112,22 @@ export const PROTOCOL_OWNER: string | null = null;
 export const ROUTER_CONTRACT_ID: string | null = null;
 
 // POOL CREATION, before the Factory: the pool contract's WASM hash as
-// installed on testnet. With it set, "Create pool" deploys a vault directly
-// through the SDK's Client.deploy(); with both this and the Factory null the
-// builder runs in demo mode (the pool is created locally, nothing is signed).
+// installed on testnet, taken from the router's own `pool_wasm_hash`. With it
+// set, createBackend() returns "deploy" and "Create pool" deploys a vault
+// directly through the SDK's Client.deploy(); with both this and the Factory
+// null the builder runs in demo mode (nothing is signed).
 //
-// The hash is known, from the router's `pool_wasm_hash`:
-//   52dd16bb8eed388a1914922488533a5e4eb2fe69575662b5c7a141e4d7a7ac20
+// This was null until the SDK reached 0.1.0, because Client.deploy() would
+// have passed 8 of the 12 arguments the constructor wants. toConstructorArgs()
+// now builds all twelve and the spec is readable, so the path works.
 //
-// It stays null for the constructor-arity reason above: setting it flips
-// createBackend() to "deploy", and Client.deploy() would pass 8 of the 12
-// arguments the constructor wants. Once the builder goes through `create_pool`
-// this direct path is redundant anyway. The contract README is explicit that
-// new pools should be created through the router.
-export const POOL_WASM_HASH: string | null = null;
+// It stays a stopgap. A pool deployed this way is not in the Router's registry,
+// so it carries no pool id and multi-hop routing cannot reach it, exactly like
+// the live pool above. Single-hop swaps go straight to the pool contract and
+// are unaffected. Once `create_pool` is wired this constant should go back to
+// null; the contract README is explicit that new pools belong to the router.
+export const POOL_WASM_HASH: string | null =
+  "52dd16bb8eed388a1914922488533a5e4eb2fe69575662b5c7a141e4d7a7ac20";
 
 // POOL CREATION — the protocol's fee beneficiary, the same for every pool.
 // The fee split is protocol policy, not a creator's choice, and deploying a

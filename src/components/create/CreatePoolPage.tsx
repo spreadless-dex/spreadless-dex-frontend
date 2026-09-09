@@ -261,7 +261,6 @@ export default function CreatePoolPage() {
             amp={draft.amp}
             aRight={draft.aRight}
             feePct={draft.feePct}
-            owner={walletAddress}
             state={created ? 'live' : deploying ? 'deploying' : 'draft'}
             backendLabel={created?.backend === 'demo' ? 'Demo' : undefined}
           />

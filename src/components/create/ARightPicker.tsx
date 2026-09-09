@@ -3,9 +3,11 @@ import { Landmark, Lock } from 'lucide-react'
 
 // Step 3: who may move A after launch. Two cards, one ring, and a sketch that
 // shows what "move" means for each: a slow glide from one A to the next for
-// Flexible, a flat line for Fixed. The creator is never an option; the pool
-// contract has one role for this, and a creator who kept it could ramp A
-// themselves, which is exactly what the rule rules out.
+// Flexible, a flat line for Fixed. The creator is never an option, and since
+// the 2026-09-05 contract that is enforced rather than arranged: the choice is
+// the `amp_control` constructor argument, Locked or ProtocolManaged, immutable
+// from the first ledger. It says nothing about who owns the pool. The creator
+// owns it either way and keeps the fee, the caps and pause with it.
 
 interface ARightPickerProps {
   value: ARight
@@ -90,13 +92,13 @@ export default function ARightPicker({ value, onChange }: ARightPickerProps) {
         <div className="min-w-0 flex-1">
           <p className="text-[12px] leading-relaxed" style={{ color: 'var(--c-text)' }}>
             {value === 'flexible'
-              ? 'Spreadless becomes the owner. If the market shifts, its admins can move A, never as a jump: the value glides in a straight line from where it is to the new target over a set time, minutes to days.'
-              : 'Right after the deploy you give ownership up in a second signature. From then on A is locked, for you, for Spreadless, for everyone. On chain this shows as a pool with no owner.'}
+              ? 'If the market shifts, Spreadless can move A, never as a jump: the value glides in a straight line from where it is to the new target over a set time, minutes to days. You stay the owner of the pool.'
+              : 'A is written into the pool as locked when it is created. From that ledger on nobody can move it, not you, not Spreadless, not ever. It takes no second signature and cannot be undone later.'}
           </p>
           <p className="learn-only text-[12px] mt-1.5 leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
             {value === 'flexible'
-              ? 'You never change A yourself. The owner role also covers pausing the pool and adjusting the swap fee, so those move to Spreadless with it.'
-              : 'The fee and the pause switch freeze with it. If a peg breaks, nobody can retune the curve. Choose this for a pool whose terms must never move.'}
+              ? 'You never change A yourself, and this is the only thing the choice decides. The swap fee, the caps and the pause switch stay yours as the pool\u2019s owner.'
+              : 'Only A freezes. The swap fee, the caps and the pause switch stay yours, and you can give those up too on the pool page once it is live. If a peg breaks, nobody can retune the curve: choose this for a pool whose curve must never move.'}
           </p>
         </div>
       </div>

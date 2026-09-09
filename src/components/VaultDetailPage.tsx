@@ -129,7 +129,10 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
   // Empty string is a demo pool whose owner was given up; undefined is the
   // same thing on chain (get_owner() returned None).
   const owner = (state ? state.owner : localPool?.owner) || undefined
-  const aRight = aRightOf(owner)
+  // A pool the chain has not answered for yet reads as unknown, which is also
+  // the honest answer for anything deployed before amp_control existed.
+  const ampMode = state?.ampMode
+  const aRight = aRightOf(ampMode)
   const lpHuman = lpBalance !== null ? fromRawUnits(lpBalance, LP_DECIMALS) : null
 
   // The builder's Seed CTA: open the deposit modal on the first asset as
@@ -317,6 +320,7 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
               poolId={address}
               poolLabel={label}
               owner={owner}
+              ampMode={ampMode}
               isDemo={isDemo}
               onOwnerChanged={refreshOwner}
             />

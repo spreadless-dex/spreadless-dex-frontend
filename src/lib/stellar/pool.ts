@@ -30,6 +30,12 @@ export interface PoolState {
   /** Effective amplification factor A (reflects any live ramp). */
   amp: number;
   paused: boolean;
+  /**
+   * Who may move A, straight from the contract. Undefined for a pool that
+   * predates the setting: get_amp_control() is simply not there, and the call
+   * fails rather than returning a default. See aRightOf() in ownership.ts.
+   */
+  ampMode: AmpMode | undefined;
   lpSupply: bigint;
   lpSupplyHuman: number;
   /** Sum of reserves in human units (stablecoins ≈ $1). */
@@ -109,6 +115,22 @@ export async function getLpBalance(address: string, poolId?: string): Promise<bi
   return unwrapResult(result);
 }
 
+/** The contract's AmpControl as the UI carries it: Locked, or the protocol's to ramp. */
+export type AmpMode = "locked" | "protocol";
+
+// A pool from before 2026-09-05 has no amp_control entry point at all, so the
+// simulation fails with a host error rather than answering. That is a fact
+// about the pool, not a fault, so it resolves to undefined and every caller
+// treats it as "cannot be asked".
+async function readAmpMode(pool: { get_amp_control: () => Promise<{ result: unknown }> }): Promise<AmpMode | undefined> {
+  try {
+    const control = (await pool.get_amp_control()).result as { tag?: string } | undefined;
+    return control?.tag === "Locked" ? "locked" : control?.tag === "ProtocolManaged" ? "protocol" : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 // Map an on-chain token address to display metadata. Falls back gracefully if
 // the pool was redeployed with an address not in our config.
 function metaFor(address: string) {
@@ -123,13 +145,14 @@ export async function readPoolState(poolId?: string): Promise<PoolState> {
   const pool = await readClient(poolId);
 
   // Each call returns an AssembledTransaction; .result holds the simulated view.
-  const [tokens, reserves, amp, paused, lpSupply, owner] = await Promise.all([
+  const [tokens, reserves, amp, paused, lpSupply, owner, ampMode] = await Promise.all([
     pool.get_tokens().then((t) => t.result),
     pool.get_reserves().then((t) => t.result),
     pool.get_amp().then((t) => t.result),
     pool.paused().then((t) => t.result),
     pool.total_supply().then((t) => t.result),
     pool.get_owner().then((t) => t.result),
+    readAmpMode(pool),
   ]);
 
   // console.log(tokens, "Tokens");
@@ -162,6 +185,7 @@ export async function readPoolState(poolId?: string): Promise<PoolState> {
     tokens: poolTokens,
     amp,
     paused,
+    ampMode,
     lpSupply,
     lpSupplyHuman: Number(fromRawUnits(lpSupply, LP_DECIMALS)),
     totalTvl,

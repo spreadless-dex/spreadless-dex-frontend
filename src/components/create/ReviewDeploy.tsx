@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { createPool, createBackend, type CreatePoolResult, type CreateStage } from '../../lib/stellar/factory'
+import { createPool, createBackend, type CreatePoolResult } from '../../lib/stellar/factory'
 import { mapTxError } from '../../lib/stellar/errors'
 import { explorerContractUrl } from '../../lib/stellar/config'
 import { shortenAddress } from '../../lib/utils'
@@ -46,7 +46,6 @@ export default function ReviewDeploy({
   metaFor,
 }: ReviewDeployProps) {
   const [phase, setPhase] = useState<TxPhase | null>(null)
-  const [stage, setStage] = useState<CreateStage>('deploy')
   const [status, setStatus] = useState<TxUiStatus>({ kind: 'idle' })
   const fixed = draft.aRight === 'fixed'
 
@@ -69,7 +68,6 @@ export default function ReviewDeploy({
         label: name,
         metaFor,
         onPhase: setPhase,
-        onStage: setStage,
       })
       setPhase(null)
       onDeploying(false)
@@ -94,9 +92,7 @@ export default function ReviewDeploy({
               {name} is live.
             </p>
             <p className="text-[13px] mt-0.5 mb-3" style={{ color: 'var(--c-text-muted)' }}>
-              {created.aRight === 'undecided'
-                ? 'It has no liquidity yet. Ownership was not given up: you still own it. Finish that on the pool page, or keep it.'
-                : 'It has no liquidity yet. Seed it so it can quote.'}
+              It has no liquidity yet. Seed it so it can quote.
             </p>
             <p className="text-[12px] mb-3 flex items-center gap-1.5 flex-wrap" style={{ color: 'var(--c-text-faint)' }}>
               <span className="font-mono">{shortenAddress(created.address)}</span>
@@ -156,9 +152,7 @@ export default function ReviewDeploy({
         </dd>
         <dt style={{ color: 'var(--c-text-muted)' }}>Owner</dt>
         <dd className="text-[12px]" style={{ color: 'var(--c-text)' }}>
-          {fixed
-            ? <>None after deploy <span className="font-mono" style={{ color: 'var(--c-text-faint)' }}>({owner ? shortenAddress(owner) : 'you'} signs twice)</span></>
-            : 'Spreadless'}
+          You <span className="font-mono" style={{ color: 'var(--c-text-faint)' }}>({owner ? shortenAddress(owner) : 'once logged in'})</span>
         </dd>
       </dl>
 
@@ -175,17 +169,11 @@ export default function ReviewDeploy({
       <TxStatus
         phase={phase}
         status={status}
-        hint={stage === 'renounce'
-          ? {
-              preparing: fixed ? 'Deployed. Now step 2 of 2: giving ownership up…' : 'Preparing…',
-              signing: 'Step 2 of 2. Your wallet is open: approve giving ownership up.',
-              submitting: 'Waiting for the network to confirm…',
-            }
-          : {
-              preparing: backend === 'demo' ? 'Demo mode: simulating the deploy…' : 'Building the deploy transaction…',
-              signing: fixed ? 'Step 1 of 2. Your wallet is open: approve the deploy.' : 'Your wallet is open. Review and approve the deploy.',
-              submitting: 'Waiting for the network to confirm…',
-            }}
+        hint={{
+          preparing: backend === 'demo' ? 'Demo mode: simulating the deploy…' : 'Building the deploy transaction…',
+          signing: 'Your wallet is open. Review and approve the deploy.',
+          submitting: 'Waiting for the network to confirm…',
+        }}
       />
       {phase === null && status.kind === 'idle' && (
         // Demo mode changes what the button actually does, so that line
@@ -195,10 +183,8 @@ export default function ReviewDeploy({
           style={{ color: 'var(--c-text-faint)' }}
         >
           {backend === 'demo'
-            ? 'Demo mode: the Factory is not deployed yet, so nothing is signed.'
-            : fixed
-              ? 'Two signatures: the deploy, then giving ownership up. You can seed liquidity right after.'
-              : 'One transaction. You can seed liquidity right after.'}
+            ? 'Demo mode: no pool code is configured, so nothing is signed.'
+            : 'One transaction, and A is settled by it. You can seed liquidity right after.'}
         </p>
       )}
     </div>

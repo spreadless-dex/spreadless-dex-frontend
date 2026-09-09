@@ -27,7 +27,6 @@ interface PoolPreviewCardProps {
   amp: number
   aRight: ARight
   feePct: number
-  owner: string | null
   state: 'draft' | 'deploying' | 'live'
   /** Set when live: labels the pool as demo or on-chain. */
   backendLabel?: string
@@ -42,7 +41,6 @@ export default function PoolPreviewCard({
   amp,
   aRight,
   feePct,
-  owner,
   state,
   backendLabel,
 }: PoolPreviewCardProps) {
@@ -140,7 +138,7 @@ export default function PoolPreviewCard({
         <TickNumber value={earn} format={fmtUsd} className="font-medium" style={{ color: 'var(--c-text)' }} />
         <span>Right to change A</span>
         <span className="font-medium" style={{ color: 'var(--c-text)' }}>
-          {aRight === 'flexible' ? 'Flexible · Spreadless' : owner ? 'Fixed · no owner' : 'Fixed'}
+          {aRight === 'flexible' ? 'Flexible · Spreadless ramps it' : 'Fixed · locked for good'}
         </span>
       </div>
 

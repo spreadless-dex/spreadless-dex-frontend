@@ -21,6 +21,7 @@ import {
   OFFER_VALID_MS,
   type PendingOffer,
 } from '../lib/stellar/ownership'
+import type { AmpMode } from '../lib/stellar/pool'
 import { recordOwnership } from '../lib/activity/record'
 import RainButton from './RainButton'
 import TxStatus, { type TxUiStatus } from './TxStatus'
@@ -47,6 +48,8 @@ interface OwnershipPanelProps {
   poolLabel: string
   /** Current owner as read from chain, or from the stored record for a demo pool. */
   owner: string | undefined
+  /** Who may move A, from the pool's amp_control. Undefined for pools that predate it. */
+  ampMode: AmpMode | undefined
   isDemo: boolean
   /** Ask the page to re-read pool state once ownership may have moved. */
   onOwnerChanged: () => void
@@ -69,7 +72,7 @@ async function demoTx(onPhase: (p: TxPhase) => void): Promise<{ hash: string }> 
   return { hash: '' }
 }
 
-export default function OwnershipPanel({ poolId, poolLabel, owner, isDemo, onOwnerChanged }: OwnershipPanelProps) {
+export default function OwnershipPanel({ poolId, poolLabel, owner, ampMode, isDemo, onOwnerChanged }: OwnershipPanelProps) {
   const { walletAddress, connectWallet } = useAppStore()
   const setLocalOwner = useLocalPools((s) => s.setOwner)
   const offer: PendingOffer | undefined = usePendingOffers((s) => s.offers.find((o) => o.pool === poolId))
@@ -77,7 +80,7 @@ export default function OwnershipPanel({ poolId, poolLabel, owner, isDemo, onOwn
   const clearOffer = usePendingOffers((s) => s.clear)
 
   const isOwner = !!walletAddress && walletAddress === owner
-  const aRight = aRightOf(owner)
+  const aRight = aRightOf(ampMode)
   const protocolOwner = protocolOwnerFor(isDemo)
 
   // ?accept=1 is the invite link: the recipient has no local record of the
@@ -282,10 +285,10 @@ export default function OwnershipPanel({ poolId, poolLabel, owner, isDemo, onOwn
           ) : (
             <span className="font-mono text-[12px]" style={{ color: 'var(--c-text-faint)' }}>none · given up</span>
           )}
-          {aRight === 'flexible' && (
+          {!!owner && !!protocolOwner && owner === protocolOwner && (
             <span className="text-[12px]" style={{ color: 'var(--c-text-faint)' }}>Spreadless</span>
           )}
-          {isOwner && !offer && aRight === 'undecided' && (
+          {isOwner && !offer && (
             <button
               onClick={openDialog}
               className="px-3 py-1.5 text-[12px] font-semibold rounded-lg btn-lift shrink-0"
@@ -306,8 +309,8 @@ export default function OwnershipPanel({ poolId, poolLabel, owner, isDemo, onOwn
         <span key={aRight} className="owner-swap text-[12px] font-medium flex items-center gap-1.5" style={{ color: 'var(--c-text)' }}>
           {aRight === 'fixed' ? <Lock size={11} /> : aRight === 'flexible' ? <Landmark size={11} /> : null}
           {A_RIGHT_LABEL[aRight]}
-          {aRight === 'undecided' && isOwner && !offer && (
-            <span className="ml-1 font-normal" style={{ color: 'var(--c-text-faint)' }}>· decide with Transfer</span>
+          {aRight !== 'unknown' && (
+            <span className="ml-1 font-normal" style={{ color: 'var(--c-text-faint)' }}>· set at creation</span>
           )}
         </span>
       </div>

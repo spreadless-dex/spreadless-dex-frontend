@@ -12,6 +12,7 @@
 import { create } from "zustand";
 import { PROTOCOL_OWNER, RPC_URL } from "./config";
 import type { ARight } from "./poolParams";
+import type { AmpMode } from "./pool";
 import { writeClient } from "./pool";
 import type { OnPhase, TxResult } from "./types";
 
@@ -123,38 +124,44 @@ export async function renounceOwnership({ from, poolId, onPhase }: RenounceArgs)
   return { result: null, hash: sent.sendTransactionResponse?.hash ?? "" };
 }
 
-// ─── The right to change A, read off the owner ────────────
-// Three states. "undecided" is a pool whose creator still holds it: pools
-// from before this rule, or a fixed deploy whose second signature was
-// declined. The pool page offers that owner the same choice the builder does.
+// ─── The right to change A, read off amp_control ──────────
+// This used to be inferred from the owner, because the old contract had one
+// role for everything. It cannot be any more, and inferring it would now be
+// wrong in both directions: a creator-owned pool can be ProtocolManaged, and
+// an ownerless one can be either. It comes from get_amp_control() instead.
+//
+// "unknown" is a pool that has no answer to give: the live pool and anything
+// else deployed before 2026-09-05 has no amp_control at all, and the call
+// fails against it. It is not a state a new pool can be in, and it is not a
+// state anyone can resolve, so it is stated rather than dressed up.
 
-export type ARightState = ARight | "undecided";
+export type ARightState = ARight | "unknown";
 
-// Demo mode has no protocol address; this stands in so a flexible demo pool
-// reads as flexible on its page instead of as undecided.
+// Demo mode has no protocol address; this stands in so a demo pool that was
+// handed over reads as handed over on its page.
 export const DEMO_PROTOCOL_OWNER = "GSPREADLESSDEMOOWNER00000000000000000000000000000000000000".slice(0, 56);
 
-/** The address a flexible pool is deployed to, or handed to. Null until configured (demo excepted). */
+/** The address a creator can hand a pool to. Null until configured (demo excepted). */
 export function protocolOwnerFor(demo: boolean): string | null {
   return PROTOCOL_OWNER ?? (demo ? DEMO_PROTOCOL_OWNER : null);
 }
 
-export function aRightOf(owner: string | undefined | null): ARightState {
-  if (!owner) return "fixed";
-  if ((PROTOCOL_OWNER && owner === PROTOCOL_OWNER) || owner === DEMO_PROTOCOL_OWNER) return "flexible";
-  return "undecided";
+/** Map the contract's AmpControl to the builder's two words. */
+export function aRightOf(mode: AmpMode | undefined): ARightState {
+  if (!mode) return "unknown";
+  return mode === "locked" ? "fixed" : "flexible";
 }
 
 export const A_RIGHT_LABEL: Record<ARightState, string> = {
   flexible: "Flexible",
   fixed: "Fixed",
-  undecided: "Undecided",
+  unknown: "Unknown",
 };
 
 export const A_RIGHT_TIP: Record<ARightState, string> = {
-  flexible: "Spreadless owns the pool and can ramp A, always as a slow glide over a set time. The same role can pause the pool and adjust the fee.",
-  fixed: "The pool has no owner. A, the fee and pause are frozen for good, for everyone.",
-  undecided: "The creator still owns the pool. They can hand it to Spreadless (flexible A) or give ownership up (fixed A).",
+  flexible: "Spreadless can ramp A, always as a slow glide over a set time. Nobody else can, the pool's owner included.",
+  fixed: "A is locked for good, for everyone. That was decided when the pool was created and cannot be undone.",
+  unknown: "This pool predates the amp_control setting, so who may move A is not something it can be asked.",
 };
 
 // ─── Open offers this browser sent ─────────────────────────

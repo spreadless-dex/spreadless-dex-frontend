@@ -89,7 +89,9 @@ export function mapTxError(err: unknown, ctx: TxErrorContext = {}): MappedTxErro
   if (/InvalidAmp|AmpOutOfRange/i.test(raw)) {
     return { message: "The contract rejected this amplification. Pick a value inside the allowed range." };
   }
-  if (contractCode(raw, 107) || /InvalidCap/i.test(raw)) {
+  // Pool #8 InvalidCap. (This read #107 before, which is not a code the pool
+  // contract has; the enum is the one in `Errors` in the SDK bindings.)
+  if (contractCode(raw, 8) || /InvalidCap/i.test(raw)) {
     return { message: "The contract rejected a cap value. Lower it or leave it unset." };
   }
   if (/wasm|WasmHash|not installed|MissingValue/i.test(raw)) {
@@ -102,6 +104,20 @@ export function mapTxError(err: unknown, ctx: TxErrorContext = {}): MappedTxErro
       message:
         "The price moved more than your slippage tolerance allows, so nothing was executed. Try again, or raise the tolerance in settings.",
     };
+  }
+
+  // Pool #21 — a ramp was attempted on a pool created with amp_control Locked.
+  // Nothing in the UI offers this, so reaching it means a stale screen or a
+  // hand-built call; say what is true rather than what to try next.
+  if (contractCode(raw, 21) || /AmpControlLocked/i.test(raw)) {
+    return { message: "This pool's A was locked when it was created. It cannot be changed by anyone." };
+  }
+
+  // Pool #22 — the contract refused to give ownership up. When it fires is not
+  // documented in the bindings, so this says what happened and leaves the pool
+  // where it is; nothing is lost, the owner is simply still the owner.
+  if (contractCode(raw, 22) || /OwnershipRenunciationDisabled/i.test(raw)) {
+    return { message: "This pool does not allow ownership to be given up. You are still the owner; you can transfer it to another address instead." };
   }
 
   // Pool #15 — deposit would push the token past its pool cap.

@@ -6,7 +6,7 @@
 // design/pool-creation-plan.md, section 5). Each one is a single constant so
 // a confirmed number is a one-line change.
 
-import { FAMILIES, PROTOCOL_BENEFICIARY, TOKENS, type AssetFamily } from "./config";
+import { FAMILIES, PROTOCOL_BENEFICIARY, PROTOCOL_CONTROLLER, TOKENS, type AssetFamily } from "./config";
 import { toRawUnits } from "./units";
 
 // ── Limits ───────────────────────────────────────────────────────────────
@@ -25,11 +25,27 @@ export const FEE_MAX_PCT = 1;
 export const FEE_SCALE = 1_000_000_000n;
 
 /**
- * "No cap" sentinel for max_caps and lp_max_supply. The contract rejects an
- * invalid cap (#107) but does not document the ceiling; half of i128 keeps
- * headroom for the invariant math. Confirm with the contract team.
+ * "No cap" sentinels. The contract has no "unset" for either value, so leaving
+ * a cap blank means passing the largest value it will take.
+ *
+ * Both ceilings are measured, not guessed: a constructor simulated against the
+ * deployed WASM on 2026-09-09, bisected on each argument.
+ *
+ *   max_caps        30_000_000_000_000_000 exactly, and 1 more is rejected
+ *                   with #8 InvalidCap. Not a power of two, so it is a
+ *                   constant in the contract rather than a range check, and it
+ *                   is the same value the live pool was deployed with. At 7
+ *                   decimals that is 3 billion tokens per asset. It reads as
+ *                   an absolute ceiling in raw units, so a token with other
+ *                   decimals would get a different quantity for the same
+ *                   number; every token in the catalog has 7.
+ *   lp_max_supply   i128::MAX - 1. Only i128::MAX itself is refused, so this
+ *                   one is effectively unbounded.
+ *
+ * The old value here was 2^126 for both, which the pool constructor rejects.
  */
-export const NO_CAP: bigint = 1n << 126n;
+export const NO_TOKEN_CAP: bigint = 30_000_000_000_000_000n;
+export const NO_LP_CAP: bigint = (1n << 127n) - 2n;
 
 // ── Presets ──────────────────────────────────────────────────────────────
 
@@ -81,16 +97,36 @@ export function formatSharePct(pct: number): string {
 // ── Draft ────────────────────────────────────────────────────────────────
 
 /**
- * Who may move A after launch. The contract has one role for it, the owner,
- * so this is really a choice of owner:
- *   flexible  the pool is deployed with Spreadless as owner. Its admins can
- *             ramp A (always a linear glide over a set duration, never a
- *             jump), and with the same role pause the pool or adjust the fee.
- *   fixed     the creator deploys, then gives ownership up in a second
- *             signature. A, fee and pause are frozen for everyone, for good.
- * A creator never keeps the right to ramp A themselves.
+ * Who may move A after launch. Since the 2026-09-05 contract this is one
+ * constructor argument and nothing else:
+ *   flexible  amp_control = ProtocolManaged. The protocol_controller may ramp
+ *             A, always a linear glide over a set duration, never a jump.
+ *   fixed     amp_control = Locked. A is frozen at launch. Nobody can move it,
+ *             not the owner, not the protocol, not ever.
+ * Both are immutable from the first ledger, and neither is the creator.
+ *
+ * This used to be a choice of *owner*, because the old contract had one role
+ * for everything and the only way to freeze A was to leave the pool with no
+ * owner. It no longer is. The owner still holds the swap fee, the caps, the LP
+ * supply cap, the beneficiary and pause, and the creator keeps all of that
+ * either way. Giving it up is a separate decision, offered on the pool page
+ * where it can be taken back up or retried; it is deliberately not folded into
+ * pool creation any more. See ARightState in ownership.ts.
  */
 export type ARight = "flexible" | "fixed";
+
+/**
+ * The contract's `AmpControl` enum, mirrored rather than imported: this module
+ * is deliberately SDK-free so its rules stay testable without a network. The
+ * shape is what `spec.funcArgsToScVals` expects for a unit-variant enum.
+ */
+export type AmpControl = { tag: "Locked"; values: void } | { tag: "ProtocolManaged"; values: void };
+
+export function ampControlFor(right: ARight): AmpControl {
+  return right === "fixed"
+    ? { tag: "Locked", values: undefined }
+    : { tag: "ProtocolManaged", values: undefined };
+}
 
 export const DEFAULT_A_RIGHT: ARight = "flexible";
 
@@ -264,6 +300,11 @@ export function isAccountAddress(s: string): boolean {
   return /^G[A-Z2-7]{55}$/.test(s.trim());
 }
 
+/** The per-token ceiling in human units, for a message that can be acted on. */
+export function maxCapHuman(decimals: number): string {
+  return (Number(NO_TOKEN_CAP) / 10 ** decimals).toLocaleString("en-US");
+}
+
 export function validateDraft(
   draft: PoolDraft,
   metaFor: (address: string) => TokenMeta | undefined,
@@ -318,8 +359,20 @@ export function validateDraft(
 
   for (const address of draft.tokens) {
     const cap = draft.caps[address]?.trim();
+    const symbol = metaFor(address)?.symbol ?? "a token";
     if (cap && !(Number(cap) > 0)) {
-      issues.push({ field: "caps", message: `Cap for ${metaFor(address)?.symbol ?? "a token"} must be a positive number.`, severity: "error" });
+      issues.push({ field: "caps", message: `Cap for ${symbol} must be a positive number.`, severity: "error" });
+      break;
+    }
+    // The slider cannot reach the ceiling, but the field can be typed into.
+    // Caught here rather than on chain, where it is a bare #8 InvalidCap after
+    // the wallet has already opened.
+    if (cap && toRawUnits(cap, metaFor(address)?.decimals ?? 7) > NO_TOKEN_CAP) {
+      issues.push({
+        field: "caps",
+        message: `Cap for ${symbol} is above what the contract accepts. The most it takes is ${maxCapHuman(metaFor(address)?.decimals ?? 7)}.`,
+        severity: "error",
+      });
       break;
     }
   }
@@ -338,16 +391,29 @@ export function hasErrors(issues: DraftIssue[]): boolean {
 
 // ── Constructor args ─────────────────────────────────────────────────────
 
-/** Mirrors the SDK's `__constructor` for the pool contract. */
+/**
+ * Mirrors the SDK's `__constructor` for the pool contract. Twelve arguments
+ * since the 2026-09-05 deployment, which added protocol_controller,
+ * amp_control, lp_name and lp_symbol. Field names and order follow the
+ * contract; the SDK takes them as one object, so order is documentation here
+ * rather than something the call depends on.
+ */
 export interface PoolConstructorArgs {
   owner: string;
+  /** Immutable. Ramps A on a ProtocolManaged pool; also the protocol-fee and protocol-pause role. */
+  protocol_controller: string;
+  /** Strictly ascending, which is what the contract means by canonical (#2 TokensNotSorted). */
   tokens: string[];
   amp_factor: number;
+  /** Immutable. Locked freezes A for good; ProtocolManaged delegates it to protocol_controller. */
+  amp_control: AmpControl;
   swap_fee: bigint;
   protocol_fee: bigint;
   beneficiary: string;
   max_caps: bigint[];
   lp_max_supply: bigint;
+  lp_name: string;
+  lp_symbol: string;
 }
 
 export const LP_DECIMALS = 9;
@@ -358,10 +424,15 @@ export function toConstructorArgs(
   metaFor: (address: string) => TokenMeta | undefined,
 ): PoolConstructorArgs {
   const tokens = canonicalOrder(draft.tokens);
+  const symbols = tokens.map((address) => metaFor(address)?.symbol ?? address.slice(0, 4));
   return {
     owner,
+    // The Router, always. It is immutable, and a pool that named anything else
+    // would be outside the protocol's reach for good. See PROTOCOL_CONTROLLER.
+    protocol_controller: PROTOCOL_CONTROLLER,
     tokens,
     amp_factor: draft.amp,
+    amp_control: ampControlFor(draft.aRight),
     swap_fee: percentToFeeScale(draft.feePct),
     // Read as "share of the swap fee that goes to the beneficiary", in the
     // same 1e9 scale as swap_fee. The contract doc says the protocol's cut of
@@ -371,10 +442,12 @@ export function toConstructorArgs(
     beneficiary: PROTOCOL_BENEFICIARY ?? owner,
     max_caps: tokens.map((address) => {
       const cap = draft.caps[address]?.trim();
-      if (!cap) return NO_CAP;
+      if (!cap) return NO_TOKEN_CAP;
       return toRawUnits(cap, metaFor(address)?.decimals ?? 7);
     }),
-    lp_max_supply: draft.lpMaxSupply.trim() ? toRawUnits(draft.lpMaxSupply.trim(), LP_DECIMALS) : NO_CAP,
+    lp_max_supply: draft.lpMaxSupply.trim() ? toRawUnits(draft.lpMaxSupply.trim(), LP_DECIMALS) : NO_LP_CAP,
+    lp_name: lpTokenName(symbols),
+    lp_symbol: lpTokenSymbol(symbols),
   };
 }
 
@@ -481,6 +554,20 @@ export function aRightNarrative(right: ARight): string {
   return right === "flexible"
     ? "Spreadless can glide A to a new value if the market shifts. You cannot."
     : "A is locked at launch. Nobody can change it, not even Spreadless.";
+}
+
+// The LP share token's own name and symbol, two constructor arguments since
+// 2026-09-05. Derived rather than asked for: the builder already knows the
+// assets, and a pool's shares are not something a creator should have to name.
+// Capped because five assets with long symbols would otherwise run away.
+const LP_SYMBOL_MAX = 32;
+
+export function lpTokenName(symbols: string[]): string {
+  return `Spreadless ${poolName(symbols)} LP`;
+}
+
+export function lpTokenSymbol(symbols: string[]): string {
+  return `sp-${symbols.join("-")}`.slice(0, LP_SYMBOL_MAX);
 }
 
 export function feeNarrative(feePct: number): string {
