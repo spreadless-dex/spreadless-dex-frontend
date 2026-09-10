@@ -4,7 +4,7 @@ import { formatCurrency } from '../lib/utils'
 import { getPoolPreviewStats } from '../lib/mockPoolStats'
 import { useLocalPools } from '../lib/stellar/localPools'
 import { POOL_CONTRACT_ID } from '../lib/stellar/config'
-import { listVaults, tokenSymbol, type VaultInfo } from '../lib/stellar/registry'
+import { listVaults, onVaultsChanged, tokenSymbol, type VaultInfo } from '../lib/stellar/registry'
 import { useVaultTvl } from '../lib/stellar/vaultTvl'
 import { sameTokenSet } from '../lib/stellar/poolParams'
 import TokenIcon from './TokenIcon'
@@ -55,12 +55,15 @@ function settingsLine(amp: number | undefined, feeBps: number | undefined, mine:
 
 /**
  * Every registry pool except the configured one, which the register renders
- * from the app store. Re-read when this browser adds a pool, so a fresh
- * creation moves from its local record onto the chain's. A failed read keeps
- * the list empty rather than hiding the local pools with an error.
+ * from the app store. The stored list answers first; re-read when a fresh one
+ * lands, and when this browser adds a pool, so a fresh creation moves from its
+ * local record onto the chain's. A failed read keeps the list empty rather
+ * than hiding the local pools with an error.
  */
 function useRegisteredVaults(localCount: number): VaultInfo[] {
   const [vaults, setVaults] = useState<VaultInfo[]>([])
+  const [revision, setRevision] = useState(0)
+  useEffect(() => onVaultsChanged(() => setRevision((n) => n + 1)), [])
   useEffect(() => {
     let live = true
     listVaults()
@@ -71,7 +74,7 @@ function useRegisteredVaults(localCount: number): VaultInfo[] {
     return () => {
       live = false
     }
-  }, [localCount])
+  }, [localCount, revision])
   return vaults
 }
 

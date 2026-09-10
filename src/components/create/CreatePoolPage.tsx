@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { sceneTransition } from '../../lib/sceneTransition'
 import { useAppStore } from '../../store/useAppStore'
-import { listVaults } from '../../lib/stellar/registry'
+import { listVaults, onVaultsChanged } from '../../lib/stellar/registry'
 import { listLocalPools } from '../../lib/stellar/localPools'
 import { isDemoAddress, useVaultTvl } from '../../lib/stellar/vaultTvl'
 import { formatCurrency } from '../../lib/utils'
@@ -59,11 +59,16 @@ export default function CreatePoolPage() {
   // The twin check needs every known vault: live registry plus pools this
   // browser created (both kinds; a demo pool should also refuse an exact twin).
   // Deduped by address, because a pool created through the Router is in both
-  // lists, and counting it twice would call it its own twin.
+  // lists, and counting it twice would call it its own twin. Re-run when a
+  // fresh registry read lands, since the first answer may be the stored list.
   useEffect(() => {
-    listVaults()
-      .then((vaults) => setExisting(byAddress([...vaults, ...listLocalPools()])))
-      .catch(() => setExisting(byAddress(listLocalPools())))
+    const load = () => {
+      listVaults()
+        .then((vaults) => setExisting(byAddress([...vaults, ...listLocalPools()])))
+        .catch(() => setExisting(byAddress(listLocalPools())))
+    }
+    load()
+    return onVaultsChanged(load)
   }, [])
 
   // Only listed tokens can go into a pool, so the token list is the whole

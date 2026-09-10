@@ -25,6 +25,7 @@
 import { contract } from "@stellar/stellar-sdk";
 import { FACTORY_CONTRACT_ID, NETWORK_PASSPHRASE, RPC_URL } from "./config";
 import type { AmpControl } from "./poolParams";
+import { ROUTER_SPEC_CONTRACT_ID, ROUTER_SPEC_XDR } from "./routerSpec";
 
 export interface RouterCreatePoolArgs {
   /** Signs the call and becomes the new pool's owner. */
@@ -92,10 +93,11 @@ export interface RouterSigner {
   signAuthEntry: contract.ClientOptions["signAuthEntry"];
 }
 
-// The spec is one network round trip and never changes for a given deployment,
-// so it is fetched once per session and reused. Every client after the first is
-// local: `new Client(spec, options)` is the same constructor the generated
-// package calls.
+// The spec never changes for a given deployment. For the configured Router it
+// ships in routerSpec.ts, so building a client costs no network at all; any
+// other id is read off the chain once per session, as before. Either way every
+// client is local: `new Client(spec, options)` is the same constructor the
+// generated package calls.
 let specPromise: Promise<contract.Spec> | null = null;
 
 function routerId(): string {
@@ -106,6 +108,9 @@ function routerId(): string {
 }
 
 async function routerSpec(): Promise<contract.Spec> {
+  if (!specPromise && routerId() === ROUTER_SPEC_CONTRACT_ID) {
+    specPromise = Promise.resolve(new contract.Spec([...ROUTER_SPEC_XDR]));
+  }
   if (!specPromise) {
     specPromise = contract.Client.from({
       contractId: routerId(),

@@ -7,14 +7,16 @@
 // for an arbitrary address, not just for the configured single pool.
 
 import { useEffect, useState } from "react";
-import { readPoolState } from "./pool";
+import { readPoolTvl } from "./pool";
 import { isDemoVault } from "./demo";
 import { listLocalPools } from "./localPools";
 
 /** null = not readable (demo pool, or the read failed). */
 export type TvlMap = Record<string, number | null>;
 
-const cache = new Map<string, number | null>();
+// Promises, not numbers: a read already in flight is joined rather than
+// repeated, which is what lets the page start one before the list mounts.
+const cache = new Map<string, Promise<number | null>>();
 
 /** Demo pools have no chain state; calling out for them would only fail. */
 export function isDemoAddress(address: string): boolean {
@@ -22,17 +24,12 @@ export function isDemoAddress(address: string): boolean {
   return listLocalPools("demo").some((p) => p.address === address);
 }
 
-export async function readVaultTvl(address: string): Promise<number | null> {
-  if (cache.has(address)) return cache.get(address)!;
-  let tvl: number | null = null;
-  if (!isDemoAddress(address)) {
-    try {
-      tvl = (await readPoolState(address)).totalTvl;
-    } catch {
-      tvl = null;
-    }
+export function readVaultTvl(address: string): Promise<number | null> {
+  let tvl = cache.get(address);
+  if (!tvl) {
+    tvl = isDemoAddress(address) ? Promise.resolve(null) : readPoolTvl(address).catch(() => null);
+    cache.set(address, tvl);
   }
-  cache.set(address, tvl);
   return tvl;
 }
 

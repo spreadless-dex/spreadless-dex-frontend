@@ -54,12 +54,46 @@ export function tokenDecimals(address: string): number {
 
 // The vault set changes only on a deploy, so it is worth caching, but not
 // forever, or a freshly created vault stays invisible until reload.
+//
+// Two layers. In memory, a list younger than CACHE_TTL_MS is simply returned.
+// In localStorage, the last list read survives the reload, so a returning
+// visitor sees the pools at once rather than after the registry's chain of
+// round trips. Anything older than the TTL is still served: it answers
+// immediately while a fresh read runs behind it, and onVaultsChanged() tells
+// whoever rendered it when that read lands (stale-while-revalidate).
+//
+// Serving a stale list is safe because nothing in a VaultInfo moves money. A
+// pool's address and tokens never change; A, fee and owner can, and here they
+// are labels, since every swap is quoted by simulation regardless. A pool
+// created since the stored read is missing until the refresh, seconds later.
 const CACHE_TTL_MS = 60_000;
-let cache: { at: number; vaults: VaultInfo[] } | null = null;
+const STORAGE_KEY = "spreadless-vaults-v1";
+// Tied to the contracts it was read from, so a build pointed at another Router
+// or pool never shows the previous deployment's list.
+const STORAGE_SCOPE = `${FACTORY_CONTRACT_ID ?? "-"}|${POOL_CONTRACT_ID}`;
 
-/** Drop the cached vault set. Call after a deploy or on an explicit refresh. */
+type CacheEntry = { at: number; vaults: VaultInfo[] };
+let cache: CacheEntry | null = null;
+let inflight: Promise<VaultInfo[]> | null = null;
+const listeners = new Set<() => void>();
+
+/** Mark the cached vault set stale. Call after a deploy or on an explicit refresh. */
 export function invalidateVaults(): void {
-  cache = null;
+  // Stale, not dropped: the next read still answers at once from what is known
+  // and refreshes behind it, instead of blanking every list for a full read.
+  const known = currentCache();
+  if (known) cache = { ...known, at: 0 };
+}
+
+/**
+ * Call `fn` whenever a read lands that differs from what was served, so a view
+ * that rendered the stored list can ask again. Returns the unsubscribe.
+ */
+export function onVaultsChanged(fn: () => void): () => void {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
 }
 
 export async function listVaults(): Promise<VaultInfo[]> {
@@ -79,12 +113,82 @@ export async function listVaults(): Promise<VaultInfo[]> {
 }
 
 async function listLiveVaults(): Promise<VaultInfo[]> {
-  if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.vaults;
-  const vaults = FACTORY_CONTRACT_ID
-    ? await readFactoryVaults(FACTORY_CONTRACT_ID)
-    : await readSingleVault();
-  cache = { at: Date.now(), vaults };
-  return vaults;
+  const known = currentCache();
+  if (known && Date.now() - known.at < CACHE_TTL_MS) return known.vaults;
+  if (known) {
+    refreshLiveVaults().catch((err) => console.error("Registry: background refresh failed:", err));
+    return known.vaults;
+  }
+  return refreshLiveVaults();
+}
+
+// One read at a time: the register, the swap form and the pathfinder all ask
+// on the same page load, and they share it.
+function refreshLiveVaults(): Promise<VaultInfo[]> {
+  if (!inflight) {
+    inflight = (FACTORY_CONTRACT_ID ? readFactoryVaults(FACTORY_CONTRACT_ID) : readSingleVault())
+      .then((vaults) => {
+        const changed = !cache || fingerprint(cache.vaults) !== fingerprint(vaults);
+        cache = { at: Date.now(), vaults };
+        writeStored(cache);
+        if (changed) listeners.forEach((fn) => fn());
+        return vaults;
+      })
+      .finally(() => {
+        inflight = null;
+      });
+  }
+  return inflight;
+}
+
+function currentCache(): CacheEntry | null {
+  if (!cache) cache = readStored();
+  return cache;
+}
+
+// Storage can be missing (SSR), blocked (some private modes) or full. Each of
+// those only costs the head start, never the list, so every failure is silent.
+function readStored(): CacheEntry | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { scope?: unknown; at?: unknown; vaults?: unknown };
+    if (parsed.scope !== STORAGE_SCOPE || typeof parsed.at !== "number" || !Array.isArray(parsed.vaults)) {
+      return null;
+    }
+    const vaults = parsed.vaults.filter(isVaultInfo);
+    return vaults.length > 0 ? { at: parsed.at, vaults } : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStored(entry: CacheEntry): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ scope: STORAGE_SCOPE, ...entry }));
+  } catch {
+    // The in-memory cache still has it; the next visit reads the chain.
+  }
+}
+
+function isVaultInfo(value: unknown): value is VaultInfo {
+  const v = value as Partial<VaultInfo> | null;
+  return (
+    typeof v === "object" &&
+    v !== null &&
+    typeof v.address === "string" &&
+    typeof v.label === "string" &&
+    Array.isArray(v.tokens) &&
+    v.tokens.every((t) => typeof t === "string")
+  );
+}
+
+function fingerprint(vaults: VaultInfo[]): string | null {
+  try {
+    return JSON.stringify(vaults);
+  } catch {
+    return null;
+  }
 }
 
 // Pools this browser deployed straight through the SDK (see factory.ts).
@@ -121,8 +225,8 @@ async function readSingleVault(): Promise<VaultInfo[]> {
 
 // The Router's registry: `next_pool_id()` is the count, `pool_at(id)` the
 // address at each. There is no batch getter and no paging, so this is one call
-// per pool and then one pool read per pool; the 60s cache above is what keeps
-// that off the hot path. Fine at today's size, and the place to add batching if
+// per pool and then one pool read per pool; the cache above (60s in memory, the last
+// list in localStorage) is what keeps that off the hot path. Fine at today's size, and the place to add batching if
 // the registry ever grows into the hundreds.
 //
 // The live pool from config is always included. It predates the Router, is in
@@ -132,6 +236,13 @@ async function readSingleVault(): Promise<VaultInfo[]> {
 // One pool failing to answer must not empty the list, so each read is settled
 // on its own and a failure drops that entry.
 async function readFactoryVaults(factoryId: string): Promise<VaultInfo[]> {
+  // The config pool does not depend on the registry, so it is read alongside
+  // it rather than after it: one round trip less on every uncached list.
+  const [single, registered] = await Promise.all([readSingleVault(), readRegisteredVaults(factoryId)]);
+  return [...single, ...registered];
+}
+
+async function readRegisteredVaults(factoryId: string): Promise<VaultInfo[]> {
   const [sdk, client] = await Promise.all([import("@spreadless-dex/sdk"), routerClient()]);
   const ids = await listPoolIds(client);
 
@@ -165,7 +276,7 @@ async function readFactoryVaults(factoryId: string): Promise<VaultInfo[]> {
     }),
   );
 
-  return [...(await readSingleVault()), ...registered.filter((v): v is VaultInfo => v !== null)];
+  return registered.filter((v): v is VaultInfo => v !== null);
 }
 
 /** "USDC / USDT0", from whatever symbols are known. */

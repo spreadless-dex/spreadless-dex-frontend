@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAppStore } from '../store/useAppStore'
-import { listSwapTokens, type SwapToken } from '../lib/stellar/registry'
+import { listSwapTokens, onVaultsChanged, type SwapToken } from '../lib/stellar/registry'
 import { fromRawUnits, toRawUnits } from '../lib/stellar/units'
 import { swapExactIn } from '../lib/stellar/pool'
 import { routeLabel } from '../lib/stellar/router'
@@ -290,8 +290,11 @@ export default function SwapWidget() {
       .catch((err) => setTokensError(err instanceof Error ? err.message : String(err)))
   }, [])
 
+  // The stored registry answers first. When a fresh read lands (a pool created
+  // since the last visit), the picker takes its tokens too, without a reload.
   useEffect(() => {
     loadTokens()
+    return onVaultsChanged(loadTokens)
   }, [loadTokens])
 
   // Default pair. The configured pool goes first when it has loaded: it is the

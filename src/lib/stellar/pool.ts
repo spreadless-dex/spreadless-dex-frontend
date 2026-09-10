@@ -131,6 +131,23 @@ async function readAmpMode(pool: { get_amp_control: () => Promise<{ result: unkn
   }
 }
 
+/**
+ * Only the TVL: tokens and reserves, one parallel round of two simulations.
+ * readPoolState() arrives at the same number with seven, and a list of pools
+ * pays that per row for a figure that needs none of the other five.
+ */
+export async function readPoolTvl(poolId?: string): Promise<number> {
+  const pool = await readClient(poolId);
+  const [tokens, reserves] = await Promise.all([
+    pool.get_tokens().then((t) => t.result),
+    pool.get_reserves().then((t) => t.result),
+  ]);
+  return tokens.reduce(
+    (sum, address, i) => sum + Number(fromRawUnits(reserves[i] ?? 0n, metaFor(address).decimals)),
+    0,
+  );
+}
+
 // Map an on-chain token address to display metadata. Falls back gracefully if
 // the pool was redeployed with an address not in our config.
 function metaFor(address: string) {

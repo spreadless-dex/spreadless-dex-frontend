@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import PoolsRegister from './PoolsRegister'
+import { listVaults } from '../lib/stellar/registry'
+import { readVaultTvl } from '../lib/stellar/vaultTvl'
 import { Plus } from 'lucide-react'
 
 // The "Pools" header destination (issue #28): a register of the protocol's
@@ -13,6 +15,17 @@ export default function PoolsListPage() {
   useEffect(() => {
     loadPoolState()
   }, [loadPoolState])
+
+  // The register mounts only once the configured pool has loaded, and it is
+  // the one that reads the registry and each registry pool's TVL (the
+  // configured pool's comes from poolState). Started here instead, those reads
+  // run alongside the pool's rather than after it, and the register joins them
+  // in flight. Failures are the register's to report.
+  useEffect(() => {
+    listVaults()
+      .then((vaults) => vaults.filter((v) => v.poolId !== undefined).forEach((v) => void readVaultTvl(v.address)))
+      .catch(() => {})
+  }, [])
 
   return (
     <div className="min-h-screen pt-16">
