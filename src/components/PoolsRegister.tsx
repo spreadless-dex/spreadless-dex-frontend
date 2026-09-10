@@ -1,19 +1,23 @@
+import { useEffect, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { formatCurrency } from '../lib/utils'
 import { getPoolPreviewStats } from '../lib/mockPoolStats'
 import { useLocalPools } from '../lib/stellar/localPools'
 import { POOL_CONTRACT_ID } from '../lib/stellar/config'
-import { tokenSymbol } from '../lib/stellar/registry'
+import { listVaults, tokenSymbol, type VaultInfo } from '../lib/stellar/registry'
 import { useVaultTvl } from '../lib/stellar/vaultTvl'
 import { sameTokenSet } from '../lib/stellar/poolParams'
 import TokenIcon from './TokenIcon'
 import { ChevronRight } from 'lucide-react'
 
 // The genuine "Pools" view (issue #28): a register of every pool the protocol
-// knows about, the shared StableSwap pool plus anything created in this
-// browser. Two pools may hold the same assets with the same curve and fee, so
-// the register ranks by TVL and says so: depth is what decides which pool
-// quotes better and which one a depositor should join.
+// knows about. That is the shared StableSwap pool, every pool in the Router's
+// registry (read from the chain, so everyone sees the same list), and whatever
+// this browser created that the registry does not report: demo pools, direct
+// deploys, and a fresh Router pool in the seconds before the read catches up.
+// Two pools may hold the same assets with the same curve and fee, so the
+// register ranks by TVL and says so: depth is what decides which pool quotes
+// better and which one a depositor should join.
 
 interface Row {
   address: string
@@ -40,11 +44,50 @@ function sameSetup(a: Row, b: Row): boolean {
   return a.amp === b.amp && a.feeBps === b.feeBps && sameTokenSet(a.tokens, b.tokens)
 }
 
+/** "A = 100 · 0.04% fee · yours", listing only what is known. */
+function settingsLine(amp: number | undefined, feeBps: number | undefined, mine: boolean): string {
+  const parts: string[] = []
+  if (amp !== undefined) parts.push(`A = ${amp}`)
+  if (feeBps !== undefined) parts.push(`${(feeBps / 100).toFixed(2)}% fee`)
+  if (mine) parts.push('yours')
+  return parts.join(' · ')
+}
+
+/**
+ * Every registry pool except the configured one, which the register renders
+ * from the app store. Re-read when this browser adds a pool, so a fresh
+ * creation moves from its local record onto the chain's. A failed read keeps
+ * the list empty rather than hiding the local pools with an error.
+ */
+function useRegisteredVaults(localCount: number): VaultInfo[] {
+  const [vaults, setVaults] = useState<VaultInfo[]>([])
+  useEffect(() => {
+    let live = true
+    listVaults()
+      .then((all) => {
+        if (live) setVaults(all.filter((v) => v.poolId !== undefined && v.address !== POOL_CONTRACT_ID))
+      })
+      .catch((err) => console.error('Pools register: registry read failed:', err))
+    return () => {
+      live = false
+    }
+  }, [localCount])
+  return vaults
+}
+
 export default function PoolsRegister() {
-  const { poolState } = useAppStore()
+  const { poolState, walletAddress } = useAppStore()
   const localPools = useLocalPools((s) => s.pools)
-  const tvlByAddress = useVaultTvl(localPools.map((p) => p.address))
+  const registered = useRegisteredVaults(localPools.length)
+  const localOnly = localPools.filter((p) => !registered.some((v) => v.address === p.address))
+  const tvlByAddress = useVaultTvl([...registered.map((v) => v.address), ...localOnly.map((p) => p.address)])
   if (!poolState) return null
+
+  // The chain's owner wins once a wallet is connected, so a pool handed on
+  // stops saying "yours" in the browser that created it. The local record is
+  // the fallback while no wallet or no owner is known.
+  const isMine = (address: string, owner?: string) =>
+    walletAddress && owner ? owner === walletAddress : localPools.some((p) => p.address === address)
 
   const apys = poolState.tokens.map((t) => getPoolPreviewStats(t.symbol).apy)
   const apyLo = Math.min(...apys)
@@ -66,15 +109,36 @@ export default function PoolsRegister() {
       tokens: poolState.tokens.map((t) => t.address),
       amp: poolState.amp,
     },
-    // Pools created in this browser (see localPools.ts): real deploys and demo
-    // creations. They live here so the builder's result is visible
-    // immediately; the Factory registry replaces this list when it ships.
-    ...localPools.map((p): Row => ({
+    // The Router's registry: the same list for every visitor.
+    ...registered.map((v): Row => {
+      const mine = isMine(v.address, v.owner)
+      const local = localPools.find((p) => p.address === v.address)
+      const feeBps = v.feeBps ?? local?.feeBps
+      return {
+        address: v.address,
+        href: `/pools/v/${v.address}`,
+        symbols: v.tokens.map((address) => tokenSymbol(address)),
+        title: local?.label ?? v.label,
+        settings: settingsLine(v.amp, feeBps, mine),
+        tvl: tvlByAddress[v.address] ?? null,
+        apy: '—',
+        apyKnown: false,
+        demo: false,
+        mine,
+        tokens: v.tokens,
+        amp: v.amp,
+        feeBps,
+      }
+    }),
+    // Pools created in this browser that the registry does not report (see
+    // localPools.ts): demo creations, direct deploys, and a Router pool whose
+    // registry read has not come back yet.
+    ...localOnly.map((p): Row => ({
       address: p.address,
       href: `/pools/v/${p.address}`,
       symbols: p.tokens.map((address) => tokenSymbol(address)),
       title: p.label,
-      settings: `A = ${p.amp} · ${(p.feeBps / 100).toFixed(2)}% fee · yours`,
+      settings: settingsLine(p.amp, p.feeBps, true),
       tvl: p.backend === 'demo' ? null : (tvlByAddress[p.address] ?? null),
       apy: '—',
       apyKnown: false,

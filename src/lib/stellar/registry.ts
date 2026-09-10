@@ -10,6 +10,7 @@ import { FACTORY_CONTRACT_ID, POOL_CONTRACT_ID, RPC_URL, NETWORK_PASSPHRASE, TOK
 import { DEMO_VAULTS, isRoutingDemo } from "./demo";
 import { listLocalPools } from "./localPools";
 import { listPoolIds, routerClient } from "./routerClient";
+import { feeScaleToPercent, percentToBps } from "./poolParams";
 
 export interface VaultInfo {
   /** Pool contract address: the id every swap simulation is sent to. */
@@ -19,10 +20,10 @@ export interface VaultInfo {
   /** Human label for the graph. Falls back to a truncated address. */
   label: string;
   /**
-   * Swap fee in basis points, when the source knows it. The current pool
-   * contract exposes no fee getter (only set_swap_fee), so this is undefined
-   * for the config-backed vault rather than guessed. The UI omits the fee
-   * label instead of showing a number nobody verified.
+   * Swap fee in basis points, when the source knows it. Router pools answer
+   * `get_swap_fee`; the config-backed vault predates that getter, so its fee
+   * stays undefined rather than guessed. The UI omits the fee label instead
+   * of showing a number nobody verified.
    */
   feeBps?: number;
   /** Amplification, when the source knows it. Same caveat as `feeBps`. */
@@ -33,6 +34,8 @@ export interface VaultInfo {
    * single hop: the live pool, and anything deployed outside the Router.
    */
   poolId?: number;
+  /** Current owner, when read from the chain. Undefined once renounced or unread. */
+  owner?: string;
 }
 
 export function shortAddress(address: string): string {
@@ -138,11 +141,23 @@ async function readFactoryVaults(factoryId: string): Promise<VaultInfo[]> {
         const address = (await client.pool_at({ id })).result;
         if (!address) return null;
         const pool = new sdk.Client({ contractId: address, rpcUrl: RPC_URL, networkPassphrase: NETWORK_PASSPHRASE });
-        const [tokens, amp] = await Promise.all([
+        // Fee and owner are labels, not identity: a pool that cannot answer
+        // them still belongs in the list, just without those labels.
+        const [tokens, amp, fee, owner] = await Promise.all([
           pool.get_tokens().then((t) => t.result),
           pool.get_amp().then((t) => t.result),
+          pool.get_swap_fee().then((t) => t.result).catch(() => undefined),
+          pool.get_owner().then((t) => t.result).catch(() => undefined),
         ]);
-        return { address, tokens, label: poolLabel(tokens), amp, poolId: id };
+        return {
+          address,
+          tokens,
+          label: poolLabel(tokens),
+          amp,
+          feeBps: fee === undefined ? undefined : percentToBps(feeScaleToPercent(BigInt(fee))),
+          owner: owner ?? undefined,
+          poolId: id,
+        };
       } catch (err) {
         console.error(`Registry: pool ${id} of ${shortAddress(factoryId)} could not be read:`, err);
         return null;

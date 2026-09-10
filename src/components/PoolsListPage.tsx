@@ -4,9 +4,9 @@ import PoolsRegister from './PoolsRegister'
 import { Plus } from 'lucide-react'
 
 // The "Pools" header destination (issue #28): a register of the protocol's
-// pools. Today that's the single StableSwap pool; PoolsRegister renders it as
-// one row and grows into a multi-row table as more pools ship. Each row opens
-// the pool-wide detail page at /pools/[slug].
+// pools. PoolsRegister lists the StableSwap pool, every pool in the Router's
+// registry, and this browser's own unregistered creations. Each row opens the
+// pool's detail page.
 export default function PoolsListPage() {
   const { poolStatus, poolError, loadPoolState } = useAppStore()
 
