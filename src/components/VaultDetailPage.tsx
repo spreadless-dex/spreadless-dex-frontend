@@ -48,39 +48,49 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
   const [seeding, setSeeding] = useState(false)
   const [seedRequested, setSeedRequested] = useState(false)
 
+  // Read ?seed=1 once and take it off the URL, so a reload of a pool that has
+  // since been seeded does not pop a deposit modal nobody asked for.
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setSeedRequested(new URLSearchParams(window.location.search).get('seed') === '1')
-    }
+    if (typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('seed') !== '1') return
+    setSeedRequested(true)
+    url.searchParams.delete('seed')
+    window.history.replaceState(null, '', url)
   }, [])
 
+  // Only the first load shows the skeleton. Every later read keeps the page on
+  // screen, because the skeleton is an early return: it unmounts whatever
+  // modal is open, and after a seed that modal is the one saying it worked.
+  // For the same reason a failed re-read keeps the state already shown.
   const fetchState = () => {
     if (isDemo) {
       setLoad({ kind: 'demo' })
       return
     }
-    setLoad({ kind: 'loading' })
+    setLoad((prev) => (prev.kind === 'ready' ? prev : { kind: 'loading' }))
     readPoolState(address)
       .then((state) => setLoad({ kind: 'ready', state }))
       .catch((err) =>
-        setLoad({ kind: 'error', message: err instanceof Error ? err.message : String(err) }),
+        setLoad((prev) =>
+          prev.kind === 'ready' ? prev : { kind: 'error', message: err instanceof Error ? err.message : String(err) },
+        ),
       )
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(fetchState, [address, isDemo])
 
-  // After an ownership step lands, re-read without dropping into the
-  // skeleton: the panel that just showed the success message must stay on
-  // screen. The RPC can serve the pre-tx snapshot for a moment, so poll
-  // until the owner actually moves.
-  const refreshOwner = async () => {
+  // After a transaction lands, re-read until the chain shows it. The RPC can
+  // serve the pre-tx snapshot for a moment, so one read is not enough: a seed
+  // read back too early still says lpSupply 0 and the page would keep
+  // offering to seed a pool that is already funded.
+  const refreshUntil = async (settled: (next: PoolState) => boolean) => {
     if (isDemo) return
-    const before = load.kind === 'ready' ? load.state.owner : undefined
     for (let i = 0; i < 6; i++) {
       try {
         const next = await readPoolState(address)
-        if (next.owner !== before || i === 5) {
+        if (settled(next) || i === 5) {
           setLoad({ kind: 'ready', state: next })
           return
         }
@@ -89,6 +99,11 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
       }
       await new Promise((r) => setTimeout(r, 1000))
     }
+  }
+
+  const refreshOwner = () => {
+    const before = load.kind === 'ready' ? load.state.owner : undefined
+    return refreshUntil((next) => next.owner !== before)
   }
 
   useEffect(() => {
@@ -353,7 +368,7 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
           poolId={address}
           poolLabel={label}
           onClose={() => { setSeeding(false); fetchState() }}
-          onSeeded={fetchState}
+          onSeeded={() => refreshUntil((next) => next.lpSupply > 0n)}
         />
       )}
 
