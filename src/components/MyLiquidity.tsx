@@ -1,33 +1,21 @@
-import { useState, useEffect } from 'react'
 import { useAppStore, type PoolToken } from '../store/useAppStore'
-import { getLpBalance, LP_DECIMALS } from '../lib/stellar/pool'
-import { fromRawUnits } from '../lib/stellar/units'
 import { formatCurrency } from '../lib/utils'
-import { getPoolPreviewStats } from '../lib/mockPoolStats'
-import PoolDetailModal from './PoolDetailModal'
+import { fromRawUnits } from '../lib/stellar/units'
+import { LP_DECIMALS } from '../lib/stellar/pool'
+import { positionShare, positionValue, type EarnPool } from '../lib/stellar/earnPools'
 import TokenIcon from './TokenIcon'
+import { ChevronRight } from 'lucide-react'
 
-export default function MyLiquidity() {
-  const { poolState, walletConnected, walletAddress, connectWallet } = useAppStore()
-  const [lpBalance, setLpBalance] = useState<bigint | null>(null)
-  const [withdrawToken, setWithdrawToken] = useState<PoolToken | null>(null)
+interface MyLiquidityProps {
+  pools: EarnPool[]
+  onWithdraw: (pool: EarnPool, token: PoolToken, kind: 'one' | 'all') => void
+}
 
-  // poolState in the deps: the withdraw modal rendered below refreshes the
-  // pool state after a tx lands, and that's our cue to refetch the LP balance
-  // — otherwise the list keeps showing the pre-withdraw position.
-  useEffect(() => {
-    if (!walletAddress) {
-      setLpBalance(null)
-      return
-    }
-    let cancelled = false
-    getLpBalance(walletAddress).then((b) => {
-      if (!cancelled) setLpBalance(b)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [walletAddress, poolState])
+// The portfolio: every pool this wallet holds LP shares in, not just the
+// configured one. A position's worth is the wallet's share of that pool's
+// reserves, stablecoins at ≈ $1, the same assumption TVL makes everywhere.
+export default function MyLiquidity({ pools, onWithdraw }: MyLiquidityProps) {
+  const { walletConnected, connectWallet } = useAppStore()
 
   if (!walletConnected) {
     return (
@@ -49,10 +37,19 @@ export default function MyLiquidity() {
     )
   }
 
-  // Resolves quickly — no skeleton needed, same call as SwapWidget's pool load.
-  if (!poolState || lpBalance === null) return null
+  const positions = pools.filter((p) => p.state !== null && p.lp !== null && p.lp > 0n)
+  // Pools answer one by one. Until each has, "no positions" would be a guess.
+  const pending = pools.length === 0 || pools.some((p) => p.lpPending || (p.state === null && !p.failed))
 
-  if (lpBalance <= 0n) {
+  if (positions.length === 0) {
+    if (pending) {
+      return (
+        <div
+          className="rounded-2xl animate-shimmer"
+          style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-card-border)', height: 160 }}
+        />
+      )
+    }
     return (
       <div
         className="p-8 rounded-2xl text-center"
@@ -65,16 +62,10 @@ export default function MyLiquidity() {
     )
   }
 
-  const lpBalanceHuman = Number(fromRawUnits(lpBalance, LP_DECIMALS))
-  const shareOfSupply = poolState.lpSupplyHuman > 0 ? lpBalanceHuman / poolState.lpSupplyHuman : 0
-  const estimatedValue = shareOfSupply * poolState.totalTvl
-
-  // Weighted by each token's share of the pool — a static proxy for now,
-  // same "Preview data" caveat as the per-pool APY figures.
-  const totalApy = poolState.tokens.reduce(
-    (sum, t) => sum + getPoolPreviewStats(t.symbol).apy * (t.share / 100),
-    0,
-  )
+  const totalValue = positions.reduce((sum, p) => sum + positionValue(p), 0)
+  const assetCount = new Set(
+    positions.flatMap((p) => p.state!.tokens.filter((t) => t.reserve > 0n).map((t) => t.address)),
+  ).size
 
   return (
     <div>
@@ -82,87 +73,123 @@ export default function MyLiquidity() {
         className="rounded-2xl p-6 mb-4"
         style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-card-border)', boxShadow: 'var(--c-card-shadow)' }}
       >
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div>
-            <p className="text-[11px] uppercase tracking-wider mb-1" style={{ color: 'var(--c-text-faint)' }}>
-              Your LP Balance
-            </p>
-            <p className="text-xl font-bold" style={{ color: 'var(--c-text)' }}>
-              {lpBalanceHuman.toFixed(4)}
-            </p>
-          </div>
-          <div>
-            <p className="text-[11px] uppercase tracking-wider mb-1" style={{ color: 'var(--c-text-faint)' }}>
-              Estimated Value
-            </p>
-            <p className="text-xl font-bold" style={{ color: 'var(--c-text)' }}>
-              {formatCurrency(estimatedValue)}
-            </p>
-          </div>
-          <div>
-            <p className="text-[11px] uppercase tracking-wider mb-1" style={{ color: 'var(--c-text-faint)' }}>
-              Pool Share
-            </p>
-            <p className="text-xl font-bold" style={{ color: 'var(--c-text)' }}>
-              {(shareOfSupply * 100).toFixed(2)}%
-            </p>
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5 mb-1">
-              <p className="text-[11px] uppercase tracking-wider" style={{ color: 'var(--c-text-faint)' }}>
-                Total APY
+        <div className="grid grid-cols-3 gap-4">
+          {[
+            { label: 'Estimated value', value: formatCurrency(totalValue) },
+            { label: positions.length === 1 ? 'Position' : 'Positions', value: String(positions.length) },
+            { label: 'Assets', value: String(assetCount) },
+          ].map(({ label, value }) => (
+            <div key={label}>
+              <p className="text-[11px] uppercase tracking-wider mb-1" style={{ color: 'var(--c-text-faint)' }}>
+                {label}
               </p>
-              <span
-                className="text-[9px] px-1.5 py-0.5 rounded"
-                style={{ border: '1px solid var(--c-border-2)', color: 'var(--c-text-faint)' }}
-              >
-                Preview
-              </span>
+              <p className="text-xl font-bold tabular-nums" style={{ color: 'var(--c-text)' }}>
+                {value}
+              </p>
             </div>
-            <p className="text-xl font-bold" style={{ color: 'var(--c-text)' }}>
-              {totalApy.toFixed(1)}%
-            </p>
-          </div>
+          ))}
         </div>
       </div>
 
-      <p className="text-[11px] uppercase tracking-wider mb-3" style={{ color: 'var(--c-text-faint)' }}>
-        Your position by asset
-      </p>
-      <div className="space-y-2">
-        {poolState.tokens.map((t) => {
-          const yourReserve = shareOfSupply * t.reserveHuman
-          if (yourReserve <= 0) return null
-          return (
-            <div
-              key={t.address}
-              className="flex items-center justify-between p-4 rounded-xl"
-              style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)' }}
-            >
-              <div className="flex items-center gap-3">
-                <TokenIcon symbol={t.symbol} size={36} />
-                <div>
-                  <p className="text-sm font-semibold" style={{ color: 'var(--c-text)' }}>{t.symbol}</p>
-                  <p className="text-xs" style={{ color: 'var(--c-text-faint)' }}>
-                    ≈ {yourReserve.toFixed(4)} {t.symbol}
-                  </p>
-                </div>
+      {pending && (
+        <p className="text-[11px] mb-3" style={{ color: 'var(--c-text-faint)' }}>
+          Still reading some pools…
+        </p>
+      )}
+
+      <div className="space-y-4">
+        {positions.map((pool) => (
+          <PositionCard key={pool.address} pool={pool} onWithdraw={onWithdraw} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function PositionCard({ pool, onWithdraw }: { pool: EarnPool; onWithdraw: MyLiquidityProps['onWithdraw'] }) {
+  const state = pool.state!
+  const share = positionShare(pool)
+  const lpHuman = Number(fromRawUnits(pool.lp!, LP_DECIMALS))
+
+  return (
+    <div
+      className="rounded-2xl overflow-hidden"
+      style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-card-border)', boxShadow: 'var(--c-card-shadow)' }}
+    >
+      <div className="flex items-center justify-between gap-4 px-5 py-4 flex-wrap">
+        <a href={pool.href} className="group flex items-center gap-3 min-w-0">
+          <div className="flex items-center shrink-0">
+            {state.tokens.map((t, i) => (
+              <div key={t.address} style={{ marginLeft: i === 0 ? 0 : -10, zIndex: state.tokens.length - i }}>
+                <TokenIcon symbol={t.symbol} size={30} />
               </div>
-              <button
-                onClick={() => setWithdrawToken(t)}
-                className="px-4 py-2 text-xs font-semibold rounded-lg transition-all active:scale-[0.99]"
-                style={{ border: '1px solid var(--c-border)', color: 'var(--c-text)' }}
-              >
-                Withdraw
-              </button>
-            </div>
-          )
-        })}
+            ))}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold flex items-center gap-1" style={{ color: 'var(--c-text)' }}>
+              {pool.label}
+              <ChevronRight
+                size={14}
+                strokeWidth={1.8}
+                className="transition-transform group-hover:translate-x-0.5"
+                style={{ color: 'var(--c-text-faint)' }}
+              />
+            </p>
+            <p className="text-[11px]" style={{ color: 'var(--c-text-faint)' }}>
+              {lpHuman.toFixed(4)} LP shares · {(share * 100).toFixed(2)}% of pool
+            </p>
+          </div>
+        </a>
+        <p className="text-lg font-bold tabular-nums" style={{ color: 'var(--c-text)' }}>
+          {formatCurrency(positionValue(pool))}
+        </p>
       </div>
 
-      {withdrawToken && (
-        <PoolDetailModal token={withdrawToken} onClose={() => setWithdrawToken(null)} defaultMode="withdraw" />
-      )}
+      {state.tokens.map((t) => {
+        const yours = share * t.reserveHuman
+        if (yours <= 0) return null
+        return (
+          <div
+            key={t.address}
+            className="flex items-center justify-between px-5 py-3"
+            style={{ borderTop: '1px solid var(--c-border)' }}
+          >
+            <div className="flex items-center gap-3">
+              <TokenIcon symbol={t.symbol} size={28} />
+              <div>
+                <p className="text-sm font-semibold" style={{ color: 'var(--c-text)' }}>{t.symbol}</p>
+                <p className="text-xs" style={{ color: 'var(--c-text-faint)' }}>
+                  ≈ {yours.toFixed(4)} {t.symbol}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => onWithdraw(pool, t, 'one')}
+              className="px-4 py-2 text-xs font-semibold rounded-lg transition-all active:scale-[0.99]"
+              style={{ border: '1px solid var(--c-border)', color: 'var(--c-text)' }}
+            >
+              Withdraw
+            </button>
+          </div>
+        )
+      })}
+
+      <div
+        className="flex items-center justify-between gap-3 px-5 py-3 flex-wrap"
+        style={{ borderTop: '1px solid var(--c-border)', backgroundColor: 'var(--c-surface-2)' }}
+      >
+        <p className="learn-only text-[11px] leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
+          Or take a proportional slice of every asset. It leaves the pool's balance alone, so there is
+          no imbalance fee.
+        </p>
+        <button
+          onClick={() => onWithdraw(pool, state.tokens[0], 'all')}
+          className="ml-auto px-4 py-2 text-xs font-semibold rounded-lg btn-lift"
+          style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
+        >
+          Withdraw all assets
+        </button>
+      </div>
     </div>
   )
 }

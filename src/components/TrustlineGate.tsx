@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { addTrustline, classicAssetOf, hasTrustline } from '../lib/stellar/trustline'
 import { mapTxError } from '../lib/stellar/errors'
 import type { TxPhase } from '../lib/stellar/types'
@@ -71,6 +71,78 @@ export function useTrustline(
   }, [contractId, walletAddress, symbol])
 
   return { needed, checking, adding, phase, error, enable }
+}
+
+/**
+ * The same gate for an action that pays out several tokens at once (the
+ * balanced withdraw). Checks every token, then offers the missing trustlines
+ * one signature at a time, first missing first. `symbol` names the one the
+ * CTA is currently asking for.
+ */
+export function useTrustlines(
+  tokens: { address: string; symbol: string }[] | undefined,
+  walletAddress: string | null,
+): TrustlineState & { symbol: string | undefined } {
+  const [missing, setMissing] = useState<{ address: string; symbol: string }[]>([])
+  const [checking, setChecking] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [phase, setPhase] = useState<TxPhase | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  // The caller builds the array on every render, so the effect keys on the
+  // addresses and reads the array itself through a ref.
+  const tokensRef = useRef(tokens)
+  tokensRef.current = tokens
+  const key = tokens?.map((t) => t.address).join(',') ?? ''
+
+  useEffect(() => {
+    setError(null)
+    const list = (tokensRef.current ?? []).filter((t) => classicAssetOf(t.address))
+    if (!walletAddress || list.length === 0) {
+      setMissing([])
+      return
+    }
+    let live = true
+    setChecking(true)
+    Promise.all(
+      list.map((t) =>
+        // A Horizon hiccup counts as present, as in useTrustline: the contract
+        // stays the judge and errors.ts explains a real trustline failure.
+        hasTrustline(t.address, walletAddress).catch((err) => {
+          console.error('Trustline check failed:', err)
+          return true
+        }),
+      ),
+    )
+      .then((present) => {
+        if (live) setMissing(list.filter((_, i) => !present[i]))
+      })
+      .finally(() => {
+        if (live) setChecking(false)
+      })
+    return () => {
+      live = false
+    }
+  }, [key, walletAddress])
+
+  const first = missing[0]
+  const enable = useCallback(async () => {
+    if (!first || !walletAddress) return
+    setError(null)
+    setAdding(true)
+    try {
+      await addTrustline(first.address, walletAddress, setPhase)
+      setMissing((m) => m.filter((t) => t.address !== first.address))
+    } catch (err) {
+      console.error('Failed to add trustline:', err)
+      setError(mapTxError(err, { receive: first.symbol }).message)
+    } finally {
+      setAdding(false)
+      setPhase(null)
+    }
+  }, [first, walletAddress])
+
+  return { needed: first !== undefined, checking, adding, phase, error, enable, symbol: first?.symbol }
 }
 
 // The explanation that sits directly above the CTA while the trustline is

@@ -377,6 +377,7 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
           token={action.token}
           defaultMode={action.mode}
           poolId={address}
+          poolTokens={tokens}
           hideDetailsLink
           onClose={() => { setAction(null); fetchState() }}
         />

@@ -528,3 +528,79 @@ export async function withdrawOneToken({
   const sent = await tx.signAndSend();
   return { result: unwrapResult(sent.result), hash: sent.sendTransactionResponse?.hash ?? "" };
 }
+
+// The balanced exit: burn shares for a proportional slice of every reserve.
+// Unlike withdraw_one_token it leaves the pool's balance as it is, so it
+// carries no imbalance fee (the same reason a balanced deposit is the cheapest
+// kind). It pays out every token, so the wallet has to be able to hold every
+// token (see useTrustlines).
+
+export interface TokenAmount {
+  /** Token contract address. */
+  address: string;
+  /** Raw on-chain units. */
+  amount: bigint;
+}
+
+interface WithdrawAllArgs {
+  /** Recipient of every token + signer. Must be the connected wallet's public key. */
+  to: string;
+  /** LP shares to burn, in raw units (9 decimals). */
+  lpAmount: bigint;
+  /** Slippage tolerance in basis points (100 = 1%), applied to each token's floor. */
+  toleranceBps?: bigint;
+  onPhase?: OnPhase;
+  poolId?: string;
+}
+
+/** Simulate-only: what burning lpAmount shares pays out, per token, in pool order. */
+export async function quoteWithdrawAll({
+  to,
+  lpAmount,
+  poolId,
+}: Omit<WithdrawAllArgs, "toleranceBps" | "onPhase">): Promise<TokenAmount[]> {
+  const pool = await writeClient(to, undefined, poolId);
+  const tokens = (await pool.get_tokens()).result;
+  if (lpAmount <= 0n) return tokens.map((address) => ({ address, amount: 0n }));
+  const quote = await pool.withdraw({
+    to,
+    lp_amount: lpAmount,
+    min_amounts_out: tokens.map(() => 0n),
+  });
+  const amounts = unwrapResult(quote.result);
+  return tokens.map((address, i) => ({ address, amount: amounts[i] ?? 0n }));
+}
+
+/** Burn lpAmount LP shares for a proportional slice of every token. Returns what was paid out. */
+export async function withdrawAll({
+  to,
+  lpAmount,
+  toleranceBps = 100n,
+  onPhase,
+  poolId,
+}: WithdrawAllArgs): Promise<TxResult<TokenAmount[]>> {
+  onPhase?.("preparing");
+  const pool = await writeClient(to, onPhase, poolId);
+  const tokens = (await pool.get_tokens()).result;
+
+  // Same two-phase shape as every other write: quote with no floor, then
+  // submit with one floor per token derived from that quote.
+  const quote = await pool.withdraw({
+    to,
+    lp_amount: lpAmount,
+    min_amounts_out: tokens.map(() => 0n),
+  });
+  const quoted = unwrapResult(quote.result);
+  const min_amounts_out = tokens.map((_, i) => {
+    const q = quoted[i] ?? 0n;
+    return q - (q * toleranceBps) / 10_000n;
+  });
+
+  const tx = await pool.withdraw({ to, lp_amount: lpAmount, min_amounts_out });
+  const sent = await tx.signAndSend();
+  const paid = unwrapResult(sent.result);
+  return {
+    result: tokens.map((address, i) => ({ address, amount: paid[i] ?? 0n })),
+    hash: sent.sendTransactionResponse?.hash ?? "",
+  };
+}

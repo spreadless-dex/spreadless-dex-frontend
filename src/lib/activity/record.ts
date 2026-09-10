@@ -102,26 +102,29 @@ interface RecordWithdrawArgs {
   symbol: string;
   lpBurned: string;
   amountReceived?: string;
+  /**
+   * What was paid out, already written with its symbols. A balanced exit pays
+   * several tokens at once, which amountReceived + symbol cannot say.
+   */
+  received?: string;
   txHash?: string;
   detail?: string;
 }
 
 export async function recordWithdraw(args: RecordWithdrawArgs): Promise<ActivityRecord> {
   const failed = args.status === "failed";
+  const received =
+    args.received ?? (args.amountReceived ? `${args.amountReceived} ${args.symbol}` : undefined);
   const record = build({
     walletAddress: args.walletAddress,
     type: "withdraw",
     status: args.status,
     title: `Withdraw ${args.symbol}`,
-    subtitle: failed
-      ? (args.detail ?? "No assets exchanged")
-      : args.amountReceived
-        ? `Received ${args.amountReceived} ${args.symbol}`
-        : "",
+    subtitle: failed ? (args.detail ?? "No assets exchanged") : received ? `Received ${received}` : "",
     assetPool: args.symbol,
-    amount: args.amountReceived ? `${args.amountReceived} ${args.symbol}` : `${args.lpBurned} LP`,
+    amount: received ?? `${args.lpBurned} LP`,
     sent: `${args.lpBurned} LP`,
-    received: args.amountReceived ? `${args.amountReceived} ${args.symbol}` : undefined,
+    received,
     txHash: args.txHash,
     detail: failed ? args.detail : undefined,
   });

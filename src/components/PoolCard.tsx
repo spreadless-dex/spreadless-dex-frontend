@@ -9,6 +9,16 @@ interface PoolCardProps {
   token: PoolToken
   onAction: (mode: CardMode) => void
   index?: number
+  /** Where "Pool details" goes: the per-asset page, or the pool's own page. */
+  detailsHref: string
+  /**
+   * Preview APY, holders and the editorial copy exist for the configured
+   * pool's assets only. Any other pool's card shows no APY rather than one
+   * made up for it.
+   */
+  showPreview: boolean
+  /** A paused pool still pays out, it just takes nothing in. */
+  paused?: boolean
 }
 
 // Editorial copy per pool asset — answers "who is this for and what happens
@@ -40,12 +50,12 @@ export const POOL_COPY: Record<string, { eyebrow: string; blurb: string }> = {
 export const FALLBACK_COPY = {
   eyebrow: 'For depositors',
   blurb:
-    'Deposit into the shared StableSwap pool and earn a share of every swap fee. Withdraw again at any time.',
+    'Deposit into this StableSwap pool and earn a share of every swap fee. Withdraw again at any time.',
 }
 
-export default function PoolCard({ token, onAction, index = 0 }: PoolCardProps) {
-  const preview = getPoolPreviewStats(token.symbol)
-  const copy = POOL_COPY[token.symbol] ?? FALLBACK_COPY
+export default function PoolCard({ token, onAction, index = 0, detailsHref, showPreview, paused = false }: PoolCardProps) {
+  const preview = showPreview ? getPoolPreviewStats(token.symbol) : null
+  const copy = (showPreview && POOL_COPY[token.symbol]) || FALLBACK_COPY
 
   return (
     <div
@@ -94,9 +104,9 @@ export default function PoolCard({ token, onAction, index = 0 }: PoolCardProps) 
         style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border)' }}
       >
         {[
-          { label: 'APY', value: `${preview.apy.toFixed(1)}%`, accent: true, isPreview: true },
+          { label: 'APY', value: preview ? `${preview.apy.toFixed(1)}%` : '—', accent: preview !== null, isPreview: preview !== null },
           { label: 'TVL', value: formatCurrency(token.reserveHuman) },
-          { label: 'Holders', value: preview.holders.toLocaleString(), isPreview: true },
+          { label: 'Holders', value: preview ? preview.holders.toLocaleString() : '—', isPreview: preview !== null },
         ].map(({ label, value, accent, isPreview }, i) => (
           <div
             key={label}
@@ -117,14 +127,20 @@ export default function PoolCard({ token, onAction, index = 0 }: PoolCardProps) 
           </div>
         ))}
       </div>
-      <p className="text-[9px] mt-1.5 mb-4 text-right" style={{ color: 'var(--c-text-faint)' }}>
-        * Preview data
-      </p>
+      {preview ? (
+        <p className="text-[9px] mt-1.5 mb-4 text-right" style={{ color: 'var(--c-text-faint)' }}>
+          * Preview data
+        </p>
+      ) : (
+        <div className="mb-4" />
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <button
           onClick={() => onAction('deposit')}
-          className="py-2.5 text-sm font-semibold rounded-xl btn-lift"
+          disabled={paused}
+          title={paused ? 'This pool is paused. Withdrawals still work.' : undefined}
+          className="py-2.5 text-sm font-semibold rounded-xl btn-lift disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
         >
           Deposit
@@ -139,7 +155,7 @@ export default function PoolCard({ token, onAction, index = 0 }: PoolCardProps) 
       </div>
 
       <a
-        href={`/pools/${token.symbol.toLowerCase()}`}
+        href={detailsHref}
         className="mt-3 inline-flex items-center justify-center gap-1 text-xs font-medium transition-opacity hover:opacity-70"
         style={{ color: 'var(--c-text-muted)' }}
       >

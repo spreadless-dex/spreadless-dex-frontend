@@ -1,44 +1,26 @@
-import { useState, useEffect } from 'react'
-import { useAppStore } from '../store/useAppStore'
-import { getLpBalance, LP_DECIMALS } from '../lib/stellar/pool'
-import { fromRawUnits } from '../lib/stellar/units'
 import { formatCurrency } from '../lib/utils'
 
-// Compact "Your position" strip above the pools grid — after a deposit, the
-// default tab should show that your money has a place here, without having to
-// find the My Liquidity tab. Renders nothing when there's no wallet or no
-// position, so first-time visitors see the grid unchanged.
+// Compact "Your position" strip above the pools, so after a deposit the
+// default tab shows that the money has a place here without a trip to
+// Portfolio. Sums every pool the wallet holds shares in. Renders nothing
+// without a position, so first-time visitors see the pools unchanged.
 
-export default function PositionSummary({ onViewDetails }: { onViewDetails: () => void }) {
-  const { poolState, walletConnected, walletAddress } = useAppStore()
-  const [lpBalance, setLpBalance] = useState<bigint | null>(null)
-
-  // Re-fetch whenever the pool state refreshes — that's what changes after a
-  // deposit/withdraw lands, so the strip stays in sync with the modal's flows.
-  useEffect(() => {
-    if (!walletAddress) {
-      setLpBalance(null)
-      return
-    }
-    let cancelled = false
-    getLpBalance(walletAddress).then((b) => {
-      if (!cancelled) setLpBalance(b)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [walletAddress, poolState])
-
-  if (!walletConnected || !poolState || lpBalance === null || lpBalance <= 0n) return null
-
-  const lpHuman = Number(fromRawUnits(lpBalance, LP_DECIMALS))
-  const shareOfSupply = poolState.lpSupplyHuman > 0 ? lpHuman / poolState.lpSupplyHuman : 0
-  const estimatedValue = shareOfSupply * poolState.totalTvl
+export default function PositionSummary({
+  value,
+  count,
+  onViewDetails,
+}: {
+  /** Estimated value across every position, stablecoins at ≈ $1. */
+  value: number
+  /** Pools the wallet holds LP shares in. */
+  count: number
+  onViewDetails: () => void
+}) {
+  if (count === 0) return null
 
   const stats = [
-    { label: 'Value', value: formatCurrency(estimatedValue) },
-    { label: 'LP shares', value: lpHuman.toFixed(4) },
-    { label: 'Pool share', value: `${(shareOfSupply * 100).toFixed(2)}%` },
+    { label: 'Value', value: formatCurrency(value) },
+    { label: count === 1 ? 'Position' : 'Positions', value: String(count) },
   ]
 
   return (
@@ -51,7 +33,7 @@ export default function PositionSummary({ onViewDetails }: { onViewDetails: () =
       }}
     >
       <p className="text-[11px] uppercase tracking-wider" style={{ color: 'var(--c-text-faint)' }}>
-        Your position
+        Your liquidity
       </p>
       {stats.map(({ label, value }) => (
         <div key={label} className="flex items-baseline gap-2">

@@ -338,6 +338,7 @@ export default function PoolDetailPage({ symbol }: PoolDetailPageProps) {
       {actionMode && (
         <PoolDetailModal
           token={token}
+          poolTokens={poolState.tokens}
           defaultMode={actionMode}
           hideDetailsLink
           onClose={() => {

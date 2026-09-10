@@ -1,70 +1,97 @@
-import { useEffect, useState } from 'react'
-import { useAppStore } from '../store/useAppStore'
+import { useState } from 'react'
+import { useAppStore, type PoolToken } from '../store/useAppStore'
 import { formatCurrency } from '../lib/utils'
+import { positionValue, useEarnPools, type EarnPool } from '../lib/stellar/earnPools'
 import PoolsGrid from './PoolsGrid'
 import PoolDetailModal from './PoolDetailModal'
+import SeedLiquidityModal from './SeedLiquidityModal'
 import MyLiquidity from './MyLiquidity'
 import PositionSummary from './PositionSummary'
-import { TrendingUp, Gauge, Layers, Activity, Search } from 'lucide-react'
+import { TrendingUp, Layers, Coins, Wallet, Search, ChevronRight } from 'lucide-react'
 
 type Tab = 'invest' | 'portfolio'
+type WithdrawKind = 'one' | 'all'
 
-// Issue #28: the asset cards aren't "pools" — they're ways to invest into the
-// one shared StableSwap pool. Earn is the action surface (Invest / Portfolio);
-// the real pool lives in its own "Pools" header section (/pools).
+interface Action {
+  pool: EarnPool
+  token: PoolToken
+  mode: 'deposit' | 'withdraw'
+  kind: WithdrawKind
+}
+
+// Earn is the action surface (issue #28): Invest puts money into a pool one
+// asset at a time, Portfolio shows what the wallet holds and takes it out
+// again. It spans every pool on chain, grouped by pool and ranked by TVL like
+// the register at /pools, because the same asset in two pools is two different
+// deposits: different depth, different fee, different neighbours.
 const TAB_SUBTITLE: Record<Tab, string> = {
-  invest: 'Single-sided liquidity. Deposit one stablecoin and earn.',
-  portfolio: 'Your liquidity positions and earnings.',
+  invest: 'Single-sided liquidity. Deposit one stablecoin into a pool and earn.',
+  portfolio: 'Your liquidity positions across every pool.',
 }
 
 export default function PoolsPage() {
-  const {
-    poolState,
-    poolStatus,
-    poolError,
-    loadPoolState,
-    selectedToken,
-    setSelectedToken,
-  } = useAppStore()
+  const { walletAddress, walletConnected } = useAppStore()
+  const { pools, loading, error, refresh, retry, reload } = useEarnPools(walletAddress)
 
   const [tab, setTab] = useState<Tab>('invest')
   const [search, setSearch] = useState('')
-  const [modalMode, setModalMode] = useState<'deposit' | 'withdraw'>('deposit')
+  const [action, setAction] = useState<Action | null>(null)
+  const [seeding, setSeeding] = useState<EarnPool | null>(null)
 
-  useEffect(() => {
-    loadPoolState()
-  }, [loadPoolState])
+  const loaded = pools.flatMap((p) => (p.state ? [p.state] : []))
+  const totalTvl = loaded.reduce((sum, s) => sum + s.totalTvl, 0)
+  const funded = loaded.filter((s) => s.lpSupply > 0n).length
+  const assetCount = new Set(loaded.flatMap((s) => s.tokens.map((t) => t.address))).size
+  const positions = pools.filter((p) => p.state !== null && p.lp !== null && p.lp > 0n)
+  const depositedValue = positions.reduce((sum, p) => sum + positionValue(p), 0)
 
   const stats = [
     {
       key: 'tvl',
       Icon: TrendingUp,
       line1: 'Total value locked',
-      line2: poolState ? `across ${poolState.tokens.length} assets` : '—',
-      value: poolState ? formatCurrency(poolState.totalTvl) : '—',
+      line2: pools.length ? `across ${pools.length} ${pools.length === 1 ? 'pool' : 'pools'}` : '—',
+      value: loaded.length ? formatCurrency(totalTvl) : '—',
     },
     {
-      key: 'amp',
-      Icon: Gauge,
-      line1: 'Amplification',
-      line2: 'StableSwap coefficient',
-      value: poolState ? `A = ${poolState.amp}` : '—',
+      key: 'pools',
+      Icon: Layers,
+      line1: 'Pools',
+      line2: `${funded} funded`,
+      value: pools.length ? String(pools.length) : '—',
     },
     {
       key: 'assets',
-      Icon: Layers,
-      line1: 'Pooled assets',
-      line2: 'in one StableSwap pool',
-      value: poolState ? String(poolState.tokens.length) : '—',
+      Icon: Coins,
+      line1: 'Assets',
+      line2: 'you can deposit',
+      value: assetCount ? String(assetCount) : '—',
     },
     {
-      key: 'status',
-      Icon: Activity,
-      line1: 'Pool status',
-      line2: 'on Stellar testnet',
-      value: poolState ? (poolState.paused ? 'Paused' : 'Active') : '—',
+      key: 'yours',
+      Icon: Wallet,
+      line1: 'Your liquidity',
+      line2: !walletConnected
+        ? 'log in to see it'
+        : positions.length
+          ? `in ${positions.length} ${positions.length === 1 ? 'pool' : 'pools'}`
+          : 'no positions yet',
+      value: walletConnected ? formatCurrency(depositedValue) : '—',
     },
   ]
+
+  const openWithdraw = (pool: EarnPool, token: PoolToken, kind: WithdrawKind) =>
+    setAction({ pool, token, mode: 'withdraw', kind })
+
+  // A search narrows each pool to the matching assets and hides pools with
+  // none. Pools still loading have no assets to match yet, so they wait.
+  const q = search.trim().toLowerCase()
+  const sections = pools
+    .map((pool) => ({
+      pool,
+      tokens: pool.state ? pool.state.tokens.filter((t) => t.symbol.toLowerCase().includes(q)) : null,
+    }))
+    .filter(({ tokens }) => !q || (tokens !== null && tokens.length > 0))
 
   return (
     <div className="min-h-screen pt-16">
@@ -152,31 +179,37 @@ export default function PoolsPage() {
         </div>
 
         {tab === 'portfolio' ? (
-          <MyLiquidity />
-        ) : poolStatus === 'error' ? (
+          <MyLiquidity pools={pools} onWithdraw={openWithdraw} />
+        ) : error && pools.length === 0 ? (
           <div
             className="p-8 rounded-2xl text-center"
             style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)' }}
           >
             <p className="text-sm mb-4" style={{ color: 'var(--c-text-muted)' }}>
-              Couldn't reach the pool contract.
+              Couldn't reach the pool registry.
             </p>
             <p className="text-xs mb-5 break-words" style={{ color: 'var(--c-text-faint)' }}>
-              {poolError}
+              {error}
             </p>
             <button
-              onClick={loadPoolState}
+              onClick={reload}
               className="px-5 py-2.5 text-sm font-semibold rounded-xl btn-lift"
               style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
             >
               Retry
             </button>
           </div>
-        ) : poolStatus === 'ready' && poolState ? (
+        ) : loading ? (
+          <PoolsSkeleton />
+        ) : (
           <>
-            <PositionSummary onViewDetails={() => setTab('portfolio')} />
+            <PositionSummary
+              value={depositedValue}
+              count={positions.length}
+              onViewDetails={() => setTab('portfolio')}
+            />
 
-            <div className="relative max-w-xs mb-6">
+            <div className="relative max-w-xs mb-8">
               <Search size={15} strokeWidth={1.8} style={{ color: 'var(--c-text-faint)', position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
               <input
                 type="text"
@@ -188,50 +221,166 @@ export default function PoolsPage() {
               />
             </div>
 
-            {(() => {
-              const filtered = poolState.tokens.filter((t) =>
-                t.symbol.toLowerCase().includes(search.trim().toLowerCase()),
-              )
-              return filtered.length > 0 ? (
-                <PoolsGrid
-                  tokens={filtered}
-                  onSelectToken={(token, mode) => {
-                    setModalMode(mode)
-                    setSelectedToken(token)
-                  }}
-                />
-              ) : (
-                <div
-                  className="p-8 rounded-2xl text-center"
-                  style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)' }}
-                >
-                  <p className="text-sm" style={{ color: 'var(--c-text-muted)' }}>
-                    No tokens match "{search}".
-                  </p>
-                </div>
-              )
-            })()}
+            {sections.length > 0 ? (
+              <div className="space-y-10">
+                {sections.map(({ pool, tokens }) => (
+                  <PoolSection
+                    key={pool.address}
+                    pool={pool}
+                    tokens={tokens}
+                    onDeposit={(token) => setAction({ pool, token, mode: 'deposit', kind: 'one' })}
+                    onWithdraw={(token) => openWithdraw(pool, token, 'one')}
+                    onSeed={() => setSeeding(pool)}
+                    onRetry={() => retry(pool.address)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div
+                className="p-8 rounded-2xl text-center"
+                style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)' }}
+              >
+                <p className="text-sm" style={{ color: 'var(--c-text-muted)' }}>
+                  {q ? `No tokens match "${search}".` : 'No pools yet.'}
+                </p>
+              </div>
+            )}
           </>
-        ) : (
-          <PoolsSkeleton />
         )}
       </div>
 
-      {selectedToken && (
+      {action && action.pool.state && (
         <PoolDetailModal
-          token={selectedToken}
-          defaultMode={modalMode}
-          onClose={() => setSelectedToken(null)}
+          token={action.token}
+          defaultMode={action.mode}
+          defaultWithdrawKind={action.kind}
+          poolId={action.pool.address}
+          poolTokens={action.pool.state.tokens}
+          onLanded={() => void refresh(action.pool.address)}
+          onClose={() => setAction(null)}
+        />
+      )}
+
+      {seeding && seeding.state && (
+        <SeedLiquidityModal
+          tokens={seeding.state.tokens}
+          poolId={seeding.address}
+          poolLabel={seeding.label}
+          onClose={() => setSeeding(null)}
+          onSeeded={() => void refresh(seeding.address)}
         />
       )}
     </div>
   )
 }
 
-function PoolsSkeleton() {
+function PoolSection({
+  pool,
+  tokens,
+  onDeposit,
+  onWithdraw,
+  onSeed,
+  onRetry,
+}: {
+  pool: EarnPool
+  /** The pool's assets that match the search; null while the pool loads. */
+  tokens: PoolToken[] | null
+  onDeposit: (token: PoolToken) => void
+  onWithdraw: (token: PoolToken) => void
+  onSeed: () => void
+  onRetry: () => void
+}) {
+  const state = pool.state
+  const amp = state?.amp ?? pool.amp
+  const settings = [
+    amp !== undefined ? `A = ${amp}` : null,
+    pool.feeBps !== undefined ? `${(pool.feeBps / 100).toFixed(2)}% fee` : null,
+    state?.paused ? 'Paused, withdrawals only' : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  return (
+    <section>
+      <div className="flex items-end justify-between gap-4 flex-wrap mb-3">
+        <a href={pool.href} className="group min-w-0">
+          <p className="text-[15px] font-semibold flex items-center gap-1" style={{ color: 'var(--c-text)' }}>
+            {pool.label}
+            <ChevronRight
+              size={15}
+              strokeWidth={1.8}
+              className="transition-transform group-hover:translate-x-0.5"
+              style={{ color: 'var(--c-text-faint)' }}
+            />
+          </p>
+          {settings && (
+            <p className="text-[12px]" style={{ color: 'var(--c-text-faint)' }}>
+              {settings}
+            </p>
+          )}
+        </a>
+        {state && (
+          <p className="text-[13px] tabular-nums" style={{ color: 'var(--c-text-muted)' }}>
+            {state.totalTvl > 0 ? `${formatCurrency(state.totalTvl)} TVL` : 'Empty'}
+          </p>
+        )}
+      </div>
+
+      {pool.failed ? (
+        <div
+          className="p-5 rounded-2xl flex items-center justify-between gap-4 flex-wrap"
+          style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)' }}
+        >
+          <p className="text-sm" style={{ color: 'var(--c-text-muted)' }}>
+            Couldn't read this pool right now.
+          </p>
+          <button
+            onClick={onRetry}
+            className="px-4 py-2 text-[13px] font-semibold rounded-xl btn-lift"
+            style={{ border: '1px solid var(--c-border-2)', color: 'var(--c-text)' }}
+          >
+            Retry
+          </button>
+        </div>
+      ) : !state || !tokens ? (
+        <PoolsSkeleton count={Math.max(1, Math.min(pool.tokenCount, 3))} />
+      ) : state.lpSupply === 0n ? (
+        // The contract takes nothing single-sided until a first deposit has
+        // funded every asset (#12 FirstDepositNotFull), so an empty pool gets
+        // the seed flow instead of cards whose Deposit would fail.
+        <div
+          className="p-5 rounded-2xl flex items-center justify-between gap-4 flex-wrap"
+          style={{ backgroundColor: 'var(--c-surface)', border: '1px dashed var(--c-border-2)' }}
+        >
+          <p className="text-[13px] max-w-xl" style={{ color: 'var(--c-text-muted)' }}>
+            This pool is empty. Its first deposit has to fund every asset at once, and that is what
+            sets the ratio it starts quoting at.
+          </p>
+          <button
+            onClick={onSeed}
+            className="px-4 py-2 text-[13px] font-semibold rounded-xl btn-lift"
+            style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
+          >
+            Seed liquidity
+          </button>
+        </div>
+      ) : (
+        <PoolsGrid
+          tokens={tokens}
+          onSelectToken={(token, mode) => (mode === 'deposit' ? onDeposit(token) : onWithdraw(token))}
+          detailsHref={(token) => (pool.isConfigPool ? `/pools/${token.symbol.toLowerCase()}` : pool.href)}
+          showPreview={pool.isConfigPool}
+          paused={state.paused}
+        />
+      )}
+    </section>
+  )
+}
+
+function PoolsSkeleton({ count = 4 }: { count?: number }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {Array.from({ length: 4 }).map((_, i) => (
+      {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
           className="rounded-2xl p-6 animate-shimmer"

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { readPoolState } from "../lib/stellar/pool";
-import type { PoolState, PoolToken } from "../lib/stellar/pool";
+import type { PoolState } from "../lib/stellar/pool";
 import { PRIVY_APP_ID, WALLETCONNECT_PROJECT_ID } from "../lib/stellar/config";
 
 export type { PoolState, PoolToken } from "../lib/stellar/pool";
@@ -51,8 +51,6 @@ interface AppState {
   poolStatus: PoolStatus;
   poolError: string | null;
   loadPoolState: () => Promise<void>;
-  selectedToken: PoolToken | null;
-  setSelectedToken: (token: PoolToken | null) => void;
   walletConnected: boolean;
   walletAddress: string | null;
   /** Backend of the current (or last chosen) connection. */
@@ -153,8 +151,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
     }
   },
-  selectedToken: null,
-  setSelectedToken: (token) => set({ selectedToken: token }),
   walletConnected: false,
   walletAddress: null,
   walletKind: storedMode,
