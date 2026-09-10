@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from 'react'
-import { useAppStore, type PoolToken } from '../store/useAppStore'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { useAppStore } from '../store/useAppStore'
+import { listSwapTokens, type SwapToken } from '../lib/stellar/registry'
 import { fromRawUnits, toRawUnits } from '../lib/stellar/units'
 import { swapExactIn } from '../lib/stellar/pool'
 import { routeLabel } from '../lib/stellar/router'
@@ -251,8 +252,13 @@ export default function SwapWidget() {
     loadPoolState,
   } = useAppStore()
 
-  const [fromToken, setFromToken] = useState<PoolToken | null>(null)
-  const [toToken, setToToken] = useState<PoolToken | null>(null)
+  const [fromToken, setFromToken] = useState<SwapToken | null>(null)
+  const [toToken, setToToken] = useState<SwapToken | null>(null)
+  // Every token held by any vault the registry knows, which is what the picker
+  // offers. Sourcing this from the one configured pool was the reason a pool
+  // created through the builder could be routed through but never selected.
+  const [swapTokens, setSwapTokens] = useState<SwapToken[] | null>(null)
+  const [tokensError, setTokensError] = useState<string | null>(null)
   const [fromAmount, setFromAmount] = useState('')
   const [quote, setQuote] = useState<Quote | null>(null)
   const [networkFee, setNetworkFee] = useState<number | null>(null)
@@ -277,12 +283,30 @@ export default function SwapWidget() {
     loadPoolState()
   }, [loadPoolState])
 
-  // Default to the pool's first two tokens once real state arrives.
+  const loadTokens = useCallback(() => {
+    setTokensError(null)
+    listSwapTokens()
+      .then(setSwapTokens)
+      .catch((err) => setTokensError(err instanceof Error ? err.message : String(err)))
+  }, [])
+
   useEffect(() => {
-    if (!poolState || fromToken || toToken) return
-    setFromToken(poolState.tokens[0] ?? null)
-    setToToken(poolState.tokens[1] ?? poolState.tokens[0] ?? null)
-  }, [poolState, fromToken, toToken])
+    loadTokens()
+  }, [loadTokens])
+
+  // Default pair. The configured pool goes first when it has loaded: it is the
+  // one vault with real liquidity, so opening on its assets is the pair most
+  // likely to quote. Otherwise the head of the registry list, which is what a
+  // deployment without that pool would land on.
+  useEffect(() => {
+    if (fromToken || toToken) return
+    const preferred = poolState?.tokens ?? []
+    const fallback = swapTokens ?? []
+    const pair = preferred.length >= 2 ? preferred : fallback
+    if (pair.length === 0) return
+    setFromToken(pair[0] ?? null)
+    setToToken(pair[1] ?? pair[0] ?? null)
+  }, [poolState, swapTokens, fromToken, toToken])
 
   // Amount in raw units — the input to both the route search and the on-chain
   // floor, so it is computed once, here, and never re-parsed downstream.
@@ -382,13 +406,13 @@ export default function SwapWidget() {
     setQuote(null)
   }
 
-  const handleFromTokenChange = (t: PoolToken) => {
-    if (toToken && t.symbol === toToken.symbol) setToToken(fromToken)
+  const handleFromTokenChange = (t: SwapToken) => {
+    if (toToken && t.address === toToken.address) setToToken(fromToken)
     setFromToken(t)
   }
 
-  const handleToTokenChange = (t: PoolToken) => {
-    if (fromToken && t.symbol === fromToken.symbol) setFromToken(toToken)
+  const handleToTokenChange = (t: SwapToken) => {
+    if (fromToken && t.address === fromToken.address) setFromToken(toToken)
     setToToken(t)
   }
 
@@ -524,10 +548,15 @@ export default function SwapWidget() {
 
   const insufficientBalance =
     walletConnected && fromBalance !== null && amountInRaw > fromBalance
-  // The pool can't pay out more of a token than it holds — with all tokens
-  // pegged ~$1, selling more than the target's reserve can never fill.
+  // A pool can't pay out more of a token than it holds, and with everything
+  // pegged ~$1, selling more than the target's reserve can never fill. Only
+  // the configured pool publishes its reserves here, so this is a shortcut for
+  // the pair it holds and nothing else: for any other token the route search
+  // is what reports an unfillable leg, one simulation later.
+  const targetReserve =
+    poolState?.tokens.find((t) => t.address === toToken?.address)?.reserveHuman ?? null
   const insufficientLiquidity =
-    walletConnected && !!toToken && amountEntered && fromNum >= toToken.reserveHuman
+    walletConnected && targetReserve !== null && amountEntered && fromNum >= targetReserve
 
   // Mirror of the on-chain floor swapExactIn submits with, derived from the same
   // quote, so "Minimum received" shows exactly what the contract will enforce.
@@ -553,23 +582,58 @@ export default function SwapWidget() {
     return () => clearTimeout(t)
   }, [tolerancePpm, amountEntered, txPhase, execution, refreshRoutes])
 
-  const loadingPool = poolStatus === 'idle' || poolStatus === 'loading' || !fromToken || !toToken
+  const loadingPool = swapTokens === null || !fromToken || !toToken
 
-  if (poolStatus === 'error') {
+  // The picker's list is what the form cannot open without. The configured
+  // pool failing on its own is survivable now: the registry still answers, and
+  // its own vault read is what would have failed anyway.
+  if (tokensError !== null) {
     return (
       <div
         className="w-full max-w-[460px] rounded-2xl p-7 text-center animate-bounce-in"
         style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)', boxShadow: 'var(--c-widget-shadow)' }}
       >
-        <p className="text-sm mb-4" style={{ color: 'var(--c-text-muted)' }}>Couldn't reach the pool contract.</p>
-        <p className="text-xs mb-5 break-words" style={{ color: 'var(--c-text-faint)' }}>{poolError}</p>
+        <p className="text-sm mb-4" style={{ color: 'var(--c-text-muted)' }}>Couldn't reach the pool registry.</p>
+        <p className="text-xs mb-5 break-words" style={{ color: 'var(--c-text-faint)' }}>{tokensError}</p>
         <button
-          onClick={loadPoolState}
+          onClick={loadTokens}
           className="px-5 py-2.5 text-sm font-semibold rounded-xl btn-lift"
           style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
         >
           Retry
         </button>
+      </div>
+    )
+  }
+
+  // An empty registry is not an error, it is a network with nothing deployed
+  // on it, and the form has no pair to offer. Said plainly, with a way out.
+  if (swapTokens !== null && swapTokens.length === 0) {
+    return (
+      <div
+        className="w-full max-w-[460px] rounded-2xl p-7 text-center animate-bounce-in"
+        style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)', boxShadow: 'var(--c-widget-shadow)' }}
+      >
+        <p className="text-sm mb-4" style={{ color: 'var(--c-text-muted)' }}>There are no pools to swap against yet.</p>
+        {poolStatus === 'error' && (
+          <p className="text-xs mb-5 break-words" style={{ color: 'var(--c-text-faint)' }}>{poolError}</p>
+        )}
+        <div className="flex items-center justify-center gap-2">
+          <button
+            onClick={() => { loadPoolState(); loadTokens() }}
+            className="px-5 py-2.5 text-sm font-semibold rounded-xl btn-lift"
+            style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
+          >
+            Retry
+          </button>
+          <a
+            href="/pools/new"
+            className="px-5 py-2.5 text-sm font-semibold rounded-xl btn-lift"
+            style={{ border: '1px solid var(--c-border)', color: 'var(--c-text)' }}
+          >
+            Create a pool
+          </a>
+        </div>
       </div>
     )
   }
@@ -778,7 +842,7 @@ export default function SwapWidget() {
             className="flex-1 min-w-0 bg-transparent text-[1.6rem] font-semibold outline-none"
             style={{ color: 'var(--c-text)' }}
           />
-          <TokenSelectModal tokens={poolState!.tokens} value={fromToken} onChange={handleFromTokenChange} exclude={toToken.symbol} walletAddress={walletAddress} />
+          <TokenSelectModal tokens={swapTokens!} value={fromToken} onChange={handleFromTokenChange} exclude={toToken.address} walletAddress={walletAddress} />
         </div>
 
         {walletConnected && fromBalance !== null && fromBalance > 0n && (
@@ -844,7 +908,7 @@ export default function SwapWidget() {
             className="flex-1 min-w-0 bg-transparent text-[1.6rem] font-semibold outline-none cursor-default"
             style={{ color: 'var(--c-text-muted)' }}
           />
-          <TokenSelectModal tokens={poolState!.tokens} value={toToken} onChange={handleToTokenChange} exclude={fromToken.symbol} walletAddress={walletAddress} />
+          <TokenSelectModal tokens={swapTokens!} value={toToken} onChange={handleToTokenChange} exclude={fromToken.address} walletAddress={walletAddress} />
         </div>
       </div>
 

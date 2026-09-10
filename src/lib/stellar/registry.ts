@@ -157,3 +157,45 @@ async function readFactoryVaults(factoryId: string): Promise<VaultInfo[]> {
 function poolLabel(tokens: string[]): string {
   return tokens.map(tokenSymbol).join(" / ");
 }
+
+// ── Tradable tokens ───────────────────────────────────────────────────────
+
+/**
+ * A token the swap form can offer. Deliberately thinner than PoolToken: a
+ * reserve or a share of TVL is a fact about one pool, and this list spans all
+ * of them, so there is no honest value to put there.
+ */
+export interface SwapToken {
+  address: string;
+  symbol: string;
+  decimals: number;
+}
+
+/**
+ * Every token that sits in at least one known vault.
+ *
+ * This is what the swap form's picker asks, and it replaces asking the single
+ * configured pool: a pool created through the builder is in the routing graph
+ * from the moment the registry reports it, and its assets have to be pickable
+ * or the route that exists can never be requested.
+ *
+ * Presence here means "some pool holds this", not "a trade will fill". A pool
+ * nobody has seeded yet contributes its tokens and quotes nothing, which the
+ * route search reports per leg. Hiding them instead would be a worse lie: the
+ * pair is real, it just has no liquidity.
+ */
+export async function listSwapTokens(): Promise<SwapToken[]> {
+  const seen = new Map<string, SwapToken>();
+  for (const vault of await listVaults()) {
+    for (const address of vault.tokens) {
+      if (seen.has(address)) continue;
+      seen.set(address, { address, symbol: tokenSymbol(address), decimals: tokenDecimals(address) });
+    }
+  }
+  // Configured tokens first, in catalog order, then anything the catalog has
+  // no name for. A token shown as "CABC…XYZ" is one this build cannot name,
+  // and it belongs at the bottom rather than sorted in among real symbols.
+  const known = TOKENS.map((t) => t.contractId).filter((a) => seen.has(a));
+  const rest = [...seen.keys()].filter((a) => !known.includes(a)).sort();
+  return [...known, ...rest].map((a) => seen.get(a)!);
+}

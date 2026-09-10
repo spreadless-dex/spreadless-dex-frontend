@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
-import type { PoolToken } from '../store/useAppStore'
+import type { SwapToken } from '../lib/stellar/registry'
 import { getTokenBalance } from '../lib/stellar/token'
 import { fromRawUnits } from '../lib/stellar/units'
 import TokenIcon from './TokenIcon'
 
-// Full names for the pool's known assets — the modal's secondary line. Same
-// symbol-keyed-with-fallback pattern as PoolCard's POOL_COPY, for the day
-// the pool is redeployed with a new asset this map doesn't know about yet.
+// Full names for the assets this build knows — the modal's secondary line.
+// Same symbol-keyed-with-fallback pattern as PoolCard's POOL_COPY. The list
+// this modal receives now spans every pool in the registry, so a miss here is
+// the normal case for a newly created pool and not a redeploy accident.
 const TOKEN_NAMES: Record<string, string> = {
   USDx: 'Decentralized USD Coin',
   PYUSD: 'PayPal USD',
@@ -15,9 +16,10 @@ const TOKEN_NAMES: Record<string, string> = {
 }
 
 interface TokenSelectModalProps {
-  tokens: PoolToken[]
-  value: PoolToken
-  onChange: (t: PoolToken) => void
+  tokens: SwapToken[]
+  value: SwapToken
+  onChange: (t: SwapToken) => void
+  /** The token picked on the other side, by contract address. */
   exclude: string
   walletAddress: string | null
 }
@@ -27,7 +29,10 @@ export default function TokenSelectModal({ tokens, value, onChange, exclude, wal
   const [query, setQuery] = useState('')
   const [balances, setBalances] = useState<Record<string, bigint | null>>({})
 
-  const selectable = tokens.filter((t) => t.symbol !== exclude)
+  // Everything here keys on the contract address, not the symbol. Within one
+  // pool the two were interchangeable; across the registry they are not,
+  // since nothing stops two deployments from calling themselves USDC.
+  const selectable = tokens.filter((t) => t.address !== exclude)
 
   // The trigger button only needs the current pair's balance (SwapWidget
   // already fetches that), but the picker itself needs every candidate's
@@ -37,8 +42,8 @@ export default function TokenSelectModal({ tokens, value, onChange, exclude, wal
     let cancelled = false
     selectable.forEach((t) => {
       getTokenBalance(t.address, walletAddress, t.decimals)
-        .then((b) => { if (!cancelled) setBalances((prev) => ({ ...prev, [t.symbol]: b })) })
-        .catch(() => { if (!cancelled) setBalances((prev) => ({ ...prev, [t.symbol]: null })) })
+        .then((b) => { if (!cancelled) setBalances((prev) => ({ ...prev, [t.address]: b })) })
+        .catch(() => { if (!cancelled) setBalances((prev) => ({ ...prev, [t.address]: null })) })
     })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -58,7 +63,11 @@ export default function TokenSelectModal({ tokens, value, onChange, exclude, wal
 
   const q = query.trim().toLowerCase()
   const filtered = selectable.filter(
-    (t) => !q || t.symbol.toLowerCase().includes(q) || (TOKEN_NAMES[t.symbol] ?? '').toLowerCase().includes(q),
+    (t) =>
+      !q ||
+      t.symbol.toLowerCase().includes(q) ||
+      (TOKEN_NAMES[t.symbol] ?? '').toLowerCase().includes(q) ||
+      t.address.toLowerCase().includes(q),
   )
 
   return (
@@ -144,11 +153,11 @@ export default function TokenSelectModal({ tokens, value, onChange, exclude, wal
                 </p>
               )}
               {filtered.map((t) => {
-                const balance = balances[t.symbol]
-                const isSelected = t.symbol === value.symbol
+                const balance = balances[t.address]
+                const isSelected = t.address === value.address
                 return (
                   <button
-                    key={t.symbol}
+                    key={t.address}
                     onClick={() => { onChange(t); close() }}
                     className="w-full flex items-center gap-3 text-left px-3 py-3 rounded-xl transition-colors hover:opacity-90"
                     style={{ backgroundColor: isSelected ? 'var(--c-surface-2)' : 'transparent' }}
