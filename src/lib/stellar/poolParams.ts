@@ -180,12 +180,34 @@ export function percentToBps(pct: number): number {
 }
 
 /**
- * Canonical token order: the Factory validates it and the doc calls it
- * "canonical token ordering" without defining it. Byte order of the strkey
- * (plain string compare on the C… address) is the usual Soroban choice.
+ * Canonical token order, the one the pool constructor enforces (#2
+ * TokensNotSorted): strictly ascending by address, and Soroban compares
+ * addresses as bytes. That is NOT the order of the strkey strings. A strkey is
+ * base32, whose alphabet runs A to Z and then 2 to 7, so a digit is worth more
+ * than any letter, while a plain string compare puts digits first. Any two
+ * tokens whose first difference is a digit against a letter came out
+ * reversed: PYUSD (CB2N…) with USDx (CBXN…) was refused by the constructor,
+ * measured 2026-09-10, and the Router surfaced it as Error(Context,
+ * InvalidAction).
+ *
+ * Comparing character by character in base32 value equals comparing the
+ * decoded bytes, because every C… address has the same length and the same
+ * version byte. (The host would also order account addresses before contract
+ * addresses; tokens are always contracts, so that case never comes up.)
  */
+const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+export function compareAddresses(a: string, b: string): number {
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) {
+    const d = BASE32.indexOf(a[i]) - BASE32.indexOf(b[i]);
+    if (d !== 0) return d;
+  }
+  return a.length - b.length;
+}
+
 export function canonicalOrder(addresses: string[]): string[] {
-  return [...addresses].sort();
+  return [...addresses].sort(compareAddresses);
 }
 
 /** Same set of tokens, regardless of order. */
