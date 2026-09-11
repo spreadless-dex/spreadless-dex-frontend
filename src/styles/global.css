@@ -1095,3 +1095,344 @@ html[data-mode="pro"] .curve-hint { display: none; }
   }
   .mode-thumb, .mode-hint > span { transition-duration: 0s; }
 }
+
+/* ─── Earn: asset list and deposit sheet ─────────────────
+   Invest lists one row per token (EarnAssetList). Tapping one opens the
+   deposit sheet (DepositSheet): a bottom sheet on a phone, a dialog from
+   640px up. Where view transitions exist, the row's icon flies into the
+   sheet's header while the sheet rises; see openAsset() in PoolsPage. The
+   page's own transition names (#content as "page", the header as
+   "site-header") are switched off for that moment, or the whole page would
+   cross-fade with it. */
+html.earn-vt #content,
+html.earn-vt [style*="site-header"] { view-transition-name: none !important; }
+html.earn-vt::view-transition-old(root) { animation: earnFadeOut 340ms ease both; }
+html.earn-vt::view-transition-new(root) { animation: earnFadeIn 340ms ease both; }
+::view-transition-group(earn-token) {
+  z-index: 2;
+  animation-duration: 560ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+::view-transition-group(earn-sheet) { z-index: 1; animation: none; }
+::view-transition-new(earn-sheet) { animation: earnSheetUp 560ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+::view-transition-old(earn-sheet) { animation: earnSheetDown 300ms cubic-bezier(0.4, 0, 0.6, 1) both; }
+@keyframes earnFadeOut { to { opacity: 0; } }
+@keyframes earnFadeIn { from { opacity: 0; } }
+@keyframes earnSheetUp { from { transform: translateY(100%); } }
+@keyframes earnSheetDown { to { transform: translateY(100%); } }
+@keyframes earnSheetPop { from { opacity: 0; transform: translateY(14px) scale(0.96); filter: blur(6px); } }
+@keyframes earnSheetFade { to { opacity: 0; transform: translateY(10px) scale(0.97); filter: blur(4px); } }
+@media (min-width: 640px) {
+  ::view-transition-new(earn-sheet) { animation: earnSheetPop 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  ::view-transition-old(earn-sheet) { animation: earnSheetFade 220ms cubic-bezier(0.4, 0, 0.6, 1) both; }
+}
+
+/* Asset list */
+.earn-assets {
+  list-style: none; margin: 0; padding: 0; overflow: hidden;
+  border-radius: 1.25rem;
+  background: var(--c-surface);
+  border: 1px solid var(--c-card-border);
+  box-shadow: var(--c-card-shadow);
+}
+.earn-assets > li + li { border-top: 1px solid var(--c-border); }
+.earn-asset {
+  width: 100%;
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) auto 16px; align-items: center; gap: 14px;
+  padding: 14px 16px; text-align: left;
+  transition: background-color 0.18s ease, transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.earn-asset:active { transform: scale(0.985); }
+.earn-asset:focus-visible { outline: 2px solid var(--c-text); outline-offset: -2px; }
+.earn-chev { color: var(--c-text-faint); transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@media (hover: hover) {
+  .earn-asset:hover { background: var(--c-surface-2); }
+  .earn-asset:hover .earn-chev { transform: translateX(2px); }
+}
+/* The icon is out in the sheet's header while the sheet is open. */
+.earn-asset.is-lent [data-earn-icon] { visibility: hidden; }
+.earn-mine-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c-text); flex-shrink: 0; }
+.earn-rise { animation: earnRise 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(var(--i, 0) * 38ms); }
+@keyframes earnRise { from { opacity: 0; transform: translateY(10px); } }
+
+.earn-chips-scroll { min-width: 0; overflow-x: auto; scrollbar-width: none; margin-inline: -1.5rem; padding-inline: 1.5rem; }
+.earn-chips-scroll::-webkit-scrollbar { display: none; }
+@media (min-width: 640px) { .earn-chips-scroll { margin-inline: 0; padding-inline: 0; } }
+.earn-chips { position: relative; display: inline-flex; gap: 6px; padding-block: 2px; }
+.earn-chips button {
+  position: relative; z-index: 1; white-space: nowrap;
+  font-size: 13px; font-weight: 600; padding: 7px 14px; border-radius: 999px;
+  color: var(--c-text-muted); border: 1px solid var(--c-border-2);
+  transition: color 0.25s ease, border-color 0.25s ease;
+}
+.earn-chips button[aria-pressed="true"] { color: var(--c-cta-text); border-color: transparent; }
+.earn-chip-pill {
+  position: absolute; z-index: 0; top: 2px; bottom: 2px; border-radius: 999px;
+  background: var(--c-cta-bg);
+  transition: left 0.45s cubic-bezier(0.32, 1.28, 0.52, 1), width 0.45s cubic-bezier(0.32, 1.28, 0.52, 1);
+}
+
+/* Sheet: same one-transition-both-ways idea as .wallet-dialog. */
+dialog.earn-sheet {
+  --p: 0;
+  position: fixed; inset: 0;
+  margin: auto 0 0 0; padding: 0;
+  width: 100%; max-width: none; height: fit-content; max-height: 92dvh;
+  display: none; flex-direction: column; overflow: hidden;
+  color: var(--c-text); background: var(--c-surface);
+  border: 1px solid var(--c-border); border-bottom: 0;
+  border-radius: 1.5rem 1.5rem 0 0;
+  box-shadow: 0 -18px 50px -20px rgba(0, 0, 0, 0.45);
+  translate: 0 100%;
+  transition:
+    translate 0.26s cubic-bezier(0.4, 0, 0.6, 1),
+    overlay 0.26s allow-discrete,
+    display 0.26s allow-discrete;
+}
+dialog.earn-sheet[open] {
+  display: flex;
+  translate: 0 0;
+  transition:
+    translate 0.52s cubic-bezier(0.2, 0.8, 0.2, 1),
+    overlay 0.52s allow-discrete,
+    display 0.52s allow-discrete;
+}
+@starting-style { dialog.earn-sheet[open] { translate: 0 100%; } }
+dialog.earn-sheet::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.26s ease, overlay 0.26s allow-discrete, display 0.26s allow-discrete;
+}
+dialog.earn-sheet[open]::backdrop {
+  opacity: 1;
+  transition: opacity 0.4s ease, overlay 0.4s allow-discrete, display 0.4s allow-discrete;
+}
+@starting-style { dialog.earn-sheet[open]::backdrop { opacity: 0; } }
+dialog.earn-sheet.is-vt,
+dialog.earn-sheet.is-vt::backdrop,
+dialog.earn-sheet.is-drag { transition: none !important; }
+/* Scroll lock while the sheet is open. PoolsPage sets it only after the
+   open transition has run and lifts it before the close one starts, so the
+   page never reflows between a transition's two snapshots. With a classic
+   scrollbar the gutter stays reserved, so nothing shifts behind the scrim. */
+html.earn-locked { overflow: hidden; }
+html.earn-locked.earn-gutter { scrollbar-gutter: stable; }
+
+@media (min-width: 640px) {
+  dialog.earn-sheet {
+    margin: auto; width: 26rem; max-height: min(780px, 90dvh);
+    border-radius: 1.375rem; border-bottom: 1px solid var(--c-border);
+    box-shadow: var(--c-widget-shadow);
+    translate: 0 14px; scale: 0.96; opacity: 0; filter: blur(6px);
+    transition:
+      translate 0.2s cubic-bezier(0.4, 0, 0.6, 1), scale 0.2s cubic-bezier(0.4, 0, 0.6, 1),
+      opacity 0.2s ease, filter 0.2s ease,
+      overlay 0.2s allow-discrete, display 0.2s allow-discrete;
+  }
+  dialog.earn-sheet[open] {
+    translate: 0 0; scale: 1; opacity: 1; filter: blur(0);
+    transition:
+      translate 0.36s cubic-bezier(0.2, 0.8, 0.2, 1), scale 0.36s cubic-bezier(0.2, 0.8, 0.2, 1),
+      opacity 0.3s ease, filter 0.3s ease,
+      overlay 0.36s allow-discrete, display 0.36s allow-discrete;
+  }
+  @starting-style { dialog.earn-sheet[open] { translate: 0 14px; scale: 0.96; opacity: 0; filter: blur(6px); } }
+  .earn-grab { display: none !important; }
+}
+
+.earn-grab { display: grid; place-items: center; padding: 10px 0 2px; cursor: grab; touch-action: none; }
+.earn-grab span { width: 38px; height: 5px; border-radius: 99px; background: var(--c-border-2); }
+.earn-sheet-head { display: flex; align-items: center; gap: 12px; padding: 10px 20px 4px; touch-action: none; }
+@media (min-width: 640px) { .earn-sheet-head { padding-top: 18px; } }
+.earn-sheet-x {
+  margin-left: auto; width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  display: grid; place-items: center;
+  color: var(--c-text-muted); background: var(--c-surface-2);
+  transition: color 0.15s ease;
+}
+.earn-sheet-x:hover { color: var(--c-text); }
+
+.earn-sheet-form { padding: 6px 20px 0; display: flex; flex-direction: column; }
+.earn-amount { display: flex; align-items: baseline; gap: 8px; padding-top: calc(10px - 6px * var(--p)); }
+.earn-amount input {
+  flex: 1; min-width: 0; padding: 0; border: 0; outline: 0; background: transparent; color: var(--c-text);
+  font-size: calc(46px - 16px * var(--p)); line-height: 1.1; font-weight: 750; letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums; caret-color: var(--c-accent);
+}
+.earn-amount input::placeholder { color: var(--c-text-faint); }
+.earn-amount > span { font-size: 15px; font-weight: 650; color: var(--c-text-muted); }
+.earn-balance {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font-size: 12.5px; color: var(--c-text-muted);
+  max-height: calc(44px * (1 - var(--p))); opacity: calc(1 - var(--p) * 1.6); overflow: hidden;
+  padding-top: calc(6px * (1 - var(--p)));
+}
+.earn-pct {
+  font-size: 12px; font-weight: 600; padding: 4px 9px; border-radius: 8px;
+  border: 1px solid var(--c-border-2); color: var(--c-text);
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+.earn-pct:active { transform: scale(0.94); background: var(--c-surface-2); }
+.earn-yield {
+  display: grid; grid-template-columns: 1fr 1px 1fr; gap: 14px; align-items: end;
+  margin-top: calc(16px - 8px * var(--p)); padding: calc(12px - 4px * var(--p)) 14px;
+  border-radius: 14px; background: var(--c-surface-2); border: 1px solid var(--c-border);
+}
+.earn-yield-rule { align-self: stretch; background: var(--c-border-2); }
+.earn-label { margin: 0 0 3px; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--c-text-faint); font-weight: 600; }
+.earn-big { margin: 0; font-size: calc(24px - 4px * var(--p)); font-weight: 750; letter-spacing: -0.03em; line-height: 1.1; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.earn-quote { margin: 8px 2px 0; display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--c-text-muted); }
+
+.earn-list-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 18px 20px 8px; }
+.earn-list-head b { font-size: 13px; font-weight: 650; }
+.earn-list-head span { font-size: 11.5px; color: var(--c-text-faint); text-align: right; }
+.earn-list {
+  position: relative; flex: 1 1 auto; min-height: 120px; overflow-y: auto; overscroll-behavior: contain;
+  padding: 0 12px 14px;
+  scrollbar-width: thin; scrollbar-color: var(--c-border-2) transparent;
+}
+.earn-sheet-foot { padding: 12px 20px calc(14px + env(safe-area-inset-bottom)); border-top: 1px solid var(--c-border); background: var(--c-surface); }
+.earn-via { margin: 8px 0 0; font-size: 12px; color: var(--c-text-muted); text-align: center; animation: earnSwap 350ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.earn-via b { color: var(--c-text); font-weight: 600; }
+.earn-change {
+  margin-left: 6px; font-size: 12px; font-weight: 650; color: var(--c-text);
+  text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--c-border-2);
+}
+@keyframes earnSwap { from { opacity: 0; transform: translateY(6px); filter: blur(3px); } }
+
+/* Pool picker: a ladder of pools, one frame that travels between them. */
+.earn-pools { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.earn-pool {
+  position: relative; border-radius: 16px;
+  animation: earnRise 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(90ms + var(--i, 0) * 55ms);
+}
+.earn-pool.is-empty { border: 1px dashed var(--c-border-2); }
+.earn-pool-hit {
+  position: relative; z-index: 1; width: 100%;
+  display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 5px 12px; align-items: center;
+  padding: 13px 14px 12px; text-align: left; border-radius: 16px;
+}
+.earn-pool-hit:disabled { cursor: default; }
+.earn-pool-hit:focus-visible { outline: 2px solid var(--c-text); outline-offset: -2px; }
+@media (hover: hover) {
+  .earn-pool:not(.is-on):not(.is-closed) .earn-pool-hit:hover { background: var(--c-surface-2); }
+}
+.earn-radio {
+  grid-column: 1; grid-row: 1;
+  width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--c-border-2);
+  display: grid; place-items: center;
+  transition: border-color 0.25s ease, background-color 0.25s ease;
+}
+.earn-radio::after {
+  content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c-cta-text);
+  scale: 0; transition: scale 0.4s cubic-bezier(0.32, 1.28, 0.52, 1);
+}
+.earn-pool.is-on .earn-radio { border-color: var(--c-text); background: var(--c-text); }
+.earn-pool.is-on .earn-radio::after { scale: 1; }
+.earn-pool.is-closed .earn-radio { border-style: dashed; }
+.earn-pools.is-hinting .earn-pool:not(.is-on):not(.is-closed) .earn-radio {
+  animation: earnPing 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+@keyframes earnPing {
+  from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c-text) 40%, transparent); }
+  to   { box-shadow: 0 0 0 9px transparent; }
+}
+.earn-pool-name {
+  grid-column: 2; grid-row: 1; min-width: 0;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font-weight: 650; font-size: 14.5px; letter-spacing: -0.01em; color: var(--c-text);
+}
+.earn-pool-meta {
+  grid-column: 2; grid-row: 2; min-width: 0;
+  display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--c-text-muted);
+}
+.earn-pool-fig { grid-column: 3; grid-row: 1 / span 2; text-align: right; align-self: center; }
+.earn-pool.is-closed .earn-pool-name,
+.earn-pool.is-closed .earn-pool-meta { color: var(--c-text-faint); }
+.earn-tag {
+  font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.3;
+  padding: 2px 6px; border-radius: 6px; border: 1px solid var(--c-border-2); color: var(--c-text-muted);
+}
+.earn-tag.is-strong { background: var(--c-cta-bg); color: var(--c-cta-text); border-color: transparent; }
+.earn-tag.is-mine { animation: earnTagIn 500ms cubic-bezier(0.32, 1.28, 0.52, 1) both; }
+@keyframes earnTagIn { from { opacity: 0; transform: scale(0.7); } }
+
+.earn-stack { display: inline-flex; align-items: center; flex-shrink: 0; }
+.earn-stack > * { border-radius: 50%; box-shadow: 0 0 0 2px var(--c-surface); }
+.earn-stack > * + * { margin-left: -6px; }
+.earn-pool.is-on .earn-stack > * { box-shadow: 0 0 0 2px var(--c-surface-2); }
+.earn-stack-me { position: relative; z-index: 2; display: inline-flex; }
+.earn-pool.is-on .earn-stack-me { box-shadow: 0 0 0 2px var(--c-surface-2), 0 0 0 3.5px var(--c-text); }
+.earn-stack-me.is-waiting { opacity: 0; }
+.earn-stack-me.is-landing { animation: earnLand 550ms cubic-bezier(0.32, 1.28, 0.52, 1); }
+@keyframes earnLand { from { transform: scale(1.5); } }
+.earn-hop {
+  position: absolute; z-index: 30; margin: 0; pointer-events: none;
+  display: flex; border-radius: 50%; transform-origin: 0 0; will-change: transform;
+  box-shadow: 0 8px 18px -6px rgba(0, 0, 0, 0.45);
+}
+
+.earn-bar {
+  grid-column: 2 / -1; height: 3px; margin-top: 7px; border-radius: 3px; overflow: hidden;
+  background: color-mix(in srgb, var(--c-text) 7%, transparent);
+}
+.earn-bar i {
+  display: block; height: 100%; border-radius: 3px;
+  background: color-mix(in srgb, var(--c-text) 22%, transparent);
+  transform-origin: left; transform: scaleX(var(--s, 0));
+  animation: earnGrow 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(180ms + var(--i, 0) * 70ms);
+}
+.earn-bar.is-depth i {
+  background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--c-text) 22%, transparent) 0 4px, transparent 4px 7px);
+}
+.earn-pool.is-on .earn-bar i { background: color-mix(in srgb, var(--c-text) 80%, transparent); }
+.earn-pool.is-on .earn-bar.is-depth i {
+  background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--c-text) 80%, transparent) 0 4px, transparent 4px 7px);
+}
+@keyframes earnGrow { from { transform: scaleX(0); } }
+
+.earn-pool-more { position: relative; z-index: 1; display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.38s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.earn-pool-more > div { overflow: hidden; }
+.earn-pool.is-on .earn-pool-more { grid-template-rows: 1fr; }
+.earn-pool-more p {
+  margin: 0; padding: 0 14px 13px 46px;
+  display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12.5px; color: var(--c-text-muted);
+}
+.earn-pool-more b, .earn-pool-more a { color: var(--c-text); font-weight: 600; }
+.earn-pool-more a { margin-left: auto; }
+.earn-frame {
+  position: absolute; inset: 0; z-index: 0; border-radius: 16px; pointer-events: none;
+  background: var(--c-surface-2); box-shadow: inset 0 0 0 1.5px var(--c-text);
+}
+.earn-seed { font-size: 12px; font-weight: 650; padding: 5px 10px; border-radius: 9px; border: 1px solid var(--c-border-2); color: var(--c-text); }
+
+.earn-done { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 24px 24px calc(22px + env(safe-area-inset-bottom)); }
+.earn-done > * { animation: earnRise 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.earn-done > :nth-child(2) { animation-delay: 0.5s; }
+.earn-done > :nth-child(3) { animation-delay: 0.58s; }
+.earn-done > :nth-child(4) { animation-delay: 0.64s; }
+.earn-done > :nth-child(5) { animation-delay: 0.7s; }
+.earn-check { width: 64px; height: 64px; color: var(--c-text); }
+.earn-check circle { stroke-dasharray: 176; stroke-dashoffset: 176; animation: earnDraw 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.05s forwards; }
+.earn-check path { stroke-dasharray: 40; stroke-dashoffset: 40; animation: earnDraw 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 0.55s forwards; }
+@keyframes earnDraw { to { stroke-dashoffset: 0; } }
+
+/* Odometer (earn/Odometer.tsx) */
+.odo { display: inline-flex; white-space: nowrap; }
+.odo-track { display: inline-flex; }
+.odo-digit { display: inline-block; height: 1.1em; overflow: hidden; }
+.odo-reel { display: flex; flex-direction: column; transition: transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.odo-reel > span, .odo-char { height: 1.1em; line-height: 1.1em; }
+
+@media (prefers-reduced-motion: reduce) {
+  dialog.earn-sheet, dialog.earn-sheet[open],
+  dialog.earn-sheet::backdrop, dialog.earn-sheet[open]::backdrop { transition-duration: 1ms !important; }
+  .earn-rise, .earn-pool, .earn-bar i, .earn-done > *, .earn-via, .earn-tag.is-mine,
+  .earn-stack-me.is-landing, .earn-pools.is-hinting .earn-radio { animation: none !important; }
+  .earn-check circle, .earn-check path { animation: none; stroke-dashoffset: 0; }
+  .odo-reel, .earn-chip-pill, .earn-pool-more, .earn-radio, .earn-radio::after { transition: none !important; }
+}

@@ -1,42 +1,71 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useAppStore, type PoolToken } from '../store/useAppStore'
 import { formatCurrency } from '../lib/utils'
 import { positionValue, useEarnPools, type EarnPool } from '../lib/stellar/earnPools'
-import PoolsGrid from './PoolsGrid'
+import { earnAssets, type EarnAsset } from '../lib/stellar/earnAssets'
 import PoolDetailModal from './PoolDetailModal'
 import SeedLiquidityModal from './SeedLiquidityModal'
 import MyLiquidity from './MyLiquidity'
 import PositionSummary from './PositionSummary'
-import { TrendingUp, Layers, Coins, Wallet, Search, ChevronRight } from 'lucide-react'
+import EarnAssetList from './earn/EarnAssetList'
+import DepositSheet, { settleSheetTransition } from './earn/DepositSheet'
+import { TrendingUp, Layers, Coins, Wallet } from 'lucide-react'
 
 type Tab = 'invest' | 'portfolio'
 type WithdrawKind = 'one' | 'all'
 
-interface Action {
+interface Withdrawal {
   pool: EarnPool
   token: PoolToken
-  mode: 'deposit' | 'withdraw'
   kind: WithdrawKind
+}
+
+interface OpenSheet {
+  address: string
+  viaTransition: boolean
 }
 
 // Earn is the action surface (issue #28): Invest puts money into a pool one
 // asset at a time, Portfolio shows what the wallet holds and takes it out
-// again. It spans every pool on chain, grouped by pool and ranked by TVL like
-// the register at /pools, because the same asset in two pools is two different
-// deposits: different depth, different fee, different neighbours.
+// again. Invest lists each token once, however many pools hold it; the
+// deposit sheet then preselects the best pool and lets the user pick another,
+// because the same asset in two pools is two different deposits: different
+// rate, depth, fee and neighbours.
 const TAB_SUBTITLE: Record<Tab, string> = {
-  invest: 'Single-sided liquidity. Deposit one stablecoin into a pool and earn.',
+  invest: 'Pick an asset. Your deposit goes to its best pool, and you can choose another one before you sign.',
   portfolio: 'Your liquidity positions across every pool.',
 }
+
+const SHEET_CLOSE_MS = 280
+
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches
+const canTransition = () => 'startViewTransition' in document && !reducedMotion()
+
+// The page behind the sheet does not scroll. The lock is only switched while
+// no transition is capturing, so the page never reflows between the two
+// snapshots of the icon's flight.
+function lockScroll(on: boolean) {
+  const root = document.documentElement
+  if (on) {
+    root.classList.toggle('earn-gutter', window.innerWidth > root.clientWidth)
+    root.classList.add('earn-locked')
+  } else {
+    root.classList.remove('earn-locked', 'earn-gutter')
+  }
+}
+
+const warnSkipped = (err: unknown) =>
+  console.warn('Earn: sheet transition skipped:', err instanceof Error ? err.message : err)
 
 export default function PoolsPage() {
   const { walletAddress, walletConnected } = useAppStore()
   const { pools, loading, error, refresh, retry, reload } = useEarnPools(walletAddress)
 
   const [tab, setTab] = useState<Tab>('invest')
-  const [search, setSearch] = useState('')
-  const [action, setAction] = useState<Action | null>(null)
+  const [withdrawal, setWithdrawal] = useState<Withdrawal | null>(null)
   const [seeding, setSeeding] = useState<EarnPool | null>(null)
+  const [sheet, setSheet] = useState<OpenSheet | null>(null)
 
   const loaded = pools.flatMap((p) => (p.state ? [p.state] : []))
   const totalTvl = loaded.reduce((sum, s) => sum + s.totalTvl, 0)
@@ -44,6 +73,15 @@ export default function PoolsPage() {
   const assetCount = new Set(loaded.flatMap((s) => s.tokens.map((t) => t.address))).size
   const positions = pools.filter((p) => p.state !== null && p.lp !== null && p.lp > 0n)
   const depositedValue = positions.reduce((sum, p) => sum + positionValue(p), 0)
+
+  const assets = earnAssets(pools)
+  const pending = loading || pools.some((p) => p.state === null && !p.failed)
+  const failed = pools.filter((p) => p.failed)
+  const sheetAsset = sheet ? (assets.find((a) => a.address === sheet.address) ?? null) : null
+
+  useEffect(() => {
+    if (!sheet) lockScroll(false)
+  }, [sheet])
 
   const stats = [
     {
@@ -80,18 +118,66 @@ export default function PoolsPage() {
     },
   ]
 
-  const openWithdraw = (pool: EarnPool, token: PoolToken, kind: WithdrawKind) =>
-    setAction({ pool, token, mode: 'withdraw', kind })
+  const openWithdraw = (pool: EarnPool, token: PoolToken, kind: WithdrawKind) => setWithdrawal({ pool, token, kind })
 
-  // A search narrows each pool to the matching assets and hides pools with
-  // none. Pools still loading have no assets to match yet, so they wait.
-  const q = search.trim().toLowerCase()
-  const sections = pools
-    .map((pool) => ({
-      pool,
-      tokens: pool.state ? pool.state.tokens.filter((t) => t.symbol.toLowerCase().includes(q)) : null,
-    }))
-    .filter(({ tokens }) => !q || (tokens !== null && tokens.length > 0))
+  // Opening the sheet is one view transition: the tapped row's icon flies
+  // into the sheet's header while the sheet rises. The page's own transition
+  // names are off for that moment (html.earn-vt, see global.css).
+  const openAsset = (asset: EarnAsset, icon: HTMLElement) => {
+    if (sheet) return
+    if (!canTransition()) {
+      setSheet({ address: asset.address, viaTransition: false })
+      lockScroll(true)
+      return
+    }
+    const root = document.documentElement
+    root.classList.add('earn-vt')
+    icon.style.viewTransitionName = 'earn-token'
+    const vt = document.startViewTransition(() => {
+      icon.style.viewTransitionName = ''
+      flushSync(() => setSheet({ address: asset.address, viaTransition: true }))
+    })
+    vt.ready.catch(warnSkipped)
+    vt.finished.finally(() => {
+      root.classList.remove('earn-vt')
+      settleSheetTransition()
+      if (document.querySelector('[data-earn-sheet]')) lockScroll(true)
+    })
+  }
+
+  // Closing runs the same flight backwards. A sheet dragged away, or closed
+  // to make room for another dialog, just slides out.
+  const closeSheet = (plain = false) => {
+    const current = sheet
+    if (!current) return
+    const dialog = document.querySelector<HTMLDialogElement>('[data-earn-sheet]')
+    const icon = document.querySelector<HTMLElement>('[data-sheet-icon]')
+    const rowIcon = document.querySelector<HTMLElement>(`[data-earn-row="${current.address}"] [data-earn-icon]`)
+    lockScroll(false)
+    if (plain || !canTransition() || !dialog || !icon || !rowIcon) {
+      dialog?.close()
+      window.setTimeout(() => setSheet(null), SHEET_CLOSE_MS)
+      return
+    }
+    const root = document.documentElement
+    root.classList.add('earn-vt')
+    icon.style.viewTransitionName = 'earn-token'
+    dialog.style.viewTransitionName = 'earn-sheet'
+    const vt = document.startViewTransition(() => {
+      flushSync(() => setSheet(null))
+      rowIcon.style.viewTransitionName = 'earn-token'
+    })
+    vt.ready.catch(warnSkipped)
+    vt.finished.finally(() => {
+      root.classList.remove('earn-vt')
+      rowIcon.style.viewTransitionName = ''
+    })
+  }
+
+  const seedFromSheet = (pool: EarnPool) => {
+    closeSheet(true)
+    window.setTimeout(() => setSeeding(pool), SHEET_CLOSE_MS)
+  }
 
   return (
     <div className="min-h-screen pt-16">
@@ -199,65 +285,58 @@ export default function PoolsPage() {
               Retry
             </button>
           </div>
-        ) : loading ? (
-          <PoolsSkeleton />
         ) : (
-          <>
+          <div className="max-w-2xl">
             <PositionSummary
               value={depositedValue}
               count={positions.length}
               onViewDetails={() => setTab('portfolio')}
             />
 
-            <div className="relative max-w-xs mb-8">
-              <Search size={15} strokeWidth={1.8} style={{ color: 'var(--c-text-faint)', position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search token"
-                className="w-full pl-9 pr-3 py-2.5 text-sm rounded-xl outline-none"
-                style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)', color: 'var(--c-text)' }}
-              />
-            </div>
+            <EarnAssetList assets={assets} pending={pending} lent={sheet?.address ?? null} onOpen={openAsset} />
 
-            {sections.length > 0 ? (
-              <div className="space-y-10">
-                {sections.map(({ pool, tokens }) => (
-                  <PoolSection
-                    key={pool.address}
-                    pool={pool}
-                    tokens={tokens}
-                    onDeposit={(token) => setAction({ pool, token, mode: 'deposit', kind: 'one' })}
-                    onWithdraw={(token) => openWithdraw(pool, token, 'one')}
-                    onSeed={() => setSeeding(pool)}
-                    onRetry={() => retry(pool.address)}
-                  />
-                ))}
-              </div>
-            ) : (
+            {failed.length > 0 && (
               <div
-                className="p-8 rounded-2xl text-center"
+                className="mt-4 p-4 rounded-2xl flex items-center justify-between gap-4 flex-wrap"
                 style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)' }}
               >
-                <p className="text-sm" style={{ color: 'var(--c-text-muted)' }}>
-                  {q ? `No tokens match "${search}".` : 'No pools yet.'}
+                <p className="text-[13px]" style={{ color: 'var(--c-text-muted)' }}>
+                  {failed.length === 1 ? "One pool couldn't be read" : `${failed.length} pools couldn't be read`}, so
+                  its assets are missing here.
                 </p>
+                <button
+                  onClick={() => failed.forEach((p) => retry(p.address))}
+                  className="px-4 py-2 text-[13px] font-semibold rounded-xl btn-lift"
+                  style={{ border: '1px solid var(--c-border-2)', color: 'var(--c-text)' }}
+                >
+                  Retry
+                </button>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 
-      {action && action.pool.state && (
+      {sheet && sheetAsset && (
+        <DepositSheet
+          key={sheet.address}
+          asset={sheetAsset}
+          viaTransition={sheet.viaTransition}
+          onRequestClose={(opts) => closeSheet(opts?.dragged)}
+          onSeed={seedFromSheet}
+          onLanded={(address) => void refresh(address)}
+        />
+      )}
+
+      {withdrawal && withdrawal.pool.state && (
         <PoolDetailModal
-          token={action.token}
-          defaultMode={action.mode}
-          defaultWithdrawKind={action.kind}
-          poolId={action.pool.address}
-          poolTokens={action.pool.state.tokens}
-          onLanded={() => void refresh(action.pool.address)}
-          onClose={() => setAction(null)}
+          token={withdrawal.token}
+          defaultMode="withdraw"
+          defaultWithdrawKind={withdrawal.kind}
+          poolId={withdrawal.pool.address}
+          poolTokens={withdrawal.pool.state.tokens}
+          onLanded={() => void refresh(withdrawal.pool.address)}
+          onClose={() => setWithdrawal(null)}
         />
       )}
 
@@ -270,128 +349,6 @@ export default function PoolsPage() {
           onSeeded={() => void refresh(seeding.address)}
         />
       )}
-    </div>
-  )
-}
-
-function PoolSection({
-  pool,
-  tokens,
-  onDeposit,
-  onWithdraw,
-  onSeed,
-  onRetry,
-}: {
-  pool: EarnPool
-  /** The pool's assets that match the search; null while the pool loads. */
-  tokens: PoolToken[] | null
-  onDeposit: (token: PoolToken) => void
-  onWithdraw: (token: PoolToken) => void
-  onSeed: () => void
-  onRetry: () => void
-}) {
-  const state = pool.state
-  const amp = state?.amp ?? pool.amp
-  const settings = [
-    amp !== undefined ? `A = ${amp}` : null,
-    pool.feeBps !== undefined ? `${(pool.feeBps / 100).toFixed(2)}% fee` : null,
-    state?.paused ? 'Paused, withdrawals only' : null,
-  ]
-    .filter(Boolean)
-    .join(' · ')
-
-  return (
-    <section>
-      <div className="flex items-end justify-between gap-4 flex-wrap mb-3">
-        <a href={pool.href} className="group min-w-0">
-          <p className="text-[15px] font-semibold flex items-center gap-1" style={{ color: 'var(--c-text)' }}>
-            {pool.label}
-            <ChevronRight
-              size={15}
-              strokeWidth={1.8}
-              className="transition-transform group-hover:translate-x-0.5"
-              style={{ color: 'var(--c-text-faint)' }}
-            />
-          </p>
-          {settings && (
-            <p className="text-[12px]" style={{ color: 'var(--c-text-faint)' }}>
-              {settings}
-            </p>
-          )}
-        </a>
-        {state && (
-          <p className="text-[13px] tabular-nums" style={{ color: 'var(--c-text-muted)' }}>
-            {state.totalTvl > 0 ? `${formatCurrency(state.totalTvl)} TVL` : 'Empty'}
-          </p>
-        )}
-      </div>
-
-      {pool.failed ? (
-        <div
-          className="p-5 rounded-2xl flex items-center justify-between gap-4 flex-wrap"
-          style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)' }}
-        >
-          <p className="text-sm" style={{ color: 'var(--c-text-muted)' }}>
-            Couldn't read this pool right now.
-          </p>
-          <button
-            onClick={onRetry}
-            className="px-4 py-2 text-[13px] font-semibold rounded-xl btn-lift"
-            style={{ border: '1px solid var(--c-border-2)', color: 'var(--c-text)' }}
-          >
-            Retry
-          </button>
-        </div>
-      ) : !state || !tokens ? (
-        <PoolsSkeleton count={Math.max(1, Math.min(pool.tokenCount, 3))} />
-      ) : state.lpSupply === 0n ? (
-        // The contract takes nothing single-sided until a first deposit has
-        // funded every asset (#12 FirstDepositNotFull), so an empty pool gets
-        // the seed flow instead of cards whose Deposit would fail.
-        <div
-          className="p-5 rounded-2xl flex items-center justify-between gap-4 flex-wrap"
-          style={{ backgroundColor: 'var(--c-surface)', border: '1px dashed var(--c-border-2)' }}
-        >
-          <p className="text-[13px] max-w-xl" style={{ color: 'var(--c-text-muted)' }}>
-            This pool is empty. Its first deposit has to fund every asset at once, and that is what
-            sets the ratio it starts quoting at.
-          </p>
-          <button
-            onClick={onSeed}
-            className="px-4 py-2 text-[13px] font-semibold rounded-xl btn-lift"
-            style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
-          >
-            Seed liquidity
-          </button>
-        </div>
-      ) : (
-        <PoolsGrid
-          tokens={tokens}
-          onSelectToken={(token, mode) => (mode === 'deposit' ? onDeposit(token) : onWithdraw(token))}
-          detailsHref={(token) => (pool.isConfigPool ? `/pools/${token.symbol.toLowerCase()}` : pool.href)}
-          showPreview={pool.isConfigPool}
-          paused={state.paused}
-        />
-      )}
-    </section>
-  )
-}
-
-function PoolsSkeleton({ count = 4 }: { count?: number }) {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {Array.from({ length: count }).map((_, i) => (
-        <div
-          key={i}
-          className="rounded-2xl p-6 animate-shimmer"
-          style={{
-            backgroundColor: 'var(--c-surface)',
-            border: '1px solid var(--c-card-border)',
-            height: 220,
-            animationDelay: `${i * 0.15}s`,
-          }}
-        />
-      ))}
     </div>
   )
 }
