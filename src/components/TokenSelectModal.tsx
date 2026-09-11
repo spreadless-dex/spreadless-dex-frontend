@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { SwapToken } from '../lib/stellar/registry'
+import { FAMILIES } from '../lib/stellar/config'
 import { getTokenBalance } from '../lib/stellar/token'
 import { fromRawUnits } from '../lib/stellar/units'
 import TokenIcon from './TokenIcon'
@@ -7,7 +8,8 @@ import TokenIcon from './TokenIcon'
 // Full names for the assets this build knows — the modal's secondary line.
 // Same symbol-keyed-with-fallback pattern as PoolCard's POOL_COPY. The list
 // this modal receives now spans every pool in the registry, so a miss here is
-// the normal case for a newly created pool and not a redeploy accident.
+// the normal case for a newly created pool and not a redeploy accident, and
+// the fallback names the token's family rather than calling it a stablecoin.
 const TOKEN_NAMES: Record<string, string> = {
   USDx: 'Decentralized USD Coin',
   PYUSD: 'PayPal USD',
@@ -166,15 +168,17 @@ export default function TokenSelectModal({ tokens, value, onChange, exclude, wal
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate" style={{ color: 'var(--c-text)' }}>{t.symbol}</p>
                       <p className="text-[11px] truncate" style={{ color: 'var(--c-text-faint)' }}>
-                        {TOKEN_NAMES[t.symbol] ?? 'Stablecoin'}
+                        {TOKEN_NAMES[t.symbol] ?? (t.family ? FAMILIES[t.family].kind : 'Unlisted token')}
                       </p>
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-sm font-semibold" style={{ color: 'var(--c-text)' }}>
                         {!walletAddress ? '—' : balance === undefined ? '···' : balance === null ? '—' : fromRawUnits(balance, t.decimals)}
                       </p>
-                      {/* All pool assets are ~$1 stablecoins — same peg assumption used for price impact and TVL elsewhere. */}
-                      <p className="text-[11px]" style={{ color: 'var(--c-text-faint)' }}>$1.00</p>
+                      {/* A stablecoin's peg is the one price this build can state. No other family has a feed. */}
+                      <p className="text-[11px]" style={{ color: 'var(--c-text-faint)' }}>
+                        {(t.family && FAMILIES[t.family].peg) ?? '—'}
+                      </p>
                     </div>
                   </button>
                 )

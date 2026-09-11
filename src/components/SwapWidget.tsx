@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useAppStore } from '../store/useAppStore'
-import { listSwapTokens, onVaultsChanged, type SwapToken } from '../lib/stellar/registry'
+import { listVaults, onVaultsChanged, swapTokensOf, type SwapToken, type VaultInfo } from '../lib/stellar/registry'
 import { fromRawUnits, toRawUnits } from '../lib/stellar/units'
 import { swapExactIn } from '../lib/stellar/pool'
-import { routeLabel } from '../lib/stellar/router'
+import { reachableTokens, routeLabel } from '../lib/stellar/router'
 import {
   ROUTE_DEADLINE_SECS,
   RouteExecutionError,
@@ -258,6 +258,9 @@ export default function SwapWidget() {
   // offers. Sourcing this from the one configured pool was the reason a pool
   // created through the builder could be routed through but never selected.
   const [swapTokens, setSwapTokens] = useState<SwapToken[] | null>(null)
+  // The vaults that list came from. The receiving side needs the pools and not
+  // just their tokens, to tell which of them the paying token can reach.
+  const [vaults, setVaults] = useState<VaultInfo[] | null>(null)
   const [tokensError, setTokensError] = useState<string | null>(null)
   const [fromAmount, setFromAmount] = useState('')
   const [quote, setQuote] = useState<Quote | null>(null)
@@ -285,8 +288,11 @@ export default function SwapWidget() {
 
   const loadTokens = useCallback(() => {
     setTokensError(null)
-    listSwapTokens()
-      .then(setSwapTokens)
+    listVaults()
+      .then((v) => {
+        setVaults(v)
+        setSwapTokens(swapTokensOf(v))
+      })
       .catch((err) => setTokensError(err instanceof Error ? err.message : String(err)))
   }, [])
 
@@ -301,11 +307,14 @@ export default function SwapWidget() {
   // one vault with real liquidity, so opening on its assets is the pair most
   // likely to quote. Otherwise the head of the registry list, which is what a
   // deployment without that pool would land on.
+  //
+  // Both are taken from the picker's list, even the pool's pair: a pool token
+  // carries reserves but no asset family, and the price impact row needs the
+  // family to know the two sides trade 1:1.
   useEffect(() => {
-    if (fromToken || toToken) return
-    const preferred = poolState?.tokens ?? []
-    const fallback = swapTokens ?? []
-    const pair = preferred.length >= 2 ? preferred : fallback
+    if (fromToken || toToken || !swapTokens) return
+    const preferred = (poolState?.tokens ?? []).flatMap((p) => swapTokens.filter((t) => t.address === p.address))
+    const pair = preferred.length >= 2 ? preferred : swapTokens
     if (pair.length === 0) return
     setFromToken(pair[0] ?? null)
     setToToken(pair[1] ?? pair[0] ?? null)
@@ -409,8 +418,26 @@ export default function SwapWidget() {
     setQuote(null)
   }
 
+  // What the paying token can end up as. Pools never mix asset families, so
+  // this is at most its own family, and the receiving picker lists nothing
+  // else: a BTC → USDC pair could be picked but never routed.
+  const reachable = useMemo(
+    () => (vaults && fromToken ? reachableTokens(vaults, fromToken.address) : null),
+    [vaults, fromToken],
+  )
+  const toChoices = swapTokens && reachable ? swapTokens.filter((t) => reachable.has(t.address)) : swapTokens
+
   const handleFromTokenChange = (t: SwapToken) => {
-    if (toToken && t.address === toToken.address) setToToken(fromToken)
+    if (toToken && t.address === toToken.address) {
+      setToToken(fromToken)
+    } else if (vaults && toToken && !reachableTokens(vaults, t.address).has(toToken.address)) {
+      // The old target is out of reach from here, so the pair would show a
+      // form that can never quote. Take the first token that is in reach.
+      // Every token sits in a pool with at least one other, so there is one.
+      const inReach = reachableTokens(vaults, t.address)
+      const next = swapTokens?.find((c) => inReach.has(c.address))
+      if (next) setToToken(next)
+    }
     setFromToken(t)
   }
 
@@ -536,9 +563,14 @@ export default function SwapWidget() {
   const toNum = parseFloat(toAmount)
   const hasAmount = fromAmount !== '' && toAmount !== '' && !isNaN(fromNum) && !isNaN(toNum) && fromNum > 0
   const amountEntered = fromAmount !== '' && !isNaN(fromNum) && fromNum > 0
-  // All pool tokens are ~$1 stablecoins, so a 1:1 comparison is an honest
-  // proxy for price impact — same peg assumption pool.ts uses for TVL.
-  const priceImpact = hasAmount ? ((fromNum - toNum) / fromNum) * 100 : 0
+  // Two tokens of one family track the same thing, so 1:1 is an honest
+  // reference for price impact: USD stables against USD stables, BTC against
+  // wrapped BTC. Across families there is no such reference and no price feed
+  // to stand in for one, so the row says nothing rather than something wrong.
+  // The receiving picker keeps pairs inside a family, which leaves this for
+  // tokens the catalog cannot place.
+  const sameFamily = fromToken?.family !== undefined && fromToken.family === toToken?.family
+  const priceImpact = hasAmount && sameFamily ? ((fromNum - toNum) / fromNum) * 100 : null
 
   // Multi-hop routes can be quoted more widely than they can be signed: every
   // leg simulates fine on its own pool, but the Router names a leg by registry
@@ -551,11 +583,12 @@ export default function SwapWidget() {
 
   const insufficientBalance =
     walletConnected && fromBalance !== null && amountInRaw > fromBalance
-  // A pool can't pay out more of a token than it holds, and with everything
-  // pegged ~$1, selling more than the target's reserve can never fill. Only
-  // the configured pool publishes its reserves here, so this is a shortcut for
-  // the pair it holds and nothing else: for any other token the route search
-  // is what reports an unfillable leg, one simulation later.
+  // A pool can't pay out more of a token than it holds, and with both sides of
+  // a pool in one family, trading ~1:1, selling more than the target's reserve
+  // can never fill. Only the configured pool publishes its reserves here, so
+  // this is a shortcut for the pair it holds and nothing else: for any other
+  // token the route search is what reports an unfillable leg, one simulation
+  // later.
   const targetReserve =
     poolState?.tokens.find((t) => t.address === toToken?.address)?.reserveHuman ?? null
   const insufficientLiquidity =
@@ -911,7 +944,7 @@ export default function SwapWidget() {
             className="flex-1 min-w-0 bg-transparent text-[1.6rem] font-semibold outline-none cursor-default"
             style={{ color: 'var(--c-text-muted)' }}
           />
-          <TokenSelectModal tokens={swapTokens!} value={toToken} onChange={handleToTokenChange} exclude={fromToken.address} walletAddress={walletAddress} />
+          <TokenSelectModal tokens={toChoices!} value={toToken} onChange={handleToTokenChange} exclude={fromToken.address} walletAddress={walletAddress} />
         </div>
       </div>
 
@@ -975,11 +1008,13 @@ export default function SwapWidget() {
             <span className="text-xs" style={{ color: 'var(--c-text-faint)' }}>Price impact</span>
             <span
               className="text-xs"
-              style={{ color: priceImpact > 1 ? '#ef4444' : 'var(--c-text-muted)' }}
+              style={{ color: priceImpact !== null && priceImpact > 1 ? '#ef4444' : 'var(--c-text-muted)' }}
             >
-              {Math.abs(priceImpact) < 0.01
-                ? '<0.01%'
-                : `${priceImpact > 0 ? '-' : '+'}${Math.abs(priceImpact).toFixed(2)}%`}
+              {priceImpact === null
+                ? '—'
+                : Math.abs(priceImpact) < 0.01
+                  ? '<0.01%'
+                  : `${priceImpact > 0 ? '-' : '+'}${Math.abs(priceImpact).toFixed(2)}%`}
             </span>
           </div>
           <div className="flex items-center justify-between">

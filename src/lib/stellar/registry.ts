@@ -6,7 +6,7 @@
 // plus the live pool from config, which predates the Router and is in no
 // registry. No caller changed when that switched over.
 
-import { FACTORY_CONTRACT_ID, POOL_CONTRACT_ID, RPC_URL, NETWORK_PASSPHRASE, TOKENS } from "./config";
+import { FACTORY_CONTRACT_ID, POOL_CONTRACT_ID, RPC_URL, NETWORK_PASSPHRASE, TOKENS, type AssetFamily } from "./config";
 import { DEMO_VAULTS, isRoutingDemo } from "./demo";
 import { listLocalPools } from "./localPools";
 import { listPoolIds, routerClient } from "./routerClient";
@@ -295,27 +295,36 @@ export interface SwapToken {
   address: string;
   symbol: string;
   decimals: number;
+  /** From the catalog. Undefined for a token this build cannot name. */
+  family?: AssetFamily;
 }
 
 /**
- * Every token that sits in at least one known vault.
+ * Every token that sits in at least one of `vaults`.
  *
- * This is what the swap form's picker asks, and it replaces asking the single
+ * This is what the swap form's picker offers, and it replaces asking the single
  * configured pool: a pool created through the builder is in the routing graph
  * from the moment the registry reports it, and its assets have to be pickable
- * or the route that exists can never be requested.
+ * or the route that exists can never be requested. It takes the vault list
+ * rather than reading it, because the form needs that same list to work out
+ * which tokens each one can reach (reachableTokens() in router.ts).
  *
  * Presence here means "some pool holds this", not "a trade will fill". A pool
  * nobody has seeded yet contributes its tokens and quotes nothing, which the
  * route search reports per leg. Hiding them instead would be a worse lie: the
  * pair is real, it just has no liquidity.
  */
-export async function listSwapTokens(): Promise<SwapToken[]> {
+export function swapTokensOf(vaults: VaultInfo[]): SwapToken[] {
   const seen = new Map<string, SwapToken>();
-  for (const vault of await listVaults()) {
+  for (const vault of vaults) {
     for (const address of vault.tokens) {
       if (seen.has(address)) continue;
-      seen.set(address, { address, symbol: tokenSymbol(address), decimals: tokenDecimals(address) });
+      seen.set(address, {
+        address,
+        symbol: tokenSymbol(address),
+        decimals: tokenDecimals(address),
+        family: TOKENS.find((t) => t.contractId === address)?.family,
+      });
     }
   }
   // Configured tokens first, in catalog order, then anything the catalog has

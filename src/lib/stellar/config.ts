@@ -164,15 +164,23 @@ export interface FamilyInfo {
   label: string;
   /** How the family reads inside a sentence: "a USD stable", "BTC". */
   noun: string;
+  /** One token of the family, as the swap picker's secondary line names it. */
+  kind: string;
+  /**
+   * What one token is worth by construction, for the families that have a
+   * peg. Nothing here reads a price feed, so the others have no honest value
+   * to show and leave this unset.
+   */
+  peg?: string;
 }
 
 export const FAMILIES: Record<AssetFamily, FamilyInfo> = {
-  USD: { label: "USD stables", noun: "a USD stable" },
-  EUR: { label: "EUR stables", noun: "a EUR stable" },
-  BTC: { label: "Bitcoin", noun: "BTC" },
-  ETH: { label: "Ether", noun: "ETH" },
-  XLM: { label: "Lumens", noun: "XLM" },
-  XRP: { label: "XRP", noun: "XRP" },
+  USD: { label: "USD stables", noun: "a USD stable", kind: "USD stablecoin", peg: "$1.00" },
+  EUR: { label: "EUR stables", noun: "a EUR stable", kind: "EUR stablecoin", peg: "€1.00" },
+  BTC: { label: "Bitcoin", noun: "BTC", kind: "Bitcoin" },
+  ETH: { label: "Ether", noun: "ETH", kind: "Ether" },
+  XLM: { label: "Lumens", noun: "XLM", kind: "Lumens" },
+  XRP: { label: "XRP", noun: "XRP", kind: "XRP" },
 };
 
 /** Every family, in the order the builder lists them. */

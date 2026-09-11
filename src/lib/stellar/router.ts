@@ -135,6 +135,44 @@ export function findRoutes(
   return found.slice(0, MAX_CANDIDATES);
 }
 
+/**
+ * Every token a trade out of `from` can end in, within `maxHops`.
+ *
+ * The swap form offers only these on its receiving side. A pool holds a single
+ * asset family, so the graph falls apart into one island per family and a
+ * token outside `from`'s island has no route at all; listing it would invite a
+ * pair the search can only answer with nothing.
+ *
+ * Breadth-first, so each token is met at its shortest distance. That agrees
+ * with findRoutes() even though this ignores its no-repeated-vault rule: a
+ * shortest path never uses a vault twice, since the vault it used twice would
+ * have taken it from the first of those tokens to the last in one hop.
+ */
+export function reachableTokens(
+  vaults: VaultInfo[],
+  from: string,
+  maxHops: number = MAX_HOPS,
+): Set<string> {
+  const reached = new Set<string>([from]);
+  let frontier = [from];
+  for (let depth = 0; depth < maxHops && frontier.length > 0; depth++) {
+    const next: string[] = [];
+    for (const token of frontier) {
+      for (const vault of vaults) {
+        if (!vault.tokens.includes(token)) continue;
+        for (const t of vault.tokens) {
+          if (reached.has(t)) continue;
+          reached.add(t);
+          next.push(t);
+        }
+      }
+    }
+    frontier = next;
+  }
+  reached.delete(from);
+  return reached;
+}
+
 /** Read the registry and enumerate every route between two tokens. */
 export async function discoverRoutes(
   tokenIn: string,
