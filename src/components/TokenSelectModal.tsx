@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import type { SwapToken } from '../lib/stellar/registry'
 import { FAMILIES } from '../lib/stellar/config'
 import { getTokenBalance } from '../lib/stellar/token'
@@ -90,7 +91,10 @@ export default function TokenSelectModal({ tokens, value, onChange, exclude, wal
         </svg>
       </button>
 
-      {open && (
+      {/* Portaled out of the swap card: its bounce-in animation holds a
+          transform, which would make this fixed overlay cover only the card
+          and leave the page around it unclickable-to-close. */}
+      {open && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           onClick={close}
@@ -185,7 +189,8 @@ export default function TokenSelectModal({ tokens, value, onChange, exclude, wal
               })}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   )
