@@ -119,6 +119,15 @@ export default function Faucet() {
   const [status, setStatus] = useState<TxUiStatus>({ kind: "idle" });
   const [txPhase, setTxPhase] = useState<TxPhase | null>(null);
 
+  // Deep link from the swap form's zero-balance hint: /faucet?token=USDC opens
+  // on the token the user could not pay with. Read after mount, because the
+  // page is prerendered and the query string never reaches the served HTML.
+  useEffect(() => {
+    const symbol = new URLSearchParams(window.location.search).get("token");
+    const match = FAUCET_TOKENS.find((t) => t.symbol === symbol);
+    if (match) setToken(match);
+  }, []);
+
   const handleMint = async () => {
     if (!walletAddress || !amount || Number(amount) <= 0) return;
     setStatus({ kind: "idle" });

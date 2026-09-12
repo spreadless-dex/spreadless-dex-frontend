@@ -15,6 +15,7 @@ import { useRoutingDemo } from '../lib/stellar/demo'
 import { useRouteQuotes } from '../hooks/useRouteQuotes'
 import RoutePanel from './RoutePanel'
 import type { ExecutionView } from './RouteGraph'
+import { FAUCET_TOKENS } from '../lib/stellar/config'
 import { getTokenBalance } from '../lib/stellar/token'
 import { refetchUntilChanged } from '../lib/stellar/refetch'
 import { mapTxError } from '../lib/stellar/errors'
@@ -583,6 +584,10 @@ export default function SwapWidget() {
 
   const insufficientBalance =
     walletConnected && fromBalance !== null && amountInRaw > fromBalance
+  // Whether the faucet can hand out the paying token. Most of the catalog is
+  // openly mintable, but the SAC-wrapped assets are not, so for those the link
+  // drops the preselect instead of landing on a token nobody can mint.
+  const payTokenMintable = FAUCET_TOKENS.some((t) => t.contractId === fromToken?.address)
   // A pool can't pay out more of a token than it holds, and with both sides of
   // a pool in one family, trading ~1:1, selling more than the target's reserve
   // can never fill. Only the configured pool publishes its reserves here, so
@@ -898,6 +903,30 @@ export default function SwapWidget() {
               </button>
             ))}
           </div>
+        )}
+
+        {/* An empty wallet is the first thing a new visitor hits, and the form
+            used to answer it with a disabled button and no way out. Takes the
+            place of the percentage row, which has nothing to divide. */}
+        {walletConnected && fromBalance === 0n && (
+          <a
+            href={payTokenMintable ? `/faucet?token=${fromToken.symbol}` : '/faucet'}
+            className="flex items-center justify-between gap-3 mt-3 px-3 py-2 rounded-lg transition-all duration-150 hover:opacity-70 active:scale-[0.99]"
+            style={{
+              backgroundColor: 'var(--c-surface)',
+              border: '1px solid var(--c-border)',
+            }}
+          >
+            <span className="text-[11px]" style={{ color: 'var(--c-text-muted)' }}>
+              {payTokenMintable
+                ? `No ${fromToken.symbol} in this wallet. Mint test tokens in the Faucet.`
+                : `No ${fromToken.symbol} in this wallet, and the faucet can't mint it. Get another test token there and swap into it.`}
+            </span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--c-text-faint)', flexShrink: 0 }}>
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+          </a>
         )}
       </div>
 
