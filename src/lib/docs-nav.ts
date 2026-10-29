@@ -4,6 +4,8 @@
 // prev/next footer, and the "you are here" state from this list, so adding a
 // page is: create the .mdx file, add one line here.
 
+import { HAS_FAUCET } from "./stellar/config";
+
 export interface DocPage {
   slug: string;
   label: string;
@@ -37,7 +39,8 @@ export const DOCS_NAV: DocSection[] = [
     title: "Guides",
     pages: [
       { slug: "guides/connect-wallet", label: "Connect a Wallet" },
-      { slug: "guides/faucet", label: "Get Testnet Tokens" },
+      // The mainnet build has no faucet; the page stays for the testnet links.
+      ...(HAS_FAUCET ? [{ slug: "guides/faucet", label: "Get Testnet Tokens" }] : []),
       { slug: "guides/trustlines", label: "Trustlines" },
       { slug: "guides/swap", label: "How to Swap" },
       { slug: "guides/provide-liquidity", label: "Provide Liquidity" },

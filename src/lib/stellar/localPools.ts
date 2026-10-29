@@ -12,6 +12,7 @@
 // first kind and the only home of the second.
 
 import { create } from "zustand";
+import { IS_MAINNET } from "./config";
 import type { PoolConstructorArgs } from "./poolParams";
 
 export type CreateBackend = "factory" | "deploy" | "demo";
@@ -36,7 +37,10 @@ export interface LocalPool {
   createdAt: number;
 }
 
-const STORAGE_KEY = "spreadless-local-pools";
+// One list per network: on the same origin, pools a browser built on testnet
+// would otherwise show up as "yours" in the mainnet build. Testnet keeps the
+// original key so the pools already stored there stay put.
+const STORAGE_KEY = IS_MAINNET ? "spreadless-local-pools-mainnet" : "spreadless-local-pools";
 
 function readStored(): LocalPool[] {
   if (typeof window === "undefined") return [];
