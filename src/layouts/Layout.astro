@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css'
 import WalletBridge from '../components/WalletBridge'
+import { IS_MAINNET } from '../lib/stellar/config'
 
 interface Props {
   title?: string
@@ -14,7 +15,7 @@ const {
 ---
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class:list={[{ 'has-banner': IS_MAINNET }]}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -45,6 +46,19 @@ const {
 
     <!-- Scrim — dims canvas so page content reads clearly above it -->
     <div id="scrim" aria-hidden="true"></div>
+
+    <!-- Unaudited notice. Fixed above the header, which --banner-h pushes down
+         (see global.css); every mainnet page carries it. -->
+    {IS_MAINNET && (
+      <div class="unaudited-banner" role="note">
+        <strong>Unaudited.</strong>
+        <span class="unaudited-banner-long">
+          Spreadless runs on Stellar mainnet while its smart-contract audit is underway. Use it at your own risk.
+        </span>
+        <span class="unaudited-banner-short">Use at your own risk.</span>
+        <a href="/docs/protocol/deployments">Details</a>
+      </div>
+    )}
 
     <!-- All page content sits above canvas + scrim -->
     <div id="content">

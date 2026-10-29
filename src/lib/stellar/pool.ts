@@ -2,7 +2,7 @@ import { getWalletSigner } from "../../store/useAppStore";
 import {
   NETWORK_PASSPHRASE,
   POOL_CONTRACT_ID,
-  RPC_URL,
+  RPC_ALLOW_HTTP, RPC_URL,
   TOKENS,
 } from "./config";
 import { fromRawUnits } from "./units";
@@ -57,6 +57,7 @@ async function readClient(poolId: string = POOL_CONTRACT_ID) {
   return new sdk.Client({
     contractId: poolId,
     rpcUrl: RPC_URL,
+    allowHttp: RPC_ALLOW_HTTP,
     networkPassphrase: NETWORK_PASSPHRASE,
   });
 }
@@ -76,6 +77,7 @@ export async function writeClient(
   return new sdk.Client({
     contractId: poolId,
     rpcUrl: RPC_URL,
+    allowHttp: RPC_ALLOW_HTTP,
     networkPassphrase: NETWORK_PASSPHRASE,
     publicKey: to,
     signAuthEntry: signer.signAuthEntry,

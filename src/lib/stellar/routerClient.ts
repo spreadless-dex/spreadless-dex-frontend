@@ -23,7 +23,7 @@
 // than a type error, so check against the spec before blaming the call.
 
 import { contract } from "@stellar/stellar-sdk";
-import { FACTORY_CONTRACT_ID, NETWORK_PASSPHRASE, RPC_URL } from "./config";
+import { FACTORY_CONTRACT_ID, NETWORK_PASSPHRASE, RPC_ALLOW_HTTP, RPC_URL } from "./config";
 import type { AmpControl } from "./poolParams";
 import { ROUTER_SPEC_CONTRACT_ID, ROUTER_SPEC_XDR } from "./routerSpec";
 
@@ -115,6 +115,7 @@ async function routerSpec(): Promise<contract.Spec> {
     specPromise = contract.Client.from({
       contractId: routerId(),
       rpcUrl: RPC_URL,
+      allowHttp: RPC_ALLOW_HTTP,
       networkPassphrase: NETWORK_PASSPHRASE,
     })
       .then((c) => c.spec)
@@ -136,6 +137,7 @@ export async function routerClient(publicKey?: string, signer?: RouterSigner): P
   return new contract.Client(spec, {
     contractId: routerId(),
     rpcUrl: RPC_URL,
+    allowHttp: RPC_ALLOW_HTTP,
     networkPassphrase: NETWORK_PASSPHRASE,
     publicKey,
     ...signer,

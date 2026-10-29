@@ -48,7 +48,7 @@ export interface EarnAsset {
 }
 
 export function offerApy(pool: EarnPool, token: PoolToken): number | null {
-  return pool.isConfigPool ? getPoolPreviewStats(token.symbol).apy : null;
+  return pool.isConfigPool ? (getPoolPreviewStats(token.symbol)?.apy ?? null) : null;
 }
 
 function closedReason(pool: EarnPool): EarnOffer["closed"] {

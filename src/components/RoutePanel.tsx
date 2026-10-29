@@ -3,6 +3,7 @@ import { fromRawUnits } from '../lib/stellar/units'
 import { tokenDecimals, tokenSymbol } from '../lib/stellar/registry'
 import { isOk, shortfallBps, type RouteResult } from '../lib/stellar/router'
 import { isDemoVault, useRoutingDemo } from '../lib/stellar/demo'
+import { IS_MAINNET } from '../lib/stellar/config'
 import { routeBlocker, type RouteBlocker } from '../lib/stellar/routerContract'
 import RouteGraph, { type ExecutionView } from './RouteGraph'
 
@@ -16,10 +17,12 @@ interface Props {
 }
 
 // The demo switch is a testing aid for the team, never a product control. It
-// shows in dev builds and on any URL opened with ?routing=demo.
+// shows in dev builds and on any URL opened with ?routing=demo, never on
+// mainnet (see demo.ts).
 const DEMO_AVAILABLE =
-  import.meta.env.DEV ||
-  (typeof window !== 'undefined' && localStorage.getItem('spreadless-routing-demo') === '1')
+  !IS_MAINNET &&
+  (import.meta.env.DEV ||
+    (typeof window !== 'undefined' && localStorage.getItem('spreadless-routing-demo') === '1'))
 
 /**
  * The route row, expanded into the pathfinder's working.
@@ -153,7 +156,7 @@ function AtomicNote({ demo, blocked }: { demo: boolean; blocked: RouteBlocker | 
   if (blocked === 'routerMissing' && !demo) {
     return (
       <p className="text-[10px] mt-2.5 leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
-        This route needs the atomic Router, which is not deployed on testnet yet.
+        This route needs the atomic Router, which is not deployed on this network yet.
       </p>
     )
   }

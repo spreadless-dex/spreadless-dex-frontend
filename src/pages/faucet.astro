@@ -2,6 +2,10 @@
 import Layout from '../layouts/Layout.astro'
 import Header from '../components/Header'
 import Faucet from '../components/Faucet'
+import { HAS_FAUCET } from '../lib/stellar/config'
+
+// Mainnet has nothing to mint; an old link lands on the swap page instead.
+if (!HAS_FAUCET) return Astro.redirect('/swap')
 ---
 
 <Layout title="Faucet · Spreadless">

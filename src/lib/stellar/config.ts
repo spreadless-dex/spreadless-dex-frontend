@@ -1,6 +1,9 @@
-// Spreadless Soroban deployment — TESTNET.
+// Spreadless Soroban deployment — MAINNET by default, TESTNET when built with
+// PUBLIC_NETWORK=testnet (see NETWORK below).
 //
-// These are testnet values and CHANGE whenever the contracts are redeployed.
+// Mainnet values come from `deployments/mainnet.json` in the contracts repo.
+// The notes below are about the testnet values, which CHANGE whenever the
+// contracts are redeployed.
 // The contract team's source of truth is `deployments/testnet.json` in the
 // contracts repo; keep this file in sync with it. Everything below is from the
 // 2026-09-05 deployment.
@@ -26,11 +29,46 @@
 // addresses to mint), by the pool builder's asset picker, and for display
 // metadata.
 
-export const NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
-export const RPC_URL = "https://soroban-testnet.stellar.org";
+// WHICH NETWORK this build talks to, fixed at build time by PUBLIC_NETWORK.
+// Mainnet is the default; `PUBLIC_NETWORK=testnet` builds the testnet app,
+// the only one with the faucet, the routing demo and preview numbers. Every
+// network-specific value below hangs off this one switch.
+export type SpreadlessNetwork = "mainnet" | "testnet";
+export const NETWORK: SpreadlessNetwork =
+  import.meta.env.PUBLIC_NETWORK === "testnet" ? "testnet" : "mainnet";
+export const IS_MAINNET = NETWORK === "mainnet";
+/** "Stellar Mainnet" / "Stellar Testnet", for badges and copy. */
+export const NETWORK_LABEL = IS_MAINNET ? "Stellar Mainnet" : "Stellar Testnet";
+
+export const NETWORK_PASSPHRASE = IS_MAINNET
+  ? "Public Global Stellar Network ; September 2015"
+  : "Test SDF Network ; September 2015";
+
+// Mainnet has no free public Soroban RPC, and a provider key in the bundle is
+// a key anyone can lift. So mainnet reads go through this app's own /rpc
+// route (src/pages/rpc.ts), which holds the provider URL as a Worker secret.
+// PUBLIC_RPC_URL overrides either default, e.g. to point a local build at a
+// provider directly. During prerender there is no window; nothing reads the
+// chain then, so the fallback only has to be a well-formed URL.
+function defaultRpcUrl(): string {
+  if (!IS_MAINNET) return "https://soroban-testnet.stellar.org";
+  if (typeof window !== "undefined") return new URL("/rpc", window.location.origin).href;
+  return "https://spreadless.xyz/rpc";
+}
+export const RPC_URL: string = import.meta.env.PUBLIC_RPC_URL || defaultRpcUrl();
+// The SDK refuses plain-http RPC unless told otherwise, and `astro dev` serves
+// the /rpc proxy on http://localhost.
+export const RPC_ALLOW_HTTP = RPC_URL.startsWith("http://");
+
 // Classic-layer endpoint. Trustlines live on the classic account, not in
-// Soroban, so changing one is a classic tx and goes through Horizon.
-export const HORIZON_URL = "https://horizon-testnet.stellar.org";
+// Soroban, so changing one is a classic tx and goes through Horizon. SDF runs
+// a free public Horizon on both networks.
+export const HORIZON_URL = IS_MAINNET
+  ? "https://horizon.stellar.org"
+  : "https://horizon-testnet.stellar.org";
+
+/** Stellar Expert's name for this network, as it appears in its URLs. */
+const EXPLORER_NETWORK = IS_MAINNET ? "public" : "testnet";
 
 /** A classic Stellar asset, as it appears in a trustline. */
 export interface ClassicAsset {
@@ -38,11 +76,22 @@ export interface ClassicAsset {
   issuer: string;
 }
 
-export const POOL_CONTRACT_ID =
-  "CCAD3EH4P74PVYL3IC6ND7RSV6NYYOMUMNKRNVBJYOVIZP7Z2QS5XTSN";
+// The featured pool: the one the store loads at boot and the pool pages are
+// about. On testnet it is the 2026-09-05 pool, which predates the Router. On
+// mainnet it is the USD 3pool, created through the Router on 2026-10-29 as
+// pool id 0, so it is also in the registry (listVaults() lists it once).
+const ROUTER_ADDRESS = IS_MAINNET
+  ? "CDEP4I2XQAMPXGER67LJMPZTUXVR3YFA4V6GW7BSMRI3DOLAEA3DR6ER"
+  : "CA4VB4SJQAPWBRTMEHCTX7GZ7KC2DGS7PXV6BEZUI3WUOKRGOQ7VCV6M";
 
-// THE ROUTER, deployed 2026-09-05 at
-// CA4VB4SJQAPWBRTMEHCTX7GZ7KC2DGS7PXV6BEZUI3WUOKRGOQ7VCV6M.
+export const POOL_CONTRACT_ID = IS_MAINNET
+  ? "CAZE5GVMH5332L6FEGVPPDLEPVYUFGQB7ZOCH2OKKBJCBYZQ5FGKZN7L"
+  : "CCAD3EH4P74PVYL3IC6ND7RSV6NYYOMUMNKRNVBJYOVIZP7Z2QS5XTSN";
+
+// THE ROUTER, ROUTER_ADDRESS above: on testnet the one deployed 2026-09-05,
+// on mainnet the one deployed 2026-10-29 from contracts commit fc2834b.
+// (Testnet has a newer, upgradeable Router at CB3VP64F…N77F since 2026-10-29;
+// this build stays on the old one, which holds the pools made through the UI.)
 //
 // Tranche 2 drafted D1 (Factory) and D2 (Router) as two contracts. They
 // shipped as one: it deploys pools (`create_pool`), registers each under a
@@ -68,8 +117,7 @@ export const POOL_CONTRACT_ID =
 // reach it. It stays in the graph as a single hop, which needs no Router at
 // all, and routeBlocker() refuses it as a *leg*. Routing needs pools created
 // through `create_pool`, which is exactly what the builder now makes.
-export const FACTORY_CONTRACT_ID: string | null =
-  "CA4VB4SJQAPWBRTMEHCTX7GZ7KC2DGS7PXV6BEZUI3WUOKRGOQ7VCV6M";
+export const FACTORY_CONTRACT_ID: string | null = ROUTER_ADDRESS;
 
 // OWNERSHIP HANDOVER: the address a creator can hand a pool to when they no
 // longer want to run it themselves ("give it back to Spreadless"). The pool
@@ -102,7 +150,7 @@ export const PROTOCOL_OWNER: string | null = null;
 // protocol_controller of every pool it creates, so a pool deployed directly
 // through the fallback path has to name the same one or it would answer to
 // nobody.
-export const PROTOCOL_CONTROLLER = "CA4VB4SJQAPWBRTMEHCTX7GZ7KC2DGS7PXV6BEZUI3WUOKRGOQ7VCV6M";
+export const PROTOCOL_CONTROLLER = ROUTER_ADDRESS;
 
 // The Router again, as the swap path sees it, and the switch that lets a
 // multi-hop route be signed. Without it a route can still be *quoted* (each leg
@@ -117,8 +165,7 @@ export const PROTOCOL_CONTROLLER = "CA4VB4SJQAPWBRTMEHCTX7GZ7KC2DGS7PXV6BEZUI3WU
 // rejecting the arguments. Nothing was signed to establish that. What has not
 // been exercised is a route that *succeeds*, because the registry is still
 // empty; the first pool built through the builder is what will do it.
-export const ROUTER_CONTRACT_ID: string | null =
-  "CA4VB4SJQAPWBRTMEHCTX7GZ7KC2DGS7PXV6BEZUI3WUOKRGOQ7VCV6M";
+export const ROUTER_CONTRACT_ID: string | null = ROUTER_ADDRESS;
 
 // POOL CREATION without the Router: the pool contract's WASM hash as installed
 // on testnet. Setting it makes createBackend() return "deploy", and the builder
@@ -223,7 +270,7 @@ export interface TokenInfo {
 // it is a copy change, not a config change: "USDx" and "PYUSD" are written
 // into the docs pages, PoolCard, TokenSelectModal, mockPoolStats and the demo
 // vaults in demo.ts.
-export const POOL_TOKENS: TokenInfo[] = [
+const TESTNET_POOL_TOKENS: TokenInfo[] = [
   {
     symbol: "USDx",
     contractId: "CBXN4CMLFVDNVFSGNXFGP5EWI77ISC5KH5UXSDBQETZCJHYHA3KEP4JJ",
@@ -274,7 +321,7 @@ export const POOL_TOKENS: TokenInfo[] = [
 //
 // XCR is in the deployment but deliberately not here: Lucas flagged it as
 // wrong on 08.09.2026. Re-add it only if the contract team confirms it.
-const CATALOG_TOKENS: TokenInfo[] = [
+const TESTNET_CATALOG_TOKENS: TokenInfo[] = [
   { symbol: "abUSDC", contractId: "CCCF52BTMLYFGCUZUKV67QUE7DHP3MHVIN7G7UMCBI2TN5R7FB7EG5YT", decimals: 7, openMint: true, family: "USD" },
   { symbol: "apUSDC", contractId: "CABMCMK4VDPYZYJAHTUSZJMEGNYSE26DNZUV5RDULZP3QOUK3RCVUW4F", decimals: 7, openMint: true, family: "USD" },
   { symbol: "BnUSD", contractId: "CA5OEH6LG73HQOGD7SOP5NQSKU3IFRUQSJM453ZUYZO5AKD2BUXU4IHR", decimals: 7, openMint: true, family: "USD" },
@@ -303,24 +350,67 @@ const CATALOG_TOKENS: TokenInfo[] = [
   { symbol: "yXRP", contractId: "CAYVBFOJZ4XMFJ2H6JRSPTEQJEKZQMKQATSI5OHNEAVHE4ORD5AWD4WN", decimals: 7, openMint: true, family: "XRP" },
 ];
 
-/** Everything the app knows by address: the live pool's tokens, then the catalog. */
-export const TOKENS: TokenInfo[] = [...POOL_TOKENS, ...CATALOG_TOKENS];
+// The mainnet USD 3pool's tokens, in its canonical (address) order. All three
+// are the issuers' own Stellar Asset Contracts, each checked on 2026-10-29
+// against the issuer's stellar.toml (usdt0.to, token-metadata.paxos.com,
+// circle.com). Horizon's asset search is full of lookalike USDC and USDT
+// issued by others, so add a mainnet token only after the same check.
+//
+// None is open-mint and all need a trustline. Their issuers can freeze
+// balances, the pool's included, and PYUSD and USDT0 allow clawback.
+const MAINNET_POOL_TOKENS: TokenInfo[] = [
+  {
+    symbol: "USDT0",
+    contractId: "CBSJZEIO5C7KC2SF3MKSNXXJSW5G3VTNBX4ATMKUI3B2MR4JKM4R26YF",
+    decimals: 7,
+    openMint: false,
+    family: "USD",
+    classicAsset: { code: "USDT0", issuer: "GATISXX6BZ6NC7IKQBY37CJD4SOZL3CYZJWXEDG6JVIY4WBS6KXJHN6Q" },
+  },
+  {
+    symbol: "PYUSD",
+    contractId: "CCCRWH6Q3FNP3I2I57BDLM5AFAT7O6OF6GKQOC6SSJNDAVRZ57SPHGU2",
+    decimals: 7,
+    openMint: false,
+    family: "USD",
+    classicAsset: { code: "PYUSD", issuer: "GDQE7IXJ4HUHV6RQHIUPRJSEZE4DRS5WY577O2FY6YQ5LVWZ7JZTU2V5" },
+  },
+  {
+    symbol: "USDC",
+    contractId: "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75",
+    decimals: 7,
+    openMint: false,
+    family: "USD",
+    classicAsset: { code: "USDC", issuer: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN" },
+  },
+];
+
+/** The featured pool's tokens, in its canonical order. */
+export const POOL_TOKENS: TokenInfo[] = IS_MAINNET ? MAINNET_POOL_TOKENS : TESTNET_POOL_TOKENS;
+
+/** Everything the app knows by address: the featured pool's tokens, then the catalog. */
+export const TOKENS: TokenInfo[] = IS_MAINNET
+  ? MAINNET_POOL_TOKENS
+  : [...TESTNET_POOL_TOKENS, ...TESTNET_CATALOG_TOKENS];
+
+/** Whether this build has a faucet at all. Mainnet has nothing to mint. */
+export const HAS_FAUCET = !IS_MAINNET;
 
 /** Tokens the faucet can mint (open-mint test tokens only). */
-export const FAUCET_TOKENS = TOKENS.filter((t) => t.openMint);
+export const FAUCET_TOKENS = HAS_FAUCET ? TOKENS.filter((t) => t.openMint) : [];
 
 /** Stellar Expert link for a submitted transaction, on whichever network this app targets. */
 export function explorerTxUrl(hash: string): string {
-  return `https://stellar.expert/explorer/testnet/tx/${hash}`;
+  return `https://stellar.expert/explorer/${EXPLORER_NETWORK}/tx/${hash}`;
 }
 
 /** Stellar Expert link for a contract (token or pool) on this network. */
 export function explorerAccountUrl(address: string): string {
-  return `https://stellar.expert/explorer/testnet/account/${address}`;
+  return `https://stellar.expert/explorer/${EXPLORER_NETWORK}/account/${address}`;
 }
 
 export function explorerContractUrl(contractId: string): string {
-  return `https://stellar.expert/explorer/testnet/contract/${contractId}`;
+  return `https://stellar.expert/explorer/${EXPLORER_NETWORK}/contract/${contractId}`;
 }
 
 // Privy app id for the email/Google login, inlined at build time from

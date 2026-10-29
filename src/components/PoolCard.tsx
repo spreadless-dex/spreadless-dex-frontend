@@ -1,6 +1,7 @@
 import type { PoolToken } from '../store/useAppStore'
 import { formatCurrency } from '../lib/utils'
 import { getPoolPreviewStats } from '../lib/mockPoolStats'
+import { NETWORK_LABEL } from '../lib/stellar/config'
 import TokenIcon from './TokenIcon'
 
 type CardMode = 'deposit' | 'withdraw'
@@ -55,7 +56,7 @@ export const FALLBACK_COPY = {
 
 export default function PoolCard({ token, onAction, index = 0, detailsHref, showPreview, paused = false }: PoolCardProps) {
   const preview = showPreview ? getPoolPreviewStats(token.symbol) : null
-  const copy = (showPreview && POOL_COPY[token.symbol]) || FALLBACK_COPY
+  const copy = (preview && POOL_COPY[token.symbol]) || FALLBACK_COPY
 
   return (
     <div
@@ -68,7 +69,7 @@ export default function PoolCard({ token, onAction, index = 0, detailsHref, show
       }}
     >
       <div className="flex items-center gap-1.5 mb-5">
-        {['Stellar Testnet', 'No lockup'].map((badge) => (
+        {[NETWORK_LABEL, 'No lockup'].map((badge) => (
           <span
             key={badge}
             className="text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider"

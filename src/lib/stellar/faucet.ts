@@ -1,5 +1,5 @@
 import { getWalletSigner } from "../../store/useAppStore";
-import { NETWORK_PASSPHRASE, RPC_URL } from "./config";
+import { NETWORK_PASSPHRASE, RPC_ALLOW_HTTP, RPC_URL } from "./config";
 import type { OnPhase, TxResult } from "./types";
 
 // The @spreadless-dex/sdk pulls in @stellar/stellar-sdk, which is heavy and
@@ -30,6 +30,7 @@ export async function mintToken({ tokenId, to, amount, onPhase }: MintArgs): Pro
   const token = await sdk.contract.Client.from({
     contractId: tokenId,
     rpcUrl: RPC_URL,
+    allowHttp: RPC_ALLOW_HTTP,
     networkPassphrase: NETWORK_PASSPHRASE,
     publicKey: to,
     signAuthEntry: signer.signAuthEntry,

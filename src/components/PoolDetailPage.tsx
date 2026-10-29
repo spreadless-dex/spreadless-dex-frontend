@@ -4,7 +4,7 @@ import { formatCurrency, shortenAddress } from '../lib/utils'
 import { fromRawUnits } from '../lib/stellar/units'
 import { getLpBalance, LP_DECIMALS } from '../lib/stellar/pool'
 import { getPoolPreviewStats } from '../lib/mockPoolStats'
-import { POOL_CONTRACT_ID, explorerContractUrl } from '../lib/stellar/config'
+import { NETWORK_LABEL, POOL_CONTRACT_ID, explorerContractUrl } from '../lib/stellar/config'
 import { POOL_COPY, FALLBACK_COPY } from './PoolCard'
 import PoolDetailModal from './PoolDetailModal'
 import TokenIcon from './TokenIcon'
@@ -47,8 +47,10 @@ export default function PoolDetailPage({ symbol }: PoolDetailPageProps) {
   const token = poolState?.tokens.find(
     (t) => t.symbol.toLowerCase() === symbol.toLowerCase(),
   )
+  // Null on mainnet, where these show as dashes (see mockPoolStats).
   const preview = getPoolPreviewStats(symbol)
-  const copy = POOL_COPY[symbol] ?? FALLBACK_COPY
+  // The per-asset copy describes the testnet pool, so it goes with the previews.
+  const copy = (preview && POOL_COPY[symbol]) || FALLBACK_COPY
 
   // Your proportional slice of this token's reserve — same math as MyLiquidity.
   const lpHuman = lpBalance !== null ? Number(fromRawUnits(lpBalance, LP_DECIMALS)) : 0
@@ -141,7 +143,7 @@ export default function PoolDetailPage({ symbol }: PoolDetailPageProps) {
       <div className="mt-5 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-5">
         <div className="flex-1">
           <div className="flex items-center gap-1.5 mb-4">
-            {['Stellar Testnet', 'No lockup', 'StableSwap'].map((badge) => (
+            {[NETWORK_LABEL, 'No lockup', 'StableSwap'].map((badge) => (
               <span
                 key={badge}
                 className="text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider"
@@ -191,10 +193,10 @@ export default function PoolDetailPage({ symbol }: PoolDetailPageProps) {
         style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)' }}
       >
         {[
-          { label: 'APY', value: `${preview.apy.toFixed(1)}%`, accent: true, isPreview: true },
+          { label: 'APY', value: preview ? `${preview.apy.toFixed(1)}%` : '—', accent: !!preview, isPreview: !!preview },
           { label: 'TVL (this asset)', value: formatCurrency(token.reserveHuman) },
           { label: 'Pool Share', value: `${token.share.toFixed(1)}%` },
-          { label: '24h Volume', value: formatCurrency(preview.volume24h), isPreview: true },
+          { label: '24h Volume', value: preview ? formatCurrency(preview.volume24h) : '—', isPreview: !!preview },
         ].map(({ label, value, accent, isPreview }, i) => (
           <div
             key={label}
@@ -274,7 +276,7 @@ export default function PoolDetailPage({ symbol }: PoolDetailPageProps) {
             />
             <Field label="LP supply" value={poolState.lpSupplyHuman.toLocaleString(undefined, { maximumFractionDigits: 2 })} />
             <Field label="Token decimals" value={String(token.decimals)} />
-            <Field label="Holders" value={`${preview.holders.toLocaleString()}*`} />
+            <Field label="Holders" value={preview ? `${preview.holders.toLocaleString()}*` : '—'} />
           </dl>
         </Section>
       </div>
@@ -297,7 +299,7 @@ export default function PoolDetailPage({ symbol }: PoolDetailPageProps) {
       <div className="learn-only mt-6">
         <Section title="How this pool works">
           <p className="text-sm leading-relaxed" style={{ color: 'var(--c-text-muted)' }}>
-            This is a <strong style={{ color: 'var(--c-text)' }}>StableSwap</strong> pool: all four
+            This is a <strong style={{ color: 'var(--c-text)' }}>StableSwap</strong> pool: all its
             assets are meant to be worth ≈ $1, so the pricing curve stays almost flat near balance
             and only steepens as the pool tilts far from an even split. That's what keeps slippage
             near zero for stablecoin swaps.
@@ -323,17 +325,19 @@ export default function PoolDetailPage({ symbol }: PoolDetailPageProps) {
                 Network
               </span>
               <span className="text-sm" style={{ color: 'var(--c-text)' }}>
-                Stellar Testnet
+                {NETWORK_LABEL}
               </span>
             </div>
           </div>
         </Section>
       </div>
 
-      <p className="text-[11px] mt-6 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
-        * APY, holder count and 24h volume are preview figures. The contract doesn't expose these
-        yet. Reserves, TVL, pool share, amplification and LP supply are read live from the chain.
-      </p>
+      {preview && (
+        <p className="text-[11px] mt-6 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
+          * APY, holder count and 24h volume are preview figures. The contract doesn't expose these
+          yet. Reserves, TVL, pool share, amplification and LP supply are read live from the chain.
+        </p>
+      )}
 
       {actionMode && (
         <PoolDetailModal

@@ -3,6 +3,7 @@ import { useAppStore } from "../store/useAppStore";
 import { shortenAddress } from "../lib/utils";
 import { Menu, X } from "lucide-react";
 import { readPoolState } from "../lib/stellar/pool";
+import { HAS_FAUCET } from "../lib/stellar/config";
 import Logo from "./Logo";
 import ProfilePanel, { PROFILE_PANEL_ID } from "./ProfilePanel";
 
@@ -25,7 +26,7 @@ const navLinks = [
   { href: "#", label: "Analytics", page: "analytics", disabled: true },
   { href: "/docs", label: "Docs", page: "docs" },
   { href: "/faucet", label: "Faucet", page: "faucet" },
-];
+].filter((link) => link.page !== "faucet" || HAS_FAUCET);
 
 export default function Header({ currentPage = "home" }: HeaderProps) {
   const {
@@ -82,8 +83,10 @@ export default function Header({ currentPage = "home" }: HeaderProps) {
   return (
     <>
       <header
-        className="fixed top-0 left-0 right-0 z-50 border-b backdrop-blur-md"
+        className="fixed left-0 right-0 z-50 border-b backdrop-blur-md"
         style={{
+          // Below the mainnet unaudited banner, when there is one (global.css).
+          top: "var(--banner-h)",
           backgroundColor: "color-mix(in srgb, var(--c-bg) 82%, transparent)",
           borderColor: "var(--c-border)",
           // Named so cross-document view transitions keep it still while the
@@ -226,8 +229,10 @@ export default function Header({ currentPage = "home" }: HeaderProps) {
 
           {/* Drawer */}
           <nav
-            className="absolute top-0 left-0 h-full w-[78vw] max-w-[300px] flex flex-col transition-transform duration-250 ease-out"
+            className="absolute left-0 bottom-0 w-[78vw] max-w-[300px] flex flex-col transition-transform duration-250 ease-out"
             style={{
+              // Starts under the mainnet unaudited banner (global.css).
+              top: "var(--banner-h)",
               transform: menuVisible ? "translateX(0)" : "translateX(-100%)",
               backgroundColor:
                 "color-mix(in srgb, var(--c-surface) 98%, transparent)",

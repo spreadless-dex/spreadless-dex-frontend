@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { readPoolState } from "../lib/stellar/pool";
 import type { PoolState } from "../lib/stellar/pool";
-import { PRIVY_APP_ID, WALLETCONNECT_PROJECT_ID } from "../lib/stellar/config";
+import { IS_MAINNET, PRIVY_APP_ID, WALLETCONNECT_PROJECT_ID } from "../lib/stellar/config";
 
 export type { PoolState, PoolToken } from "../lib/stellar/pool";
 
@@ -294,8 +294,8 @@ async function bootWalletKit() {
   // Single source of truth for which net the kit talks to — the
   // WalletConnect session request below must ask for the same chain, or the
   // wallet is being asked to approve a network we never intended.
-  // Switch to Networks.PUBLIC when going to mainnet.
-  const NETWORK = Networks.TESTNET;
+  // Follows the build's network (PUBLIC_NETWORK, see config.ts).
+  const NETWORK = IS_MAINNET ? Networks.PUBLIC : Networks.TESTNET;
 
   // defaultModules() is every desktop-extension wallet the kit ships — none
   // of them can be reached from inside Freighter's own mobile app browser.
@@ -332,13 +332,8 @@ async function bootWalletKit() {
         // a timeout or a crash, a session request the wallet can't satisfy
         // and silently never responds to.
         //
-        // The cast is only for the compiler: stellar-base 15 types the
-        // Networks members as literals, so with NETWORK pinned to TESTNET
-        // above, TypeScript calls this comparison of two disjoint literals an
-        // error. It is the one line that exists so switching NETWORK stays a
-        // one-word change, so it is widened rather than deleted.
         allowedChains: [
-          (NETWORK as string) === Networks.PUBLIC
+          NETWORK === Networks.PUBLIC
             ? WalletConnectTargetChain.PUBLIC
             : WalletConnectTargetChain.TESTNET,
         ],

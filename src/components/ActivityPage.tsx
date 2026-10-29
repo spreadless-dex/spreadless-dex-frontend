@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { getActivities, type ActivityRecord, type ActivityType, type ActivityStatus } from '../lib/activity/db'
 import TxDetailDrawer from './TxDetailDrawer'
+import { IS_MAINNET } from '../lib/stellar/config'
 
 type TypeFilter = 'all' | ActivityType
 type StatusFilter = 'all' | ActivityStatus
@@ -234,7 +235,7 @@ export default function ActivityPage() {
           ]}
         />
         <span className="ml-auto text-[11px]" style={{ color: 'var(--c-text-faint)' }}>
-          Wallet ledger · Testnet preview
+          Wallet ledger{IS_MAINNET ? '' : ' · Testnet preview'}
         </span>
       </div>
 
