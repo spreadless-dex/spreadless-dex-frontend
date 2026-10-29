@@ -2,6 +2,12 @@
 // (APY, holder count, volume). The contract dev's oracle service will
 // eventually feed these; until then they're fixed, clearly-labeled preview
 // numbers — never presented as live data (see PoolCard/PoolDetailModal).
+//
+// Testnet only. On mainnet getPoolPreviewStats() returns null and every
+// caller shows a dash instead: a made-up APY next to real money reads as a
+// promise.
+
+import { IS_MAINNET } from "./stellar/config";
 
 export interface PoolPreviewStats {
   apy: number;
@@ -28,6 +34,16 @@ function fallbackStats(symbol: string): PoolPreviewStats {
   };
 }
 
-export function getPoolPreviewStats(symbol: string): PoolPreviewStats {
+export function getPoolPreviewStats(symbol: string): PoolPreviewStats | null {
+  if (IS_MAINNET) return null;
   return STATS[symbol] ?? fallbackStats(symbol);
+}
+
+/** "4.9–6.8%" across the given assets' preview APYs, or null without previews. */
+export function previewApyRange(symbols: string[]): string | null {
+  const apys = symbols.map((s) => getPoolPreviewStats(s)?.apy).filter((a): a is number => a !== undefined);
+  if (apys.length === 0) return null;
+  const lo = Math.min(...apys);
+  const hi = Math.max(...apys);
+  return lo === hi ? `${lo.toFixed(1)}%` : `${lo.toFixed(1)}–${hi.toFixed(1)}%`;
 }

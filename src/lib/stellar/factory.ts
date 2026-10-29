@@ -18,7 +18,7 @@ import {
   FACTORY_CONTRACT_ID,
   NETWORK_PASSPHRASE,
   POOL_WASM_HASH,
-  RPC_URL,
+  RPC_ALLOW_HTTP, RPC_URL,
 } from "./config";
 import { getWalletSigner } from "../../store/useAppStore";
 import { invalidateVaults } from "./registry";
@@ -193,6 +193,7 @@ async function deployDirect(
     wasmHash: POOL_WASM_HASH!,
     format: "hex",
     rpcUrl: RPC_URL,
+    allowHttp: RPC_ALLOW_HTTP,
     networkPassphrase: NETWORK_PASSPHRASE,
     publicKey: owner,
     signAuthEntry: signer.signAuthEntry,

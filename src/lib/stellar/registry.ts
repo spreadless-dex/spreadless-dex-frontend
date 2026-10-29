@@ -6,7 +6,7 @@
 // plus the live pool from config, which predates the Router and is in no
 // registry. No caller changed when that switched over.
 
-import { FACTORY_CONTRACT_ID, POOL_CONTRACT_ID, RPC_URL, NETWORK_PASSPHRASE, TOKENS, type AssetFamily } from "./config";
+import { FACTORY_CONTRACT_ID, POOL_CONTRACT_ID, RPC_ALLOW_HTTP, RPC_URL, NETWORK_PASSPHRASE, TOKENS, type AssetFamily } from "./config";
 import { DEMO_VAULTS, isRoutingDemo } from "./demo";
 import { listLocalPools } from "./localPools";
 import { listPoolIds, routerClient } from "./routerClient";
@@ -212,6 +212,7 @@ async function readSingleVault(): Promise<VaultInfo[]> {
   const pool = new sdk.Client({
     contractId: POOL_CONTRACT_ID,
     rpcUrl: RPC_URL,
+    allowHttp: RPC_ALLOW_HTTP,
     networkPassphrase: NETWORK_PASSPHRASE,
   });
   // A is readable, the fee is not (no getter), so the builder's twin check
@@ -239,7 +240,11 @@ async function readFactoryVaults(factoryId: string): Promise<VaultInfo[]> {
   // The config pool does not depend on the registry, so it is read alongside
   // it rather than after it: one round trip less on every uncached list.
   const [single, registered] = await Promise.all([readSingleVault(), readRegisteredVaults(factoryId)]);
-  return [...single, ...registered];
+  // On mainnet the config pool was itself created through the Router, so it is
+  // in both lists. The registered entry wins: it carries the pool id that
+  // multi-hop routing needs.
+  const unregistered = single.filter((s) => !registered.some((r) => r.address === s.address));
+  return [...unregistered, ...registered];
 }
 
 async function readRegisteredVaults(factoryId: string): Promise<VaultInfo[]> {
@@ -251,7 +256,7 @@ async function readRegisteredVaults(factoryId: string): Promise<VaultInfo[]> {
       try {
         const address = (await client.pool_at({ id })).result;
         if (!address) return null;
-        const pool = new sdk.Client({ contractId: address, rpcUrl: RPC_URL, networkPassphrase: NETWORK_PASSPHRASE });
+        const pool = new sdk.Client({ contractId: address, rpcUrl: RPC_URL, allowHttp: RPC_ALLOW_HTTP, networkPassphrase: NETWORK_PASSPHRASE });
         // Fee and owner are labels, not identity: a pool that cannot answer
         // them still belongs in the list, just without those labels.
         const [tokens, amp, fee, owner] = await Promise.all([

@@ -6,6 +6,8 @@
 // contracts build on. The SDK sometimes decodes a code to its name (e.g.
 // "SlippageExceeded"), so every rule matches both forms.
 
+import { IS_MAINNET, NETWORK_LABEL } from "./config";
+
 export interface TxErrorContext {
   /** Symbol of the token being spent — used for balance errors. */
   spend?: string;
@@ -195,7 +197,7 @@ export function mapTxError(err: unknown, ctx: TxErrorContext = {}): MappedTxErro
   // Classic Stellar "underfunded" — the account can't cover the XLM fee.
   if (/underfunded|insufficient.*fee|tx_?insufficient/i.test(raw)) {
     return {
-      message: "Not enough XLM to cover network fees. Top up your wallet with testnet XLM and retry.",
+      message: `Not enough XLM to cover network fees. Top up your wallet with ${IS_MAINNET ? "" : "testnet "}XLM and retry.`,
     };
   }
 
@@ -207,7 +209,7 @@ export function mapTxError(err: unknown, ctx: TxErrorContext = {}): MappedTxErro
   }
 
   if (/failed to fetch|fetch failed|networkerror|econn|load failed/i.test(raw)) {
-    return { message: "Couldn't reach the Stellar testnet. Check your connection and try again." };
+    return { message: `Couldn't reach ${NETWORK_LABEL}. Check your connection and try again.` };
   }
 
   // No rule matched: keep the honest generic line, but carry a truncated raw

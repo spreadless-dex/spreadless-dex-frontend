@@ -705,6 +705,46 @@ html.dark #scrim {
 #content {
   position: relative;
   z-index: 1;
+  padding-top: var(--banner-h);
+}
+
+/* ─── Unaudited banner (mainnet builds) ────────────────── */
+/* Fixed above the header. Its height is --banner-h, which the header, the
+   page content and the sticky docs columns all add to their own offsets, so
+   the banner pushes the page down instead of covering it. Inverted rather
+   than accented: the accent is reserved for yield figures. */
+:root { --banner-h: 0px; }
+html.has-banner { --banner-h: 2.25rem; }
+
+.unaudited-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  height: var(--banner-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0 1rem;
+  background: var(--c-text);
+  color: var(--c-bg);
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.unaudited-banner a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  opacity: 0.8;
+}
+.unaudited-banner a:hover { opacity: 1; }
+.unaudited-banner-short { display: none; }
+@media (max-width: 767px) {
+  .unaudited-banner-long { display: none; }
+  .unaudited-banner-short { display: inline; }
 }
 
 @layer base {
@@ -797,10 +837,10 @@ html.dark #scrim {
   inset: auto;
   margin: 0;
   padding: 0;
-  top: 4.25rem;
+  top: calc(4.25rem + var(--banner-h));
   right: 1.5rem;
   position-anchor: --profile-btn;
-  top: calc(anchor(bottom, 4.25rem) + 0.5rem);
+  top: calc(anchor(bottom, calc(4.25rem + var(--banner-h))) + 0.5rem);
   right: anchor(right, 1.5rem);
   position-try-fallbacks: flip-block;
   width: min(22.5rem, calc(100vw - 2rem));

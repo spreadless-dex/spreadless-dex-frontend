@@ -107,11 +107,18 @@ function PrivyBridge() {
   useEffect(() => {
     if (address == null || fundingFor.current === address) return;
     fundingFor.current = address;
-    void ensureFunded(address).catch((err) => {
-      fundingFor.current = null;
-      console.error("Privy: couldn't fund Stellar account", err);
-      setError("Couldn't activate your Stellar account. Use the Faucet page to fund it.");
-    });
+    void ensureFunded(address)
+      .then((result) => {
+        if (result !== "unfunded") return;
+        // Mainnet: checked again on the next login, by then it may be funded.
+        fundingFor.current = null;
+        setError("Your Stellar account isn't active yet. Send it at least 2 XLM to activate it.");
+      })
+      .catch((err) => {
+        fundingFor.current = null;
+        console.error("Privy: couldn't fund Stellar account", err);
+        setError("Couldn't activate your Stellar account. Use the Faucet page to fund it.");
+      });
   }, [address]);
 
   // Publish the current snapshot to the store. Registered from the first

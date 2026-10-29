@@ -10,7 +10,7 @@
 // recipient learns about it through the invite link the owner shares.
 
 import { create } from "zustand";
-import { PROTOCOL_OWNER, RPC_URL } from "./config";
+import { PROTOCOL_OWNER, RPC_ALLOW_HTTP, RPC_URL } from "./config";
 import type { ARight } from "./poolParams";
 import type { AmpMode } from "./pool";
 import { writeClient } from "./pool";
@@ -44,7 +44,7 @@ export async function validateAddress(value: string): Promise<boolean> {
 
 async function latestLedger(): Promise<number> {
   const sdk = await import("@spreadless-dex/sdk");
-  const server = new sdk.rpc.Server(RPC_URL);
+  const server = new sdk.rpc.Server(RPC_URL, { allowHttp: RPC_ALLOW_HTTP });
   const { sequence } = await server.getLatestLedger();
   return sequence;
 }

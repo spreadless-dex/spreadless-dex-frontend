@@ -11,6 +11,7 @@ import { recordDeposit } from '../lib/activity/record'
 import RainButton from './RainButton'
 import TxStatus, { type TxUiStatus } from './TxStatus'
 import TokenIcon from './TokenIcon'
+import { HAS_FAUCET } from '../lib/stellar/config'
 
 // The first deposit into a pool, which is a different transaction from every
 // deposit after it. The contract requires it to fund *every* token at once
@@ -271,7 +272,7 @@ export default function SeedLiquidityModal({ tokens, poolId, poolLabel, onClose,
           </div>
         )}
 
-        {walletConnected && noBalance && (
+        {HAS_FAUCET && walletConnected && noBalance && (
           <p className="text-[11px] mb-3 px-1" style={{ color: 'var(--c-text-faint)' }}>
             Missing one of these assets?{' '}
             <a href="/faucet" className="underline underline-offset-2" style={{ color: 'var(--c-text-muted)' }}>

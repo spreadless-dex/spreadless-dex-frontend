@@ -243,7 +243,7 @@ export default function PoolDetailModal({
 
   // Preview figures describe the configured pool's assets only. Any other
   // pool shows no APY rather than a number made up for it.
-  const previewApy = isConfigPool ? getPoolPreviewStats(token.symbol).apy : null
+  const previewApy = isConfigPool ? (getPoolPreviewStats(token.symbol)?.apy ?? null) : null
 
   // Projected yearly yield from the entered amount × preview APY. Stablecoin
   // amounts are treated as ≈ USD, same assumption formatCurrency makes elsewhere.

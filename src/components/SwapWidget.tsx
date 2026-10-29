@@ -15,7 +15,7 @@ import { useRoutingDemo } from '../lib/stellar/demo'
 import { useRouteQuotes } from '../hooks/useRouteQuotes'
 import RoutePanel from './RoutePanel'
 import type { ExecutionView } from './RouteGraph'
-import { FAUCET_TOKENS } from '../lib/stellar/config'
+import { FAUCET_TOKENS, HAS_FAUCET } from '../lib/stellar/config'
 import { getTokenBalance } from '../lib/stellar/token'
 import { refetchUntilChanged } from '../lib/stellar/refetch'
 import { mapTxError } from '../lib/stellar/errors'
@@ -908,7 +908,8 @@ export default function SwapWidget() {
         {/* An empty wallet is the first thing a new visitor hits, and the form
             used to answer it with a disabled button and no way out. Takes the
             place of the percentage row, which has nothing to divide. */}
-        {walletConnected && fromBalance === 0n && (
+        {/* Mainnet has no faucet to send anyone to. */}
+        {HAS_FAUCET && walletConnected && fromBalance === 0n && (
           <a
             href={payTokenMintable ? `/faucet?token=${fromToken.symbol}` : '/faucet'}
             className="flex items-center justify-between gap-3 mt-3 px-3 py-2 rounded-lg transition-all duration-150 hover:opacity-70 active:scale-[0.99]"

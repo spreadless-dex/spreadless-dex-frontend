@@ -15,7 +15,7 @@
 // its internals.
 
 import { create } from "zustand";
-import { TOKENS } from "./config";
+import { IS_MAINNET, TOKENS } from "./config";
 
 // ── Switches ─────────────────────────────────────────────────────────────
 
@@ -33,8 +33,10 @@ interface RoutingDemoState {
   setFailHop: (hop: number | null) => void;
 }
 
+// Testnet only: demo vaults hold testnet token addresses and their routes only
+// pretend to execute, which has no place next to real funds.
 function readStored(): boolean {
-  if (typeof window === "undefined") return false;
+  if (IS_MAINNET || typeof window === "undefined") return false;
   try {
     if (new URLSearchParams(window.location.search).get("routing") === "demo") {
       localStorage.setItem(STORAGE_KEY, "1");
@@ -50,6 +52,7 @@ export const useRoutingDemo = create<RoutingDemoState>((set) => ({
   enabled: readStored(),
   failHop: null,
   setEnabled: (on) => {
+    if (IS_MAINNET) return;
     try {
       localStorage.setItem(STORAGE_KEY, on ? "1" : "0");
     } catch {
@@ -99,7 +102,8 @@ const M = 10_000_000n; // one token at 7 decimals
  * impact grows with size. Small trades favour direct, large trades favour the
  * hop, and the crossover is visible on screen.
  */
-export const DEMO_VAULTS: DemoVault[] = [
+// Empty on mainnet, whose catalog has none of these testnet tokens.
+export const DEMO_VAULTS: DemoVault[] = IS_MAINNET ? [] : [
   {
     address: DEMO_VAULT_A,
     label: "Vault A",

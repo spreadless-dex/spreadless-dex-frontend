@@ -1,9 +1,52 @@
 ---
 title: Deployments & Network
-description: Network parameters, the pool contract address, and the current testnet token set.
+description: Mainnet and testnet contract addresses, network parameters, and token sets.
 ---
 
 import Callout from "../../../components/docs/Callout.astro";
+
+## Mainnet
+
+<Callout kind="warning" title="Unaudited">
+  Spreadless runs on Stellar mainnet while its smart-contract audit is underway.
+  The contracts have been tested and reviewed but not audited. Use them at your
+  own risk, and only with amounts you can afford to lose.
+</Callout>
+
+| Parameter | Value |
+| --- | --- |
+| Network | Stellar **Mainnet** |
+| Passphrase | `Public Global Stellar Network ; September 2015` |
+| Horizon (classic) | `https://horizon.stellar.org` |
+| Explorer | [stellar.expert · public](https://stellar.expert/explorer/public) |
+| Router | `CDEP4I2XQAMPXGER67LJMPZTUXVR3YFA4V6GW7BSMRI3DOLAEA3DR6ER` |
+| USD 3pool (pool 0) | `CAZE5GVMH5332L6FEGVPPDLEPVYUFGQB7ZOCH2OKKBJCBYZQ5FGKZN7L` |
+
+The app reaches Soroban RPC through its own `/rpc` endpoint. The contracts
+repo's `deployments/mainnet.json` is the source of truth for every address.
+
+### USD 3pool tokens
+
+In canonical order. Each token is the issuer's own Stellar Asset Contract,
+verified against the issuer's `stellar.toml`. All three need a
+[trustline](/docs/guides/trustlines).
+
+| Symbol | Token contract | Classic issuer | Verified via |
+| --- | --- | --- | --- |
+| `USDT0` | `CBSJZEIO5C7KC2SF3MKSNXXJSW5G3VTNBX4ATMKUI3B2MR4JKM4R26YF` | `GATISXX6BZ6NC7IKQBY37CJD4SOZL3CYZJWXEDG6JVIY4WBS6KXJHN6Q` | usdt0.to |
+| `PYUSD` | `CCCRWH6Q3FNP3I2I57BDLM5AFAT7O6OF6GKQOC6SSJNDAVRZ57SPHGU2` | `GDQE7IXJ4HUHV6RQHIUPRJSEZE4DRS5WY577O2FY6YQ5LVWZ7JZTU2V5` | token-metadata.paxos.com |
+| `USDC` | `CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75` | `GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN` | circle.com |
+
+<Callout kind="warning" title="Issuer controls">
+  All three issuers can freeze balances, including the pool's own, and the
+  PYUSD and USDT0 issuers can also claw them back. A freeze or clawback of one
+  token affects everyone in the pool.
+</Callout>
+
+Pool creation through the Router is permissionless. Only the pools listed here
+are operated by Spreadless.
+
+## Testnet
 
 <Callout kind="warning" title="Testnet: values change on redeploy">
   Everything below is **Stellar Testnet**. These addresses change whenever the pool
@@ -12,7 +55,7 @@ import Callout from "../../../components/docs/Callout.astro";
   than pinning these.
 </Callout>
 
-## Network
+### Network
 
 | Parameter | Value |
 | --- | --- |
@@ -25,7 +68,7 @@ import Callout from "../../../components/docs/Callout.astro";
 Horizon is used for the classic layer, where [trustlines](/docs/guides/trustlines) live
 on the classic account, not in Soroban, so changing one goes through Horizon.
 
-## Pool contract
+### Pool contract
 
 | | |
 | --- | --- |
@@ -34,7 +77,7 @@ on the classic account, not in Soroban, so changing one goes through Horizon.
 The same address is both the pool and its `SLP` LP token (9 decimals). See
 [Architecture](/docs/protocol/architecture).
 
-## Tokens (current testnet set)
+### Tokens (current testnet set)
 
 Canonical order is whatever `get_tokens()` returns live; the table is display
 metadata and faucet configuration.

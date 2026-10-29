@@ -1,4 +1,4 @@
-import { NETWORK_PASSPHRASE, RPC_URL } from "./config";
+import { NETWORK_PASSPHRASE, RPC_ALLOW_HTTP, RPC_URL } from "./config";
 import { classicAssetOf, getClassicBalance } from "./horizon";
 
 // Read-only, so no signer/publicKey needed — Client.from() fetches the
@@ -20,6 +20,7 @@ export async function getTokenBalance(
   const token = await sdk.contract.Client.from({
     contractId: tokenId,
     rpcUrl: RPC_URL,
+    allowHttp: RPC_ALLOW_HTTP,
     networkPassphrase: NETWORK_PASSPHRASE,
   });
   const { result } = await (token as any).balance({ account: address });
@@ -40,6 +41,7 @@ export async function getTokenMeta(
   const token = await sdk.contract.Client.from({
     contractId: tokenId,
     rpcUrl: RPC_URL,
+    allowHttp: RPC_ALLOW_HTTP,
     networkPassphrase: NETWORK_PASSPHRASE,
   });
   const [symbol, decimals] = await Promise.all([

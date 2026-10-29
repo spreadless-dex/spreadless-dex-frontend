@@ -16,6 +16,7 @@
 //    and what the SDK's Client feeds through signAuthEntry.
 
 import { TransactionBuilder } from "@stellar/stellar-base";
+import { IS_MAINNET } from "./config";
 import { fetchAccount } from "./horizon";
 
 /** Shape of Privy's useSignRawHash callback, narrowed to what we consume. */
@@ -92,18 +93,21 @@ export async function signAuthEntryXdr(
 
 // A freshly created keypair does not exist on the ledger until something pays
 // its base reserve. Before that it can't even be a transaction source. On
-// testnet Friendbot does this for free. Mainnet has deliberately no entry:
-// funding there is a product decision for the mainnet phase.
+// testnet Friendbot does this for free. Mainnet has no Friendbot and the app
+// pays for nobody, so there a new account stays "unfunded" until its owner
+// sends it XLM.
 const FRIENDBOT_URL = "https://friendbot.stellar.org/?addr=";
 
-export type FundingResult = "already-funded" | "funded";
+export type FundingResult = "already-funded" | "funded" | "unfunded";
 
 /**
  * Make sure `address` exists on the ledger, asking Friendbot to create it if
  * not. Idempotent: it checks first, so calling it on every login is fine.
+ * On mainnet it only checks.
  */
 export async function ensureFunded(address: string): Promise<FundingResult> {
   if (await fetchAccount(address)) return "already-funded";
+  if (IS_MAINNET) return "unfunded";
 
   const res = await fetch(FRIENDBOT_URL + encodeURIComponent(address));
   // Friendbot answers 400 for an already-funded account, a benign race when

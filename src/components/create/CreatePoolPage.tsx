@@ -6,6 +6,7 @@ import { listVaults, onVaultsChanged } from '../../lib/stellar/registry'
 import { listLocalPools } from '../../lib/stellar/localPools'
 import { isDemoAddress, useVaultTvl } from '../../lib/stellar/vaultTvl'
 import { formatCurrency } from '../../lib/utils'
+import { IS_MAINNET } from '../../lib/stellar/config'
 import GlowValue from '../GlowValue'
 import type { CreatePoolResult } from '../../lib/stellar/factory'
 import {
@@ -152,6 +153,17 @@ export default function CreatePoolPage() {
         <p className="learn-only text-sm mt-1" style={{ color: 'color-mix(in srgb, var(--c-text) 72%, transparent)' }}>
           Pick assets, set the curve, choose a fee. One transaction to deploy.
         </p>
+        {/* Shown in both modes: it is about real funds, not about learning. */}
+        {IS_MAINNET && (
+          <p
+            className="text-xs mt-4 max-w-2xl rounded-xl px-4 py-3 leading-relaxed"
+            style={{ color: 'var(--c-text)', border: '1px solid var(--c-border-2)', backgroundColor: 'var(--c-surface)' }}
+          >
+            <strong>This deploys a real pool on Stellar mainnet</strong> on contracts that are not audited
+            yet. You become its owner and are responsible for its caps and fee. Spreadless does not
+            operate or vet pools created here; keep the caps low.
+          </p>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-[1.55fr_1fr] gap-5 items-start">
@@ -264,7 +276,7 @@ export default function CreatePoolPage() {
           </Step>
         </div>
 
-        <div className="lg:sticky lg:top-24">
+        <div className="lg:sticky lg:top-[calc(6rem+var(--banner-h))]">
           <p className="text-[11px] uppercase tracking-wider font-semibold mb-2.5" style={{ color: 'var(--c-text-faint)' }}>
             Preview · your row in /pools
           </p>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { formatCurrency } from '../lib/utils'
-import { getPoolPreviewStats } from '../lib/mockPoolStats'
+import { previewApyRange } from '../lib/mockPoolStats'
 import { useLocalPools } from '../lib/stellar/localPools'
 import { POOL_CONTRACT_ID } from '../lib/stellar/config'
 import { listVaults, onVaultsChanged, tokenSymbol, type VaultInfo } from '../lib/stellar/registry'
@@ -92,10 +92,8 @@ export default function PoolsRegister() {
   const isMine = (address: string, owner?: string) =>
     walletAddress && owner ? owner === walletAddress : localPools.some((p) => p.address === address)
 
-  const apys = poolState.tokens.map((t) => getPoolPreviewStats(t.symbol).apy)
-  const apyLo = Math.min(...apys)
-  const apyHi = Math.max(...apys)
-  const apyRange = apyLo === apyHi ? `${apyLo.toFixed(1)}%` : `${apyLo.toFixed(1)}–${apyHi.toFixed(1)}%`
+  // Null on mainnet, which shows no preview APY (see mockPoolStats).
+  const apyRange = previewApyRange(poolState.tokens.map((t) => t.symbol))
 
   const rows: Row[] = [
     {
@@ -105,8 +103,8 @@ export default function PoolsRegister() {
       title: 'StableSwap Pool',
       settings: `A = ${poolState.amp} · ${poolState.paused ? 'Paused' : 'Active'}`,
       tvl: poolState.totalTvl,
-      apy: apyRange,
-      apyKnown: true,
+      apy: apyRange ?? '—',
+      apyKnown: apyRange !== null,
       demo: false,
       mine: false,
       tokens: poolState.tokens.map((t) => t.address),

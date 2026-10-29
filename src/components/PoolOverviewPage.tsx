@@ -2,8 +2,8 @@ import { useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { formatCurrency } from '../lib/utils'
 import { fromRawUnits } from '../lib/stellar/units'
-import { getPoolPreviewStats } from '../lib/mockPoolStats'
-import { POOL_CONTRACT_ID } from '../lib/stellar/config'
+import { getPoolPreviewStats, previewApyRange } from '../lib/mockPoolStats'
+import { NETWORK_LABEL, POOL_CONTRACT_ID } from '../lib/stellar/config'
 import { Section, Field, ContractRow } from './PoolDetailPage'
 import TokenIcon from './TokenIcon'
 import { ArrowLeft } from 'lucide-react'
@@ -79,12 +79,12 @@ export default function PoolOverviewPage() {
 
   // Pool-wide preview aggregates — an APY spread and summed 24h volume across
   // the assets. Same "Preview data" caveat as the per-asset figures.
-  const apys = poolState.tokens.map((t) => getPoolPreviewStats(t.symbol).apy)
-  const apyLo = Math.min(...apys)
-  const apyHi = Math.max(...apys)
-  const apyRange = apyLo === apyHi ? `${apyLo.toFixed(1)}%` : `${apyLo.toFixed(1)}–${apyHi.toFixed(1)}%`
-  const volume24h = poolState.tokens.reduce((s, t) => s + getPoolPreviewStats(t.symbol).volume24h, 0)
-  const holders = poolState.tokens.reduce((s, t) => s + getPoolPreviewStats(t.symbol).holders, 0)
+  // None on mainnet, where these show as dashes (see mockPoolStats).
+  const previews = poolState.tokens.map((t) => getPoolPreviewStats(t.symbol))
+  const hasPreview = previews.every((p) => p !== null)
+  const apyRange = previewApyRange(poolState.tokens.map((t) => t.symbol)) ?? '—'
+  const volume24h = previews.reduce((s, p) => s + (p?.volume24h ?? 0), 0)
+  const holders = previews.reduce((s, p) => s + (p?.holders ?? 0), 0)
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-8">
@@ -94,7 +94,7 @@ export default function PoolOverviewPage() {
       <div className="mt-5 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-5">
         <div className="flex-1">
           <div className="flex items-center gap-1.5 mb-4">
-            {['Stellar Testnet', 'No lockup', 'StableSwap'].map((badge) => (
+            {[NETWORK_LABEL, 'No lockup', 'StableSwap'].map((badge) => (
               <span
                 key={badge}
                 className="text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider"
@@ -124,7 +124,7 @@ export default function PoolOverviewPage() {
           </div>
           <p className="learn-only text-sm leading-relaxed mt-4 max-w-xl" style={{ color: 'var(--c-text-muted)' }}>
             One shared pool holding {poolState.tokens.map((t) => t.symbol).join(', ')}. Every deposit
-            joins this pool and earns a slice of the fees from all swaps between the four stables.
+            joins this pool and earns a slice of the fees from all swaps between its {poolState.tokens.length} stables.
           </p>
         </div>
 
@@ -152,10 +152,10 @@ export default function PoolOverviewPage() {
         style={{ backgroundColor: 'var(--c-surface)', border: '1px solid var(--c-border)' }}
       >
         {[
-          { label: 'APY range', value: apyRange, accent: true, isPreview: true },
+          { label: 'APY range', value: apyRange, accent: hasPreview, isPreview: hasPreview },
           { label: 'Total value locked', value: formatCurrency(poolState.totalTvl) },
           { label: 'Pooled assets', value: String(poolState.tokens.length) },
-          { label: '24h Volume', value: formatCurrency(volume24h), isPreview: true },
+          { label: '24h Volume', value: hasPreview ? formatCurrency(volume24h) : '—', isPreview: hasPreview },
         ].map(({ label, value, accent, isPreview }, i) => (
           <div
             key={label}
@@ -229,7 +229,7 @@ export default function PoolOverviewPage() {
             <Field label="Status" value={poolState.paused ? 'Paused' : 'Active'} />
             <Field label="LP supply" value={poolState.lpSupplyHuman.toLocaleString(undefined, { maximumFractionDigits: 2 })} />
             <Field label="Pooled assets" value={String(poolState.tokens.length)} />
-            <Field label="Holders" value={`${holders.toLocaleString()}*`} />
+            <Field label="Holders" value={hasPreview ? `${holders.toLocaleString()}*` : '—'} />
           </dl>
         </Section>
       </div>
@@ -266,17 +266,19 @@ export default function PoolOverviewPage() {
                 Network
               </span>
               <span className="text-sm" style={{ color: 'var(--c-text)' }}>
-                Stellar Testnet
+                {NETWORK_LABEL}
               </span>
             </div>
           </div>
         </Section>
       </div>
 
-      <p className="text-[11px] mt-6 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
-        * APY, holder count and 24h volume are preview figures. The contract doesn't expose these
-        yet. Reserves, TVL, pool share, amplification and LP supply are read live from the chain.
-      </p>
+      {hasPreview && (
+        <p className="text-[11px] mt-6 leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
+          * APY, holder count and 24h volume are preview figures. The contract doesn't expose these
+          yet. Reserves, TVL, pool share, amplification and LP supply are read live from the chain.
+        </p>
+      )}
     </div>
   )
 }
