@@ -64,6 +64,7 @@ export const DOCS_NAV: DocSection[] = [
     pages: [
       { slug: "developers/stack", label: "Tech Stack" },
       { slug: "developers/sdk", label: "Using the SDK" },
+      { slug: "developers/price-api", label: "Price API" },
       { slug: "developers/local-setup", label: "Run it Locally" },
     ],
   },

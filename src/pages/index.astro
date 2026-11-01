@@ -2,6 +2,7 @@
 import Layout from '../layouts/Layout.astro'
 import Header from '../components/Header'
 import SwapWidget from '../components/SwapWidget'
+import LiveStats from '../components/LiveStats'
 ---
 
 <Layout title="Spreadless · Stablecoin AMM on Stellar">
@@ -66,24 +67,7 @@ import SwapWidget from '../components/SwapWidget'
           class="pt-8 animate-fade-up"
           style="border-top: 1px solid var(--c-border); animation-delay: 0.32s;"
         >
-          <div class="flex flex-wrap items-center gap-x-8 gap-y-6">
-            {[
-              { val: '$238,838', label: 'TVL' },
-              { val: '$4.6M', label: '30d Volume' },
-              { val: '4', label: 'Stablecoins' },
-              { val: '4', label: 'Liquidity Pools' },
-              { val: '6.8%', label: 'Highest APY', accent: true },
-            ].map(({ val, label, accent }) => (
-              <div>
-                <p class="text-xl md:text-2xl font-black" style={`color: ${accent ? 'var(--c-accent)' : 'var(--c-text)'};`}>{val}</p>
-                <p class="text-[11px] uppercase tracking-wider mt-1" style="color: var(--c-text-faint);">{label}*</p>
-              </div>
-            ))}
-          </div>
-          <p class="text-[10px] mt-4" style="color: var(--c-text-faint);">
-            * Not live data. Oriented on current 7-day stats of a comparable protocol on{' '}
-            <a href="https://stabble.org" target="_blank" rel="noopener noreferrer" class="underline hover:opacity-80">Solana</a>.
-          </p>
+          <LiveStats client:load />
         </div>
       </div>
 

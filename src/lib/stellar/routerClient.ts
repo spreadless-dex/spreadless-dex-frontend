@@ -107,14 +107,14 @@ function routerId(): string {
   return FACTORY_CONTRACT_ID;
 }
 
-async function routerSpec(): Promise<contract.Spec> {
+async function routerSpec(rpcUrl: string): Promise<contract.Spec> {
   if (!specPromise && routerId() === ROUTER_SPEC_CONTRACT_ID) {
     specPromise = Promise.resolve(new contract.Spec([...ROUTER_SPEC_XDR]));
   }
   if (!specPromise) {
     specPromise = contract.Client.from({
       contractId: routerId(),
-      rpcUrl: RPC_URL,
+      rpcUrl,
       allowHttp: RPC_ALLOW_HTTP,
       networkPassphrase: NETWORK_PASSPHRASE,
     })
@@ -130,13 +130,18 @@ async function routerSpec(): Promise<contract.Spec> {
 
 /**
  * A Router client. Pass a `publicKey` to simulate as that account, and a signer
- * as well to be able to submit. Views need neither.
+ * as well to be able to submit. Views need neither. The server passes its own
+ * `rpcUrl`, since RPC_URL on mainnet is this app's /rpc route.
  */
-export async function routerClient(publicKey?: string, signer?: RouterSigner): Promise<RouterClient> {
-  const spec = await routerSpec();
+export async function routerClient(
+  publicKey?: string,
+  signer?: RouterSigner,
+  rpcUrl: string = RPC_URL,
+): Promise<RouterClient> {
+  const spec = await routerSpec(rpcUrl);
   return new contract.Client(spec, {
     contractId: routerId(),
-    rpcUrl: RPC_URL,
+    rpcUrl,
     allowHttp: RPC_ALLOW_HTTP,
     networkPassphrase: NETWORK_PASSPHRASE,
     publicKey,

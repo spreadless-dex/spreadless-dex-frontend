@@ -1,0 +1,53 @@
+---
+title: Price API
+description: Read Spreadless pool prices over HTTP, instead of from an on-chain oracle.
+---
+
+import Callout from "../../../components/docs/Callout.astro";
+
+Spreadless does not run an on-chain oracle. Its pool prices are public over a
+plain HTTP endpoint instead: no key, no account, and it can be called from a
+browser on any site.
+
+```
+GET https://spreadless.xyz/api/prices
+```
+
+## Response
+
+```json
+{
+  "network": "mainnet",
+  "updated_at": "2026-11-01T12:00:00.000Z",
+  "pools": [
+    {
+      "address": "CAZE5GVM…ZN7L",
+      "quote": { "symbol": "USDC", "address": "CCW67TSZ…MI75" },
+      "tokens": [
+        { "symbol": "USDT0", "address": "CBSJZEIO…R26YF", "price": 0.9998, "reserve": 125000.5 },
+        { "symbol": "USDC", "address": "CCW67TSZ…MI75", "price": 1, "reserve": 124000 }
+      ]
+    }
+  ]
+}
+```
+
+- **`price`** is what one token is worth in the pool's `quote` token, at the
+  pool's current balances. It is a mid price: before the swap fee and for an
+  infinitely small trade.
+- **`quote`** is USDC where the pool holds it, otherwise the pool's first token.
+  A price here is relative to that token, not to the dollar.
+- **`reserve`** is the pool's balance of the token, in whole tokens.
+- Only pools funded with tokens this app lists appear here.
+
+Data is at most 60 seconds old, and `updated_at` says when it was read. When the
+chain can't be read, the endpoint answers `503` with an `error` field.
+
+<Callout kind="warning" title="Not a safe input for on-chain value">
+  A pool's price moves with every trade, so anyone with enough capital can push
+  it for a moment. It suits displays and analytics. If something of value
+  settles on it, average over time and check it against a second source.
+</Callout>
+
+To quote what a real trade would pay, including the fee and price impact,
+simulate it instead: see [Using the SDK](/docs/developers/sdk).
