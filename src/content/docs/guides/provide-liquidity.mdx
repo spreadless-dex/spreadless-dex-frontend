@@ -6,20 +6,24 @@ description: Deposit a single stablecoin into a pool, receive LP shares, and sta
 import Callout from "../../../components/docs/Callout.astro";
 import Figure from "../../../components/docs/Figure.astro";
 
-Providing liquidity earns you a share of every swap fee the pool collects. On
-Spreadless you do it with **one** asset: no pairing, no manual split (see
-[Single-Sided Liquidity](/docs/concepts/single-sided) for why that's possible).
+Providing liquidity earns you a share of every swap fee the pool collects. A
+deposit is **balanced** by default: you enter one amount and the app adds the
+pool's other assets at its current ratio, so the pool's prices stay where they
+are and no imbalance fee applies. You can also deposit one asset on its own (see
+[Single-Sided Liquidity](/docs/concepts/single-sided)), and the app warns you what
+that does to the pool.
 
 <Figure
-  alt="The deposit panel: a single-asset amount field, projected APY and estimated returns"
-  caption="Depositing a single asset, with projected APY and LP received shown before you sign."
+  alt="The deposit panel: an amount field, the basket going in with it, projected APY and estimated returns"
+  caption="A balanced deposit, with projected APY and LP received shown before you sign."
 />
 
 ## Steps
 
 1. Open **[Earn](/earn)** and choose a pool.
-2. On the **Deposit** tab, pick the asset you want to contribute and enter an
-   amount (the **25 / 50 / Max** shortcuts pull from your balance).
+2. On the **Deposit** tab, enter an amount of one asset. The app shows what goes
+   in with it (the **25 / 50 / Max** shortcuts stop at what your wallet can pay
+   across the whole basket).
 3. Review the projected **APY** and the **LP shares** you'll receive, both quoted
    from a live simulation of the real deposit.
 4. Click deposit and approve in your wallet.

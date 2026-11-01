@@ -8,7 +8,13 @@ import Callout from "../../../components/docs/Callout.astro";
 On a classic two-sided AMM you must supply *both* assets of a pair in the right
 ratio. If you only hold one, you first have to sell half of it, paying fees and
 price impact, just to provide liquidity. Spreadless removes that step: you
-deposit **one** asset and the pool handles the rest.
+can deposit **one** asset and the pool handles the rest.
+
+<Callout kind="warning" title="Not the default">
+  The app starts every deposit as balanced, in the pool's own ratio, because that
+  leaves the pool's prices alone. Depositing one asset moves them, so the app
+  warns you with the shift it would cause before you sign.
+</Callout>
 
 <Callout kind="note" title="Except for the very first deposit">
   A pool that has never been deposited into has no balance to value your

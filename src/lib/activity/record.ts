@@ -75,6 +75,8 @@ interface RecordDepositArgs {
   lpReceived?: string;
   txHash?: string;
   detail?: string;
+  /** Part of a deposit across every asset of the pool, not one token on its own. */
+  balanced?: boolean;
 }
 
 export async function recordDeposit(args: RecordDepositArgs): Promise<ActivityRecord> {
@@ -84,7 +86,11 @@ export async function recordDeposit(args: RecordDepositArgs): Promise<ActivityRe
     type: "deposit",
     status: args.status,
     title: `Deposit ${args.symbol}`,
-    subtitle: failed ? (args.detail ?? "No assets exchanged") : "Single-sided stable pool",
+    subtitle: failed
+      ? (args.detail ?? "No assets exchanged")
+      : args.balanced
+        ? "Balanced stable pool deposit"
+        : "Single-sided stable pool",
     assetPool: args.symbol,
     amount: `${args.amount} ${args.symbol}`,
     sent: `${args.amount} ${args.symbol}`,

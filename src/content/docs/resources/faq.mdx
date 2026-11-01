@@ -29,10 +29,11 @@ model.
 
 ## Can I really deposit just one token?
 
-Yes. [Single-sided liquidity](/docs/concepts/single-sided) works because the
-invariant already assumes the assets trade near parity, so the pool can value an
-imbalanced contribution fairly. You receive `SLP` LP shares and can withdraw into
-any single asset later.
+Yes, but it is not the default. [Single-sided liquidity](/docs/concepts/single-sided)
+works because the invariant already assumes the assets trade near parity, so the
+pool can value an imbalanced contribution fairly. It still tilts the pool and moves
+its prices, so the app starts on a balanced deposit and warns you if you switch.
+You receive `SLP` LP shares either way and can withdraw into any single asset later.
 
 ## What's an LP token here?
 

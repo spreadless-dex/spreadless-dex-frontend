@@ -608,6 +608,9 @@
   /* The one accent in an otherwise monochrome design — reserved for yield
      figures (APY) only. Buttons and everything else stay black/white. */
   --c-accent:        #6D28D9;
+  --c-warn:          #B45309;
+  --c-warn-bg:       rgba(217,119,6,0.10);
+  --c-warn-border:   rgba(217,119,6,0.35);
   --c-card-border:   rgba(0,0,0,0.08);
   --c-skeleton-glow: rgba(0,0,0,0.05);
   --c-card-shadow:
@@ -639,6 +642,9 @@ html.dark {
   --c-cta-bg:        #ffffff;
   --c-cta-text:      #000000;
   --c-accent:        #A78BFA;
+  --c-warn:          #FBBF24;
+  --c-warn-bg:       rgba(251,191,36,0.10);
+  --c-warn-border:   rgba(251,191,36,0.32);
   --c-card-border:   rgba(254,254,254,0.13);
   --c-skeleton-glow: rgba(255,255,255,0.06);
   --c-card-shadow:   none;
@@ -1218,7 +1224,7 @@ dialog.earn-sheet {
   position: fixed; inset: 0;
   margin: auto 0 0 0; padding: 0;
   width: 100%; max-width: none; height: fit-content; max-height: 92dvh;
-  display: none; flex-direction: column; overflow: hidden;
+  display: none; flex-direction: column; overflow: hidden auto;
   color: var(--c-text); background: var(--c-surface);
   border: 1px solid var(--c-border); border-bottom: 0;
   border-radius: 1.5rem 1.5rem 0 0;
@@ -1328,7 +1334,7 @@ html.earn-locked.earn-gutter { scrollbar-gutter: stable; }
 .earn-list-head b { font-size: 13px; font-weight: 650; }
 .earn-list-head span { font-size: 11.5px; color: var(--c-text-faint); text-align: right; }
 .earn-list {
-  position: relative; flex: 1 1 auto; min-height: 120px; overflow-y: auto; overscroll-behavior: contain;
+  position: relative; flex: 1 1 auto; min-height: 76px; overflow-y: auto; overscroll-behavior: contain;
   padding: 0 12px 14px;
   scrollbar-width: thin; scrollbar-color: var(--c-border-2) transparent;
 }
