@@ -3,13 +3,10 @@ import { X } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import type { EarnPool } from '../../lib/stellar/earnPools'
 import { formatFamilyAmount, type EarnAsset, type EarnOffer } from '../../lib/stellar/earnAssets'
-import { depositSingleSided, quoteDepositSingleSided, LP_DECIMALS } from '../../lib/stellar/pool'
-import { getTokenBalance } from '../../lib/stellar/token'
-import { fromRawUnits, toRawUnits } from '../../lib/stellar/units'
-import { refetchUntilChanged } from '../../lib/stellar/refetch'
+import { fromRawUnits } from '../../lib/stellar/units'
 import { mapTxError } from '../../lib/stellar/errors'
 import type { TxPhase } from '../../lib/stellar/types'
-import { recordDeposit } from '../../lib/activity/record'
+import { BasketRows, DepositKindSwitch, SingleTokenWarning, useDepositMix } from '../DepositMix'
 import RainButton from '../RainButton'
 import TxStatus, { type TxUiStatus } from '../TxStatus'
 import TokenIcon from '../TokenIcon'
@@ -33,7 +30,7 @@ interface DepositSheetProps {
 }
 
 interface Done {
-  amount: string
+  summary: string
   offer: EarnOffer
   lp: string
   hash: string
@@ -57,6 +54,7 @@ const DRAG_CLOSE_VELOCITY = 0.7
 // asset is fixed, the pool is a choice. The best pool is preselected so a
 // deposit takes an amount and one tap; the ladder underneath lets the user
 // pick any other open pool, and the token hops into whichever they choose.
+// The amount anchors a balanced basket unless the user opts for one token.
 export default function DepositSheet({ asset, viaTransition, onRequestClose, onSeed, onLanded }: DepositSheetProps) {
   const { walletConnected, walletAddress, connectWallet, loadPoolState } = useAppStore()
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -66,9 +64,6 @@ export default function DepositSheet({ asset, viaTransition, onRequestClose, onS
 
   const [selected, setSelected] = useState<string | null>(asset.best?.pool.address ?? null)
   const [amount, setAmount] = useState('')
-  const [balance, setBalance] = useState<bigint | null>(null)
-  const [quote, setQuote] = useState('')
-  const [quoting, setQuoting] = useState(false)
   const [status, setStatus] = useState<TxUiStatus>({ kind: 'idle' })
   const [txPhase, setTxPhase] = useState<TxPhase | null>(null)
   const [done, setDone] = useState<Done | null>(null)
@@ -78,6 +73,15 @@ export default function DepositSheet({ asset, viaTransition, onRequestClose, onS
   const offer = asset.open.find((o) => o.pool.address === selected) ?? null
   const num = Number(amount) > 0 ? Number(amount) : 0
   const apy = offer?.apy ?? null
+
+  const mix = useDepositMix({
+    tokens: offer?.pool.state?.tokens ?? [],
+    token: offer?.token,
+    amount,
+    poolId: offer?.pool.address,
+    walletAddress,
+  })
+  const balance = offer ? (mix.balances[offer.token.index] ?? null) : null
 
   // Pools keep landing and refreshing while the sheet is open. The choice
   // stays as long as that pool still takes deposits.
@@ -119,101 +123,22 @@ export default function DepositSheet({ asset, viaTransition, onRequestClose, onS
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Wallet reads ──
-  useEffect(() => {
-    if (!walletAddress) {
-      setBalance(null)
-      return
-    }
-    let live = true
-    getTokenBalance(asset.address, walletAddress, asset.decimals)
-      .then((b) => live && setBalance(b))
-      .catch((err) => {
-        console.error('Earn: balance read failed:', err)
-        if (live) setBalance(null)
-      })
-    return () => {
-      live = false
-    }
-  }, [walletAddress, asset.address, asset.decimals])
-
-  // "You receive ~X LP" before committing, against the chosen pool. The
-  // simulation runs as the connected account, so no wallet means no quote.
-  const poolId = offer?.pool.address
-  const tokenIndex = offer?.token.index
-  useEffect(() => {
-    setQuote('')
-    if (!walletAddress || !poolId || tokenIndex === undefined || !amount) {
-      setQuoting(false)
-      return
-    }
-    const raw = toRawUnits(amount, asset.decimals)
-    if (raw <= 0n) {
-      setQuoting(false)
-      return
-    }
-    let live = true
-    setQuoting(true)
-    const timer = setTimeout(async () => {
-      try {
-        const lp = await quoteDepositSingleSided({ to: walletAddress, tokenIndex, amount: raw, poolId })
-        if (live) setQuote(fromRawUnits(lp, LP_DECIMALS))
-      } catch (err) {
-        // e.g. more than the wallet holds: no quote rather than an error mid-typing
-        console.error('Earn: deposit quote failed:', err)
-      } finally {
-        if (live) setQuoting(false)
-      }
-    }, 400)
-    return () => {
-      live = false
-      clearTimeout(timer)
-    }
-  }, [walletAddress, amount, poolId, tokenIndex, asset.decimals])
-
-  const insufficient =
-    walletConnected && balance !== null && num > 0 && toRawUnits(amount, asset.decimals) > balance
+  const insufficient = walletConnected && mix.short.length > 0
 
   const handleDeposit = async () => {
     if (!walletAddress || !offer || num <= 0) return
     const target = offer
-    const amt = amount
     setStatus({ kind: 'idle' })
     try {
-      const { result, hash } = await depositSingleSided({
-        to: walletAddress,
-        tokenIndex: target.token.index,
-        amount: toRawUnits(amt, asset.decimals),
-        onPhase: setTxPhase,
-        poolId: target.pool.address,
-      })
-      const lp = fromRawUnits(result, LP_DECIMALS)
-      recordDeposit({
-        walletAddress,
-        status: 'completed',
-        symbol: asset.symbol,
-        amount: amt,
-        lpReceived: lp,
-        txHash: hash,
-      }).catch((err) => console.error('Failed to record activity:', err))
-      setDone({ amount: amt, offer: target, lp, hash })
+      const { lp, hash, summary } = await mix.deposit(setTxPhase)
+      setDone({ summary, offer: target, lp, hash })
       setAmount('')
       if (target.pool.isConfigPool) loadPoolState()
       onLanded(target.pool.address)
-      refetchUntilChanged(() => getTokenBalance(asset.address, walletAddress, asset.decimals), balance)
-        .then(setBalance)
-        .catch(() => {})
+      mix.settle()
     } catch (err) {
       console.error('Deposit failed:', err)
-      const mapped = mapTxError(err, { spend: asset.symbol })
-      setStatus({ kind: 'error', ...mapped })
-      recordDeposit({
-        walletAddress,
-        status: 'failed',
-        symbol: asset.symbol,
-        amount: amt,
-        detail: mapped.message,
-      }).catch((e) => console.error('Failed to record activity:', e))
+      setStatus({ kind: 'error', ...mapTxError(err, { spend: mix.spend }) })
     } finally {
       setTxPhase(null)
     }
@@ -283,8 +208,8 @@ export default function DepositSheet({ asset, viaTransition, onRequestClose, onS
   }
 
   const setPercent = (pct: bigint) => {
-    if (balance === null) return
-    setAmount(fromRawUnits((balance * pct) / 100n, asset.decimals))
+    if (mix.max === null) return
+    setAmount(fromRawUnits((mix.max * pct) / 100n, asset.decimals))
   }
 
   const onAmountInput = (value: string) => {
@@ -348,7 +273,7 @@ export default function DepositSheet({ asset, viaTransition, onRequestClose, onS
           </svg>
           <h3 className="text-[22px] font-bold tracking-tight">Deposited</h3>
           <p className="text-[14px] max-w-[34ch]" style={{ color: 'var(--c-text-muted)' }}>
-            {done.amount} {asset.symbol} now works in{' '}
+            {done.summary} now {done.summary.includes(' + ') ? 'work' : 'works'} in{' '}
             <b style={{ color: 'var(--c-text)' }}>{done.offer.pool.label}</b>
             {done.offer.apy !== null && (
               <>
@@ -380,6 +305,11 @@ export default function DepositSheet({ asset, viaTransition, onRequestClose, onS
       ) : (
         <>
           <div className="earn-sheet-form">
+            {offer && mix.tokens.length > 1 && (
+              <div className="mt-2">
+                <DepositKindSwitch mix={mix} symbol={asset.symbol} />
+              </div>
+            )}
             <label className="earn-amount">
               <input
                 ref={amountRef}
@@ -398,7 +328,7 @@ export default function DepositSheet({ asset, viaTransition, onRequestClose, onS
                 <span className="tabular-nums">
                   Balance {balance !== null ? fromRawUnits(balance, asset.decimals) : '—'} {asset.symbol}
                 </span>
-                {balance !== null && balance > 0n && (
+                {mix.max !== null && mix.max > 0n && (
                   <div className="flex gap-1">
                     {([25n, 50n, 100n] as const).map((pct) => (
                       <button key={String(pct)} type="button" className="earn-pct" onClick={() => setPercent(pct)}>
@@ -408,6 +338,9 @@ export default function DepositSheet({ asset, viaTransition, onRequestClose, onS
                   </div>
                 )}
               </div>
+            )}
+            {offer && (
+              <BasketRows mix={mix} token={offer.token} onlyToken={() => mix.setKind('single')} />
             )}
             <div className="earn-yield">
               <div>
@@ -422,7 +355,7 @@ export default function DepositSheet({ asset, viaTransition, onRequestClose, onS
               <div>
                 <p className="earn-label">Earned per year</p>
                 <Odometer
-                  value={apy !== null ? formatFamilyAmount((num * apy) / 100, asset.family) : '—'}
+                  value={apy !== null ? formatFamilyAmount((mix.total * apy) / 100, asset.family) : '—'}
                   className="earn-big"
                   style={{ color: apy !== null ? 'var(--c-text)' : 'var(--c-text-faint)' }}
                 />
@@ -432,7 +365,7 @@ export default function DepositSheet({ asset, viaTransition, onRequestClose, onS
               <p className="earn-quote">
                 <span>You receive</span>
                 <span className="tabular-nums" style={{ color: 'var(--c-text)', fontWeight: 600 }}>
-                  {quoting ? 'Fetching quote…' : quote ? `≈ ${quote} LP shares` : '—'}
+                  {mix.quoting ? 'Fetching quote…' : mix.quote ? `≈ ${mix.quote} LP shares` : '—'}
                 </span>
               </p>
             )}
@@ -449,6 +382,7 @@ export default function DepositSheet({ asset, viaTransition, onRequestClose, onS
               family={asset.family}
               selected={offer?.pool.address ?? null}
               amount={num}
+              balanced={mix.kind === 'balanced'}
               onSelect={select}
               onSeed={onSeed}
               hint={hint}
@@ -456,6 +390,7 @@ export default function DepositSheet({ asset, viaTransition, onRequestClose, onS
           </div>
 
           <footer className="earn-sheet-foot">
+            <SingleTokenWarning mix={mix} symbol={asset.symbol} className="mb-2.5" />
             {!walletConnected ? (
               <button type="button" onClick={connectWallet} className={ctaClass} style={ctaStyle}>
                 Log in to deposit
@@ -466,11 +401,15 @@ export default function DepositSheet({ asset, viaTransition, onRequestClose, onS
               </button>
             ) : insufficient ? (
               <button type="button" disabled className={ctaClass} style={ctaStyle}>
-                Not enough {asset.symbol}
+                Not enough {mix.short.map((t) => t.symbol).join(', ')}
               </button>
             ) : (
               <RainButton onClick={handleDeposit} disabled={num <= 0} className={ctaClass} style={ctaStyle}>
-                {num > 0 ? `Deposit ${amount} ${asset.symbol}` : 'Enter an amount'}
+                {num <= 0
+                  ? 'Enter an amount'
+                  : mix.kind === 'balanced'
+                    ? `Deposit ${mix.spend}`
+                    : `Deposit only ${amount} ${asset.symbol}`}
               </RainButton>
             )}
             <TxStatus phase={txPhase} status={status} />

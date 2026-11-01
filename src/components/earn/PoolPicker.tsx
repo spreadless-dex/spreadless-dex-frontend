@@ -13,6 +13,8 @@ interface PoolPickerProps {
   selected: string | null
   /** The amount typed so far, for the "your share" line. */
   amount: number
+  /** The rest of the pool goes in alongside `amount`, in the pool's own ratio. */
+  balanced: boolean
   onSelect: (offer: EarnOffer) => void
   onSeed: (pool: EarnPool) => void
   /** Bumped to make every other open pool's radio ping once. */
@@ -26,7 +28,7 @@ const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').match
 // APY, drawn dashed). One selection frame travels between the rows instead of
 // each row lighting up on its own. Tags say what sets a pool apart, so a lower
 // rate can still be the one to pick.
-export default function PoolPicker({ offers, symbol, family, selected, amount, onSelect, onSeed, hint }: PoolPickerProps) {
+export default function PoolPicker({ offers, symbol, family, selected, amount, balanced, onSelect, onSeed, hint }: PoolPickerProps) {
   const listRef = useRef<HTMLOListElement>(null)
   const frameFrom = useRef<DOMRect | null>(null)
 
@@ -94,7 +96,7 @@ export default function PoolPicker({ offers, symbol, family, selected, amount, o
                   .filter(Boolean)
                   .join(' · ')
         const others = state.tokens.filter((t) => t.address !== o.token.address)
-        const share = amount > 0 ? (amount / (o.tvl + amount)) * 100 : 0
+        const share = amount > 0 ? (amount / ((balanced ? o.token.reserveHuman : o.tvl) + amount)) * 100 : 0
 
         const body = (
           <>
@@ -178,7 +180,7 @@ export default function PoolPicker({ offers, symbol, family, selected, amount, o
                 <p>
                   {amount > 0 ? (
                     <span>
-                      Your {amount.toLocaleString('en-US', { maximumFractionDigits: 7 })} {symbol} would be{' '}
+                      Your {amount.toLocaleString('en-US', { maximumFractionDigits: 7 })} {symbol}{balanced ? ' and the rest of the basket' : ''} would be{' '}
                       <b className="tabular-nums">{share < 0.01 ? '<0.01' : share.toFixed(2)}%</b> of this pool
                     </span>
                   ) : (

@@ -4,8 +4,6 @@ import { formatCurrency, shortenAddress } from '../lib/utils'
 import { refetchUntilChanged } from '../lib/stellar/refetch'
 import { fromRawUnits, toRawUnits } from '../lib/stellar/units'
 import {
-  depositSingleSided,
-  quoteDepositSingleSided,
   withdrawOneToken,
   quoteWithdrawOneToken,
   withdrawAll,
@@ -17,11 +15,11 @@ import {
 import { POOL_CONTRACT_ID } from '../lib/stellar/config'
 import { tokenDecimals, tokenSymbol } from '../lib/stellar/registry'
 import { invalidateVaultTvl } from '../lib/stellar/vaultTvl'
-import { getTokenBalance } from '../lib/stellar/token'
 import { getPoolPreviewStats } from '../lib/mockPoolStats'
 import { mapTxError } from '../lib/stellar/errors'
 import type { TxPhase } from '../lib/stellar/types'
-import { recordDeposit, recordWithdraw } from '../lib/activity/record'
+import { recordWithdraw } from '../lib/activity/record'
+import { BasketRows, DepositKindSwitch, SingleTokenWarning, useDepositMix } from './DepositMix'
 import RainButton from './RainButton'
 import TxStatus, { type TxUiStatus } from './TxStatus'
 import TokenIcon from './TokenIcon'
@@ -39,7 +37,7 @@ interface PoolDetailModalProps {
    * so the same modal seeds any pool.
    */
   poolId?: string
-  /** Every token of that pool, in its canonical order. The balanced withdraw pays out all of them. */
+  /** Every token of that pool, in its canonical order. A balanced deposit or withdraw moves all of them. */
   poolTokens: PoolToken[]
   /** Which withdraw the modal opens on. */
   defaultWithdrawKind?: WithdrawKind
@@ -74,9 +72,6 @@ export default function PoolDetailModal({
   const [amount, setAmount] = useState('')
   const [status, setStatus] = useState<TxUiStatus>({ kind: 'idle' })
   const [txPhase, setTxPhase] = useState<TxPhase | null>(null)
-  const [depositQuote, setDepositQuote] = useState('')
-  const [depositQuoting, setDepositQuoting] = useState(false)
-  const [tokenBalance, setTokenBalance] = useState<bigint | null>(null)
 
   const [lpAmount, setLpAmount] = useState('')
   const [lpBalance, setLpBalance] = useState<bigint | null>(null)
@@ -85,6 +80,17 @@ export default function PoolDetailModal({
   const [withdrawKind, setWithdrawKind] = useState<WithdrawKind>(defaultWithdrawKind)
   const [allQuote, setAllQuote] = useState<TokenAmount[] | null>(null)
   const withdrawingAll = mode === 'withdraw' && withdrawKind === 'all'
+
+  const mix = useDepositMix({
+    tokens: poolTokens,
+    token,
+    amount,
+    poolId,
+    walletAddress,
+    active: mode === 'deposit',
+  })
+  const depositingAll = mode === 'deposit' && mix.kind === 'balanced'
+  const tokenBalance = mix.balances[token.index] ?? null
 
   // The configured pool is the one the preview APY, the per-asset pages and
   // the app store describe. Every other pool has its own page and no APY yet.
@@ -140,67 +146,6 @@ export default function PoolDetailModal({
     }
   }, [walletAddress, poolId])
 
-  // The deposit token's wallet balance — drives the Balance readout, the
-  // percent shortcuts and the insufficient-balance CTA state.
-  useEffect(() => {
-    if (!walletAddress) {
-      setTokenBalance(null)
-      return
-    }
-    let cancelled = false
-    getTokenBalance(token.address, walletAddress, token.decimals)
-      .then((b) => { if (!cancelled) setTokenBalance(b) })
-      .catch((err) => {
-        console.error('Failed to load token balance:', err)
-        if (!cancelled) setTokenBalance(null)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [walletAddress, token.address])
-
-  // Live deposit quote, debounced — "you'll receive ~X LP" before committing.
-  // Matters because single-sided deposits carry a bonus/malus depending on how
-  // they shift the pool's balance. Simulation runs against the connected
-  // account, so there's nothing to quote without a wallet.
-  useEffect(() => {
-    if (mode !== 'deposit' || !walletAddress || !amount) {
-      setDepositQuote('')
-      return
-    }
-    const amountRaw = toRawUnits(amount, token.decimals)
-    if (amountRaw <= 0n) {
-      setDepositQuote('')
-      return
-    }
-
-    let cancelled = false
-    setDepositQuoting(true)
-    const timer = setTimeout(async () => {
-      try {
-        const lp = await quoteDepositSingleSided({
-          to: walletAddress,
-          tokenIndex: token.index,
-          amount: amountRaw,
-          poolId,
-        })
-        if (!cancelled) setDepositQuote(fromRawUnits(lp, LP_DECIMALS))
-      } catch (err) {
-        // Simulation fails e.g. when the wallet can't cover the amount —
-        // just show no quote rather than an error mid-typing.
-        console.error('Deposit quote failed:', err)
-        if (!cancelled) setDepositQuote('')
-      } finally {
-        if (!cancelled) setDepositQuoting(false)
-      }
-    }, 400)
-
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [mode, walletAddress, amount, token.index, token.decimals, poolId])
-
   // Live withdraw quote, debounced. One amount for a single-token exit, one
   // per token for the balanced one.
   useEffect(() => {
@@ -247,12 +192,10 @@ export default function PoolDetailModal({
 
   // Projected yearly yield from the entered amount × preview APY. Stablecoin
   // amounts are treated as ≈ USD, same assumption formatCurrency makes elsewhere.
-  const estYearly = previewApy !== null && Number(amount) > 0 ? (Number(amount) * previewApy) / 100 : 0
+  const estYearly = previewApy !== null && Number(amount) > 0 ? (mix.total * previewApy) / 100 : 0
 
   const tokenBalanceHuman = tokenBalance !== null ? fromRawUnits(tokenBalance, token.decimals) : null
-  const insufficientBalance =
-    mode === 'deposit' && walletConnected && tokenBalance !== null && !!amount &&
-    toRawUnits(amount, token.decimals) > tokenBalance
+  const insufficientBalance = mode === 'deposit' && walletConnected && mix.short.length > 0
 
   const switchMode = (next: Mode) => {
     setMode(next)
@@ -263,23 +206,8 @@ export default function PoolDetailModal({
     if (!walletAddress || !amount || Number(amount) <= 0) return
     setStatus({ kind: 'idle' })
     try {
-      const { result, hash } = await depositSingleSided({
-        to: walletAddress,
-        tokenIndex: token.index,
-        amount: toRawUnits(amount, token.decimals),
-        onPhase: setTxPhase,
-        poolId,
-      })
-      const lpReceived = fromRawUnits(result, LP_DECIMALS)
-      setStatus({ kind: 'success', message: `Deposited ✓ Received ${lpReceived} LP shares`, hash })
-      recordDeposit({
-        walletAddress,
-        status: 'completed',
-        symbol: token.symbol,
-        amount,
-        lpReceived,
-        txHash: hash,
-      }).catch((err) => console.error('Failed to record activity:', err))
+      const { lp, hash } = await mix.deposit(setTxPhase)
+      setStatus({ kind: 'success', message: `Deposited ✓ Received ${lp} LP shares`, hash })
       setAmount('')
       if (isConfigPool) loadPoolState() // refresh reserves after the deposit lands (configured pool only)
       invalidateVaultTvl(poolId) // the register ranks by TVL, so its cached figure is stale now
@@ -289,20 +217,10 @@ export default function PoolDetailModal({
       refetchUntilChanged(() => getLpBalance(walletAddress, poolId), lpBalance)
         .then(setLpBalance)
         .catch(() => {})
-      refetchUntilChanged(() => getTokenBalance(token.address, walletAddress, token.decimals), tokenBalance)
-        .then(setTokenBalance)
-        .catch(() => {})
+      mix.settle()
     } catch (err) {
       console.error('Deposit failed:', err)
-      const mapped = mapTxError(err, { spend: token.symbol })
-      setStatus({ kind: 'error', ...mapped })
-      recordDeposit({
-        walletAddress,
-        status: 'failed',
-        symbol: token.symbol,
-        amount,
-        detail: mapped.message,
-      }).catch((e) => console.error('Failed to record activity:', e))
+      setStatus({ kind: 'error', ...mapTxError(err, { spend: mix.spend }) })
     } finally {
       setTxPhase(null)
     }
@@ -350,9 +268,7 @@ export default function PoolDetailModal({
       refetchUntilChanged(() => getLpBalance(walletAddress, poolId), lpBalance)
         .then(setLpBalance)
         .catch(() => {})
-      refetchUntilChanged(() => getTokenBalance(token.address, walletAddress, token.decimals), tokenBalance)
-        .then(setTokenBalance)
-        .catch(() => {})
+      mix.settle()
     } catch (err) {
       console.error('Withdraw failed:', err)
       const mapped = mapTxError(err, { spend: 'LP shares', receive: symbol })
@@ -396,7 +312,7 @@ export default function PoolDetailModal({
           </svg>
         </button>
 
-        {withdrawingAll ? (
+        {withdrawingAll || depositingAll ? (
           <div className="flex items-center gap-4 mb-5">
             <div className="flex items-center shrink-0">
               {poolTokens.map((t, i) => (
@@ -478,6 +394,13 @@ export default function PoolDetailModal({
 
         {mode === 'deposit' ? (
           <div className="mb-4">
+            {/* Two entries, as with the exits below. Balanced follows the pool's
+                ratio and leaves its prices alone; one token is the opt-in. */}
+            {mix.tokens.length > 1 && (
+              <div className="mb-3">
+                <DepositKindSwitch mix={mix} symbol={token.symbol} />
+              </div>
+            )}
             <div
               className="rounded-xl p-4"
               style={{ border: '1px solid var(--c-border)', backgroundColor: 'var(--c-surface-2)' }}
@@ -509,12 +432,12 @@ export default function PoolDetailModal({
                   <span className="text-[11px]" style={{ color: 'var(--c-text-faint)' }}>
                     Balance: {tokenBalanceHuman ?? '—'}
                   </span>
-                  {tokenBalance !== null && tokenBalance > 0n && (
+                  {mix.max !== null && mix.max > 0n && (
                     <div className="flex gap-1.5">
                       {[25, 50, 100].map((pct) => (
                         <button
                           key={pct}
-                          onClick={() => setAmount(fromRawUnits((tokenBalance * BigInt(pct)) / 100n, token.decimals))}
+                          onClick={() => setAmount(fromRawUnits((mix.max! * BigInt(pct)) / 100n, token.decimals))}
                           className="text-[11px] font-semibold px-2 py-0.5 rounded transition-all"
                           style={{ color: 'var(--c-text-muted)', border: '1px solid var(--c-border)' }}
                         >
@@ -527,16 +450,20 @@ export default function PoolDetailModal({
               )}
             </div>
 
+            <BasketRows mix={mix} token={token} onlyToken={() => mix.setKind('single')} />
+
             {walletConnected && amount && (
               <div className="flex items-center justify-between mt-2 px-1">
                 <span className="text-[11px]" style={{ color: 'var(--c-text-faint)' }}>
                   You receive
                 </span>
                 <span className="text-xs font-semibold" style={{ color: 'var(--c-text)' }}>
-                  {depositQuoting ? 'Fetching quote…' : depositQuote ? `≈ ${depositQuote} LP shares` : '—'}
+                  {mix.quoting ? 'Fetching quote…' : mix.quote ? `≈ ${mix.quote} LP shares` : '—'}
                 </span>
               </div>
             )}
+
+            <SingleTokenWarning mix={mix} symbol={token.symbol} className="mt-3" />
 
             {/* Recurring deposit — subtle toggle, preview only (was its own tab) */}
             <div className="mt-3">
@@ -695,7 +622,7 @@ export default function PoolDetailModal({
               className="w-full py-3 text-sm font-semibold rounded-xl opacity-50 cursor-not-allowed"
               style={{ backgroundColor: 'var(--c-cta-bg)', color: 'var(--c-cta-text)' }}
             >
-              Not enough {token.symbol} balance
+              Not enough {mix.short.map((t) => t.symbol).join(', ')} balance
             </button>
           ) : trustline.needed ? (
             <RainButton
@@ -721,7 +648,9 @@ export default function PoolDetailModal({
               }}
             >
               {mode === 'deposit'
-                ? `Deposit ${token.symbol}`
+                ? depositingAll
+                  ? 'Deposit all assets'
+                  : `Deposit only ${token.symbol}`
                 : withdrawingAll
                   ? 'Withdraw all assets'
                   : `Withdraw ${token.symbol}`}
@@ -743,9 +672,9 @@ export default function PoolDetailModal({
           className="learn-only text-[11px] mt-4 pt-3 text-center leading-relaxed"
           style={{ borderTop: '1px solid var(--c-border)', color: 'var(--c-text-faint)' }}
         >
-          No lockup: deposits and withdrawals are instant. Single-sided amounts
-          can shift slightly with pool balance (1% slippage guard). Stellar
-          network fees apply.
+          No lockup: deposits and withdrawals are instant. A balanced deposit keeps
+          the pool's ratio; one token on its own tilts it and pays the swap fee
+          on the imbalance (1% slippage guard). Stellar network fees apply.
         </p>
 
         {/* Full metrics — reserves, composition, amplification, contracts —

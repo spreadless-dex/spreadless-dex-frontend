@@ -138,6 +138,7 @@ export default function SeedLiquidityModal({ tokens, poolId, poolLabel, onClose,
           amount: amounts[i],
           lpReceived: i === 0 ? lpReceived : undefined,
           txHash: hash,
+          balanced: true,
         }).catch((err) => console.error('Failed to record activity:', err))
       })
       onSeeded?.()
@@ -200,8 +201,8 @@ export default function SeedLiquidityModal({ tokens, poolId, poolLabel, onClose,
 
         <p className="text-[13px] leading-relaxed mt-4 mb-4 px-3 py-2.5 rounded-xl" style={{ backgroundColor: 'var(--c-surface-2)', border: '1px solid var(--c-border)', color: 'var(--c-text-muted)' }}>
           The first deposit sets what balanced means for this pool, so it has to
-          fund every asset. Later deposits can be single-sided. The ratio you
-          enter here is the price the pool starts quoting at.
+          fund every asset. The ratio you enter here is the price the pool starts
+          quoting at.
         </p>
 
         <div className="space-y-2 mb-4">

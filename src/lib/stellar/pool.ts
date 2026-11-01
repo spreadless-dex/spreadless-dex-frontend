@@ -212,64 +212,6 @@ export async function readPoolState(poolId?: string): Promise<PoolState> {
   };
 }
 
-interface DepositArgs {
-  /** Recipient + signer. Must be the connected wallet's public key. */
-  to: string;
-  /** Canonical index of the token being deposited. */
-  tokenIndex: number;
-  /** Amount in raw on-chain units of that token. */
-  amount: bigint;
-  /** Slippage tolerance in basis points (100 = 1%). */
-  toleranceBps?: bigint;
-  /** Called as the tx moves through its lifecycle (preparing → signing → submitting). */
-  onPhase?: OnPhase;
-  /** Which pool to deposit into. Defaults to the configured single pool. */
-  poolId?: string;
-}
-
-/** Simulate-only: how many LP shares this single-sided deposit would mint right now. */
-export async function quoteDepositSingleSided({
-  to,
-  tokenIndex,
-  amount,
-  poolId,
-}: Omit<DepositArgs, "toleranceBps" | "onPhase">): Promise<bigint> {
-  if (amount <= 0n) return 0n;
-  const pool = await writeClient(to, undefined, poolId);
-  const tokens = (await pool.get_tokens()).result;
-  const amounts_in = tokens.map((_, i) => (i === tokenIndex ? amount : 0n));
-  const quote = await pool.deposit({ to, amounts_in, min_lp_out: 0n });
-  return unwrapResult(quote.result);
-}
-
-/** Single-sided deposit: fund one token, receive LP shares. Returns LP minted. */
-export async function depositSingleSided({
-  to,
-  tokenIndex,
-  amount,
-  toleranceBps = 100n,
-  onPhase,
-  poolId,
-}: DepositArgs): Promise<TxResult<bigint>> {
-  onPhase?.("preparing");
-  const pool = await writeClient(to, onPhase, poolId);
-
-  // amounts_in is indexed by canonical token order; single-sided means our
-  // amount at this token's slot and 0 everywhere else.
-  const tokens = (await pool.get_tokens()).result;
-  const amounts_in = tokens.map((_, i) => (i === tokenIndex ? amount : 0n));
-
-  // Simulate once with no floor to read the quoted LP, then submit with
-  // min_lp_out set from that quote minus tolerance — on-chain slippage guard.
-  const quote = await pool.deposit({ to, amounts_in, min_lp_out: 0n });
-  const quotedLp = unwrapResult(quote.result);
-  const minLpOut = quotedLp - (quotedLp * toleranceBps) / 10_000n;
-
-  const tx = await pool.deposit({ to, amounts_in, min_lp_out: minLpOut });
-  const sent = await tx.signAndSend();
-  return { result: unwrapResult(sent.result), hash: sent.sendTransactionResponse?.hash ?? "" };
-}
-
 interface DepositAllArgs {
   /** Recipient + signer. Must be the connected wallet's public key. */
   to: string;
@@ -286,15 +228,11 @@ interface DepositAllArgs {
   poolId?: string;
 }
 
-// Every deposit in the app used to be single-sided, which is the one shape a
-// *fresh* pool refuses: the first deposit into a pool must fund every token,
-// or the contract raises #12 FirstDepositNotFull. The reason is that a
-// StableSwap pool has no notion of balance until something establishes one,
-// and the first deposit is what does. So seeding needs a call that fills all
-// slots at once, and that is this pair.
-//
-// It is not restricted to seeding. A balanced deposit into a running pool is
-// the cheapest kind (no imbalance fee), it just was not reachable before.
+// Every deposit goes through this pair, and `amounts` decides its shape. A slot
+// left at zero is simply not funded, so one amount is a single-sided deposit,
+// and an amount in every slot is a seed or a balanced deposit. A *fresh* pool
+// refuses anything less than every slot (#12 FirstDepositNotFull): a StableSwap
+// pool has no notion of balance until something establishes one.
 
 function alignAmounts(amounts: bigint[], tokenCount: number): bigint[] {
   if (amounts.length !== tokenCount) {
@@ -305,7 +243,7 @@ function alignAmounts(amounts: bigint[], tokenCount: number): bigint[] {
   return amounts;
 }
 
-/** Simulate-only: LP shares a deposit across all tokens would mint right now. */
+/** Simulate-only: LP shares this deposit would mint right now. */
 export async function quoteDepositAll({
   to,
   amounts,
@@ -319,7 +257,7 @@ export async function quoteDepositAll({
   return unwrapResult(quote.result);
 }
 
-/** Deposit across every token at once. Returns LP minted. */
+/** Deposit `amounts` in one transaction. Returns LP minted. */
 export async function depositAll({
   to,
   amounts,
@@ -332,10 +270,10 @@ export async function depositAll({
   const tokens = (await pool.get_tokens()).result;
   const amounts_in = alignAmounts(amounts, tokens.length);
 
-  // Same two-phase shape as the single-sided path: simulate with no floor to
-  // read the quoted LP, then submit with min_lp_out derived from it. On a
-  // first deposit there is nothing to slip against yet, but the pool may have
-  // been seeded by someone else between quote and submit, so the guard stays.
+  // Simulate with no floor to read the quoted LP, then submit with min_lp_out
+  // derived from it. On a first deposit there is nothing to slip against yet,
+  // but the pool may have been seeded by someone else between quote and submit,
+  // so the guard stays.
   const quote = await pool.deposit({ to, amounts_in, min_lp_out: 0n });
   const quotedLp = unwrapResult(quote.result);
   const minLpOut = quotedLp - (quotedLp * toleranceBps) / 10_000n;
@@ -343,6 +281,29 @@ export async function depositAll({
   const tx = await pool.deposit({ to, amounts_in, min_lp_out: minLpOut });
   const sent = await tx.signAndSend();
   return { result: unwrapResult(sent.result), hash: sent.sendTransactionResponse?.hash ?? "" };
+}
+
+/**
+ * The basket that adds `amount` of the token at `index` and leaves every ratio
+ * in the pool where it is, so its prices do not move and no imbalance fee is
+ * due. Raw reserves carry each token's decimals, so the ratio needs no scaling.
+ * Rounding down leaves at most dust for the contract to read as imbalance.
+ * Null when the pool holds none of that token and so has no ratio to follow.
+ */
+export function balancedAmounts(tokens: PoolToken[], index: number, amount: bigint): bigint[] | null {
+  const anchor = tokens[index]?.reserve ?? 0n;
+  if (anchor <= 0n) return null;
+  return tokens.map((t, i) => (i === index ? amount : (amount * t.reserve) / anchor));
+}
+
+/** The most of the token at `index` whose whole balanced basket the wallet can pay. */
+export function maxBalancedAmount(tokens: PoolToken[], index: number, balances: bigint[]): bigint {
+  const anchor = tokens[index]?.reserve ?? 0n;
+  return tokens.reduce((max, t, i) => {
+    if (t.reserve <= 0n) return max;
+    const affordable = (balances[i] * anchor) / t.reserve;
+    return affordable < max ? affordable : max;
+  }, balances[index] ?? 0n);
 }
 
 interface SwapArgs {
