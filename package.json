@@ -11,6 +11,7 @@
     "preview": "npm run build && wrangler dev",
     "astro": "astro",
     "generate-types": "wrangler types",
+    "test": "node --test --experimental-strip-types --no-warnings src/lib/server/*.test.ts",
     "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {

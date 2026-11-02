@@ -1,0 +1,109 @@
+---
+title: Price Alerts
+description: Get a webhook call or a Telegram message when two tokens in a pool drift apart.
+---
+
+import Callout from "../../../components/docs/Callout.astro";
+
+An alert watches two tokens in one pool. When their [mid price](/docs/developers/price-api)
+moves more than your threshold away from 1:1, you get one message. When the gap
+closes again, you get a second one. Alerts are checked once a minute.
+
+You can add one on any pool's page, under **Price alerts**, or through the API
+below.
+
+<Callout kind="info" title="Who can set alerts">
+  The wallet that sets an alert must hold at least $1 of liquidity in a
+  Spreadless pool. This is checked when you create the alert and again each time
+  it fires. If you withdraw, the alert sends one last message saying it was
+  removed. Each wallet can have up to 10 alerts.
+</Callout>
+
+## Where alerts go
+
+- **Telegram.** You get a link to our bot. Open it and press **Start**. A bot
+  can only write to people who have written to it first, so the alert stays
+  inactive until you do. If you don't press Start within 24 hours, the alert is
+  dropped. Send `/stop` to the bot to end every alert it sends you.
+- **Webhook.** We `POST` JSON to your `https` URL:
+
+```json
+{
+  "alert_id": "6f1c…",
+  "state": "firing",
+  "pool": "CAZE5GVM…ZN7L",
+  "token_a": { "symbol": "USDT0", "address": "CBSJZEIO…R26YF" },
+  "token_b": { "symbol": "USDC", "address": "CCW67TSZ…MI75" },
+  "deviation_bps": 31.4,
+  "threshold_bps": 25,
+  "price": 0.99686,
+  "at": "2026-11-02T12:00:00.000Z",
+  "text": "⚠️ USDT0/USDC is 31 bps apart on Spreadless (your alert: 25). …"
+}
+```
+
+`state` is `firing`, `resolved` or `removed`. Answer with any `2xx`. Any other
+status counts as a failure, and after 3 failures in a row the alert is removed.
+Answer `410` to remove it right away.
+
+A firing alert resolves once the gap falls below 80% of the threshold. That way
+a price sitting right at the line doesn't send a message every minute.
+
+## API
+
+Every change is a JSON message that your wallet signs the
+[SEP-53](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0053.md)
+way (wallet kits call this `signMessage`). You send the message and the
+signature together:
+
+```
+POST   https://spreadless.xyz/api/alerts    { "message": "<json>", "signature": "<base64>" }
+DELETE https://spreadless.xyz/api/alerts    { "message": "<json>", "signature": "<base64>" }
+GET    https://spreadless.xyz/api/alerts?owner=G…
+```
+
+To create an alert, sign a message like this one:
+
+```json
+{
+  "app": "spreadless-alerts",
+  "network": "mainnet",
+  "action": "create",
+  "owner": "G…",
+  "ts": 1793620800000,
+  "id": "a fresh UUID",
+  "pool": "C…",
+  "token_a": "C…",
+  "token_b": "C…",
+  "bps": 25,
+  "channel": "webhook",
+  "webhook_url": "https://example.com/hook"
+}
+```
+
+- **`ts`** is the time in milliseconds. A signature is accepted for 5 minutes.
+- **`id`** comes from you. A request whose `id` already exists is refused with
+  `409`, so a captured signature cannot be replayed.
+- With `"channel": "telegram"`, leave out `webhook_url`. The answer then carries
+  a `telegram_link` to open.
+
+To delete an alert, sign `{ "app", "network", "action": "delete", "owner", "ts", "id" }`.
+
+`GET` lists a wallet's alerts. It does not include webhook URLs or Telegram chats.
+
+## Running it yourself
+
+These steps are for whoever deploys this app.
+
+```sh
+npx wrangler d1 create spreadless-alerts         # put the id into wrangler.jsonc
+npx wrangler d1 migrations apply spreadless-alerts --remote
+npx wrangler secret put TELEGRAM_BOT_TOKEN       # from @BotFather
+npx wrangler secret put TELEGRAM_WEBHOOK_SECRET  # any random string
+# set TELEGRAM_BOT_USERNAME in wrangler.jsonc "vars", deploy, then once:
+curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+  -d url=https://spreadless.xyz/api/telegram -d secret_token=$TELEGRAM_WEBHOOK_SECRET
+```
+
+If the Telegram values are missing, webhooks still work and Telegram requests
+are answered with `501`.

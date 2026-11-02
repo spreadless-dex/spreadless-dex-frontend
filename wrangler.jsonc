@@ -8,7 +8,9 @@
 	// does NOT catch this, only a real deploy or `wrangler`/workerd dev does.
 	"compatibility_flags": ["global_fetch_strictly_public", "nodejs_compat"],
 	"name": "spreadless-dex-frontend",
-	"main": "@astrojs/cloudflare/entrypoints/server",
+	// Our own entry: Astro's fetch handler plus the cron that checks price
+	// alerts (src/worker.ts).
+	"main": "./src/worker.ts",
 	"assets": {
 		"directory": "./dist",
 		"binding": "ASSETS"
@@ -24,6 +26,17 @@
 	"kv_namespaces": [
 		{ "binding": "SESSION", "id": "8826f4f448d645708b8314d3673c434d" }
 	],
+	// Price alerts: who wants to hear about which pool (migrations/). Create
+	// with `npx wrangler d1 create spreadless-alerts` and put its id here.
+	"d1_databases": [
+		{ "binding": "ALERTS", "database_name": "spreadless-alerts", "database_id": "REPLACE_WITH_D1_ID", "migrations_dir": "migrations" }
+	],
+	// Same cadence as the market snapshot's 60 s TTL.
+	"triggers": { "crons": ["* * * * *"] },
+	"vars": {
+		// The bot users open to receive alerts in Telegram (t.me/<name>).
+		"TELEGRAM_BOT_USERNAME": ""
+	},
 	"observability": {
 		"enabled": true
 	}
