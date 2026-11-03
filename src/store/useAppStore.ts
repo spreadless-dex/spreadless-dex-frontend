@@ -44,6 +44,8 @@ export interface PrivyBackend extends WalletSigner {
   logout: () => Promise<void>;
   /** Privy's own key-reveal modal. The key never passes through app code. */
   exportWallet: () => Promise<void>;
+  /** SEP-53 signature over `message`, base64. */
+  signMessage: (message: string) => Promise<string>;
 }
 
 interface AppState {
@@ -388,6 +390,24 @@ if (typeof window !== "undefined") void loadWalletKit();
 // match the SDK's expected ones exactly, so any SDK Client can sign through
 // the active wallet by spreading this into its constructor options alongside
 // `publicKey`.
+/**
+ * A SEP-53 signature (base64) over `message` from the connected wallet. This
+ * is how the app proves to its own API which wallet asks, e.g. for alerts.
+ */
+export async function signWalletMessage(message: string): Promise<string> {
+  if (useAppStore.getState().walletKind === "privy") {
+    if (!privyBackend?.authenticated || !privyBackend.address) {
+      throw new Error("Not signed in. Connect a wallet first.");
+    }
+    return privyBackend.signMessage(message);
+  }
+  const { kit } = await loadWalletKit();
+  const { signedMessage } = await kit.signMessage(message, {
+    address: useAppStore.getState().walletAddress ?? undefined,
+  });
+  return signedMessage;
+}
+
 export async function getWalletSigner(): Promise<WalletSigner> {
   if (useAppStore.getState().walletKind === "privy") {
     if (!privyBackend?.authenticated || !privyBackend.address) {

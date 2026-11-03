@@ -6,7 +6,7 @@ import { MARKET_TTL_SECONDS, readMarket, type Market } from "./market";
 
 // Mainnet has no default a Worker could use: RPC_URL there is this app's own
 // /rpc route, so the provider URL comes from the same secret that route uses.
-function rpcUrl(): string | undefined {
+export function rpcUrl(): string | undefined {
   const secret = (env as { SOROBAN_RPC_URL?: string }).SOROBAN_RPC_URL;
   return secret || (IS_MAINNET ? undefined : RPC_URL);
 }

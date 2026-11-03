@@ -71,7 +71,8 @@ async function poolAddresses(rpcUrl: string): Promise<string[]> {
   return [...addresses];
 }
 
-type PoolRead = Omit<MarketPool, "volume" | "apy"> & { lpShare: number };
+/** One pool as read from the chain, before the event scan adds volume and APY. */
+export type PoolRead = Omit<MarketPool, "volume" | "apy"> & { lpShare: number; lpSupply: bigint };
 
 async function readPool(address: string, rpcUrl: string): Promise<PoolRead | null> {
   const pool = new Client({ contractId: address, rpcUrl, networkPassphrase: NETWORK_PASSPHRASE });
@@ -82,11 +83,12 @@ async function readPool(address: string, rpcUrl: string): Promise<PoolRead | nul
   // Testnet pools from before the fee views simply lack them, and answer with a
   // failed simulation. Only the APY depends on them, so that one reads as zero.
   // Everything else stays strict: an outage must not pass for an empty pool.
-  const [reserves, amp, swapFee, protocolFee] = await Promise.all([
+  const [reserves, amp, swapFee, protocolFee, lpSupply] = await Promise.all([
     pool.get_reserves().then((t) => t.result),
     pool.get_amp().then((t) => t.result),
     pool.get_swap_fee().then((t) => t.result).catch(() => 0n),
     pool.get_protocol_fee().then((t) => t.result).catch(() => 0n),
+    pool.total_supply().then((t) => t.result),
   ]);
   const balances = addresses.map((_, i) => Number(fromRawUnits(reserves[i] ?? 0n, metas[i]!.decimals)));
   // An unfunded pool has no price yet.
@@ -107,6 +109,7 @@ async function readPool(address: string, rpcUrl: string): Promise<PoolRead | nul
     usd: metas.every((m) => m!.family === "USD"),
     tvl: balances.reduce((a, b) => a + b, 0),
     lpShare: fee * (1 - Number(protocolFee) / FEE_PRECISION),
+    lpSupply,
   };
 }
 
@@ -155,17 +158,40 @@ async function readVolumes(addresses: string[], rpcUrl: string): Promise<Map<str
   return volumes;
 }
 
-async function loadMarket(rpcUrl: string): Promise<Market> {
+/**
+ * Every listed pool's balances and prices, without the week of events that
+ * volume needs. The alert cron runs on this every minute: the event scan alone
+ * would spend most of a Worker's subrequest budget.
+ */
+export async function readPools(rpcUrl: string): Promise<PoolRead[]> {
   const addresses = await poolAddresses(rpcUrl);
   const reads = await Promise.all(addresses.map((a) => readPool(a, rpcUrl)));
-  const pools = reads.filter((p): p is PoolRead => p !== null);
+  return reads.filter((p): p is PoolRead => p !== null);
+}
+
+/** What `owner`'s LP tokens are worth across the USD pools, in dollars. */
+export async function positionUsd(owner: string, pools: PoolRead[], rpcUrl: string): Promise<number> {
+  const values = await Promise.all(
+    pools
+      .filter((p) => p.usd && p.lpSupply > 0n)
+      .map(async (p) => {
+        const pool = new Client({ contractId: p.address, rpcUrl, networkPassphrase: NETWORK_PASSPHRASE });
+        const balance = (await pool.balance({ account: owner })).result;
+        return (Number(balance) / Number(p.lpSupply)) * p.tvl;
+      }),
+  );
+  return values.reduce((a, b) => a + b, 0);
+}
+
+async function loadMarket(rpcUrl: string): Promise<Market> {
+  const pools = await readPools(rpcUrl);
   const volumes = await readVolumes(pools.map((p) => p.address), rpcUrl);
 
   return {
     network: NETWORK,
     updatedAt: new Date().toISOString(),
     volumeWindowDays: VOLUME_WINDOW_DAYS,
-    pools: pools.map(({ lpShare, ...pool }) => {
+    pools: pools.map(({ lpShare, lpSupply, ...pool }) => {
       const volume = volumes.get(pool.address) ?? 0;
       return { ...pool, volume, apy: ((volume * lpShare) / pool.tvl) * (365 / VOLUME_WINDOW_DAYS) * 100 };
     }),

@@ -10,6 +10,7 @@ import { formatSharePct } from '../lib/stellar/poolParams'
 import PoolDetailModal from './PoolDetailModal'
 import SeedLiquidityModal from './SeedLiquidityModal'
 import OwnershipPanel from './OwnershipPanel'
+import AlertsPanel from './AlertsPanel'
 import { aRightOf, A_RIGHT_LABEL, A_RIGHT_TIP } from '../lib/stellar/ownership'
 import TokenIcon from './TokenIcon'
 import Tooltip from './Tooltip'
@@ -334,6 +335,12 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
             <span className="text-sm" style={{ color: 'var(--c-text-muted)' }}>LP shares</span>
             <span className="text-sm font-semibold tabular-nums" style={{ color: 'var(--c-text)' }}>{lpHuman ?? '0'}</span>
           </div>
+        </Section>
+      )}
+
+      {walletAddress && !isDemo && state && (
+        <Section title="Price alerts" subtitle="Hear from us when this pool's tokens drift apart">
+          <AlertsPanel owner={walletAddress} pool={address} />
         </Section>
       )}
 

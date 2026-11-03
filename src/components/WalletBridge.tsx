@@ -27,6 +27,7 @@ import { NETWORK_PASSPHRASE, PRIVY_APP_ID } from "../lib/stellar/config";
 import {
   ensureFunded,
   signAuthEntryXdr,
+  signMessageSep53,
   signTransactionXdr,
 } from "../lib/stellar/privySigner";
 
@@ -164,6 +165,7 @@ function PrivyBridge() {
         const addr = requireAddress();
         return signAuthEntryXdr(entry, addr, rawSigner(addr));
       },
+      signMessage: (message) => signMessageSep53(message, rawSigner(requireAddress())),
     });
   }, [ready, authenticated, address, login, logout, signRawHash, exportWallet, setPrivyBackend]);
 
