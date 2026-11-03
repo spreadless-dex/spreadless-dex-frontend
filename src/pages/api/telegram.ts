@@ -4,7 +4,7 @@
 // gives us the chat id. Point the bot here once per deployment:
 //
 //   curl "https://api.telegram.org/bot$TOKEN/setWebhook" \
-//     -d url=https://spreadless.xyz/api/telegram -d secret_token=$TELEGRAM_WEBHOOK_SECRET
+//     -d url=https://dex.spreadless.xyz/api/telegram -d secret_token=$TELEGRAM_WEBHOOK_SECRET
 //
 // The answer rides back in the webhook response (Telegram runs the method in
 // it), so replying costs no extra request.
@@ -42,7 +42,7 @@ export const POST: APIRoute = async ({ request }) => {
 
   const start = /^\/start(?:\s+([0-9a-f]{32}))?$/.exec(text);
   if (start) {
-    if (!start[1]) return reply(chatId, "Create an alert at spreadless.xyz first, then open the link it gives you.");
+    if (!start[1]) return reply(chatId, "Create an alert at dex.spreadless.xyz first, then open the link it gives you.");
     const res = await db
       .prepare("UPDATE alerts SET target = ? WHERE channel = 'telegram' AND target = ? AND created_at > ?")
       .bind(chatId, PENDING + start[1], Date.now() - PENDING_TTL_MS)
@@ -51,7 +51,7 @@ export const POST: APIRoute = async ({ request }) => {
       chatId,
       res.meta.changes
         ? "Alert is on. I'll write here when the pair drifts past your threshold, and again when it's back. /stop ends all your alerts here."
-        : "That link has expired or was already used. Create the alert again at spreadless.xyz.",
+        : "That link has expired or was already used. Create the alert again at dex.spreadless.xyz.",
     );
   }
 
