@@ -2,9 +2,9 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Keypair } from "@stellar/stellar-sdk";
+import { Account, Keypair, Networks, Operation, TransactionBuilder } from "@stellar/stellar-sdk";
 import { parseCreate, spread, transitions, type AlertRow } from "./alerts.ts";
-import { sep53Hash, verifySigned } from "./auth.ts";
+import { messageDigest, verifySigned } from "./auth.ts";
 
 const pool = {
   address: "POOL",
@@ -54,19 +54,27 @@ test("create input is checked against the pools", () => {
   }
 });
 
-test("only a fresh SEP-53 signature by the owner passes", async () => {
+test("only a fresh, matching transaction signed by the owner passes", async () => {
+  const PASS = Networks.TESTNET;
   const key = Keypair.random();
   const now = Date.now();
   const message = JSON.stringify({ app: "spreadless-alerts", network: "testnet", action: "create", owner: key.publicKey(), ts: now });
-  const sig = key.sign(Buffer.from(await sep53Hash(message))).toString("base64");
+  const signed = async (opts: { signer?: Keypair; value?: string; seq?: string; passphrase?: string } = {}) => {
+    const tx = new TransactionBuilder(new Account(key.publicKey(), opts.seq ?? "-1"), { fee: "100", networkPassphrase: opts.passphrase ?? PASS })
+      .addOperation(Operation.manageData({ name: "spreadless-alerts", value: opts.value ?? (await messageDigest(message)) }))
+      .setTimeout(300)
+      .build();
+    tx.sign(opts.signer ?? key);
+    return tx.toXDR();
+  };
 
-  assert.equal(typeof (await verifySigned(message, sig, "testnet", now)), "object");
-  assert.equal(typeof (await verifySigned(message, Buffer.from(sig, "base64").toString("hex"), "testnet", now)), "object");
-  assert.equal(await verifySigned(message, sig, "mainnet", now), "message is not for this app and network");
-  assert.equal(await verifySigned(message, sig, "testnet", now + 10 * 60_000), "signature expired, sign again");
-  const other = Keypair.random().sign(Buffer.from(await sep53Hash(message))).toString("base64");
-  assert.equal(await verifySigned(message, other, "testnet", now), "signature does not match owner");
-  // Signing the bare message (no SEP-53 prefix) is not accepted.
-  const bare = key.sign(Buffer.from(message)).toString("base64");
-  assert.equal(await verifySigned(message, bare, "testnet", now), "signature does not match owner");
+  assert.equal(typeof (await verifySigned(message, await signed(), "testnet", PASS, now)), "object");
+  assert.equal(await verifySigned(message, await signed(), "testnet", PASS, now + 10 * 60_000), "signature expired, sign again");
+  assert.equal(await verifySigned(message, await signed({ signer: Keypair.random() }), "testnet", PASS, now), "signature does not match owner");
+  assert.equal(await verifySigned(message, await signed({ value: "0".repeat(64) }), "testnet", PASS, now), "signed_tx does not carry this message");
+  // A real, submittable transaction is not accepted as a signature.
+  assert.equal(await verifySigned(message, await signed({ seq: "41" }), "testnet", PASS, now), "signed_tx must be the owner's sequence-0 transaction");
+  // Signed for the other network: the hash differs, so the signature fails.
+  assert.equal(await verifySigned(message, await signed({ passphrase: Networks.PUBLIC }), "testnet", PASS, now), "signature does not match owner");
+  assert.equal(await verifySigned(message, await signed(), "mainnet", PASS, now), "message is not for this app and network");
 });

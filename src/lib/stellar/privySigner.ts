@@ -18,7 +18,6 @@
 import { TransactionBuilder } from "@stellar/stellar-base";
 import { IS_MAINNET } from "./config";
 import { fetchAccount } from "./horizon";
-import { sep53Hash } from "../server/auth";
 
 /** Shape of Privy's useSignRawHash callback, narrowed to what we consume. */
 export type RawHashSigner = (hashHex: `0x${string}`) => Promise<`0x${string}`>;
@@ -88,15 +87,6 @@ export async function signAuthEntryXdr(
     signedAuthEntry: bytesToBase64(hexToBytes(signatureHex)),
     signerAddress: address,
   };
-}
-
-/**
- * Sign a message the SEP-53 way, as the kit's signMessage does: Ed25519 over
- * SHA-256("Stellar Signed Message:\n" + message). Returns the base64 signature.
- */
-export async function signMessageSep53(message: string, signRawHash: RawHashSigner): Promise<string> {
-  const signatureHex = await signRawHash(bytesToHex(await sep53Hash(message)));
-  return bytesToBase64(hexToBytes(signatureHex));
 }
 
 /* ----------------------------- account funding ----------------------------- */

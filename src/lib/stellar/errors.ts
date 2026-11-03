@@ -32,8 +32,26 @@ function contractCode(msg: string, code: number): boolean {
   return new RegExp(`Error\\(Contract, #${code}\\)`).test(msg);
 }
 
+/**
+ * The Wallets Kit keeps WalletConnect topics in localStorage and never checks
+ * them against the live client, so a session that expired or was ended from
+ * the wallet still reads as connected until a signature is requested. The kit
+ * throws its own errors as plain objects, hence no `instanceof Error` here.
+ */
+export function isStaleWalletSession(err: unknown): boolean {
+  const raw = (err as { message?: unknown } | null | undefined)?.message;
+  return (
+    typeof raw === "string" &&
+    /No matching key|session topic|No WalletConnect session/i.test(raw)
+  );
+}
+
 export function mapTxError(err: unknown, ctx: TxErrorContext = {}): MappedTxError {
   const raw = err instanceof Error ? err.message : String(err);
+
+  if (isStaleWalletSession(err)) {
+    return { message: "Your wallet session expired, so nothing was sent. Connect your wallet again and retry." };
+  }
 
   // The user closed or declined the wallet prompt — nothing was sent.
   if (/reject|declin|denied|cancel/i.test(raw)) {
