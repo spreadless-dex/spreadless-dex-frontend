@@ -56,18 +56,27 @@ a price sitting right at the line doesn't send a message every minute.
 
 ## API
 
-Every change is a JSON message that your wallet signs the
-[SEP-53](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0053.md)
-way (wallet kits call this `signMessage`). You send the message and the
-signature together:
+Every change is a JSON message, and your wallet signs a transaction that
+carries the message's hash. This works like a
+[SEP-10](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0010.md)
+login challenge. The transaction is never submitted, and it couldn't be: its
+sequence number is 0. It must have:
+
+- your account as its source, and sequence number `0`. With the SDK, build it
+  from `new Account(owner, "-1")`.
+- exactly one `manageData` operation named `spreadless-alerts`, whose value is
+  the hex SHA-256 of the message (64 characters).
+- your signature, for this network's passphrase.
+
+You send the message and the signed transaction's XDR together:
 
 ```
-POST   https://dex.spreadless.xyz/api/alerts    { "message": "<json>", "signature": "<base64>" }
-DELETE https://dex.spreadless.xyz/api/alerts    { "message": "<json>", "signature": "<base64>" }
+POST   https://dex.spreadless.xyz/api/alerts    { "message": "<json>", "signed_tx": "<xdr>" }
+DELETE https://dex.spreadless.xyz/api/alerts    { "message": "<json>", "signed_tx": "<xdr>" }
 GET    https://dex.spreadless.xyz/api/alerts?owner=G…
 ```
 
-To create an alert, sign a message like this one:
+To create an alert, send a message like this one:
 
 ```json
 {
@@ -90,7 +99,7 @@ To create an alert, sign a message like this one:
 - With `"channel": "telegram"`, leave out `webhook_url`. If the wallet has no
   linked chat yet, the answer carries a `telegram_link` to open.
 
-To delete an alert, sign `{ "app", "network", "action": "delete", "owner", "ts", "id" }`.
+To delete an alert, send `{ "app", "network", "action": "delete", "owner", "ts", "id" }`.
 
 `GET` lists a wallet's alerts. It does not include webhook URLs or Telegram chats.
 

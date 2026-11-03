@@ -1,15 +1,16 @@
 // Price alerts. Documented in src/content/docs/developers/alerts-api.mdx.
 //
 //   GET    /api/alerts?owner=G…        the wallet's alerts, without their targets
-//   POST   /api/alerts  { message, signature }   action "create"
-//   DELETE /api/alerts  { message, signature }   action "delete"
+//   POST   /api/alerts  { message, signed_tx }   action "create"
+//   DELETE /api/alerts  { message, signed_tx }   action "delete"
 //
-// The message is the request: JSON the wallet signed (see auth.ts).
+// The message is the request: JSON whose hash the wallet signed in a
+// never-submitted transaction (see auth.ts).
 
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
 import { StrKey } from "@stellar/stellar-sdk";
-import { NETWORK } from "../../lib/stellar/config";
+import { NETWORK, NETWORK_PASSPHRASE } from "../../lib/stellar/config";
 import { MAX_ALERTS_PER_OWNER, MIN_POSITION_USD, parseCreate, PENDING } from "../../lib/server/alerts";
 import { verifySigned, type SignedRequest } from "../../lib/server/auth";
 import { positionUsd, readPools } from "../../lib/server/market";
@@ -24,16 +25,21 @@ const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 
 async function signed(request: Request, action: string): Promise<SignedRequest | Response> {
-  let body: { message?: unknown; signature?: unknown };
+  let body: { message?: unknown; signed_tx?: unknown };
   try {
     body = await request.json();
   } catch {
     return json(400, { error: "body must be JSON" });
   }
-  if (typeof body.message !== "string" || typeof body.signature !== "string" || body.message.length > 4096) {
-    return json(400, { error: "message and signature are required" });
+  if (
+    typeof body.message !== "string" ||
+    typeof body.signed_tx !== "string" ||
+    body.message.length > 4096 ||
+    body.signed_tx.length > 4096
+  ) {
+    return json(400, { error: "message and signed_tx are required" });
   }
-  const req = await verifySigned(body.message, body.signature, NETWORK);
+  const req = await verifySigned(body.message, body.signed_tx, NETWORK, NETWORK_PASSPHRASE);
   if (typeof req === "string") return json(401, { error: req });
   if (req.action !== action) return json(400, { error: `message action must be "${action}"` });
   return req;

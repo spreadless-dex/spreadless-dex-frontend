@@ -4,9 +4,12 @@
 // server checks the $1 of liquidity, so this only relays its answer.
 
 import { useEffect, useState } from 'react'
-import { signWalletMessage } from '../store/useAppStore'
-import { NETWORK } from '../lib/stellar/config'
+import { Account, Operation, TransactionBuilder } from '@stellar/stellar-sdk'
+import { getWalletSigner } from '../store/useAppStore'
+import { NETWORK, NETWORK_PASSPHRASE } from '../lib/stellar/config'
 import { spread } from '../lib/server/alerts'
+import { messageDigest, SIGNED_APP } from '../lib/server/auth'
+import { isStaleWalletSession } from '../lib/stellar/errors'
 import SegmentedControl from './create/SegmentedControl'
 
 type Channel = 'telegram' | 'webhook'
@@ -31,13 +34,21 @@ const CHANNELS = [
   { key: 'webhook' as const, label: 'Webhook' },
 ]
 
+// The wallet signs a transaction that is never sent (sequence 0, see
+// lib/server/auth.ts): it carries the request's hash, moves nothing, costs
+// nothing, and every wallet can sign one.
 async function signedCall(method: 'POST' | 'DELETE', owner: string, action: string, fields: Record<string, unknown>) {
-  const message = JSON.stringify({ app: 'spreadless-alerts', network: NETWORK, action, owner, ts: Date.now(), ...fields })
-  const signature = await signWalletMessage(message)
+  const message = JSON.stringify({ app: SIGNED_APP, network: NETWORK, action, owner, ts: Date.now(), ...fields })
+  const tx = new TransactionBuilder(new Account(owner, '-1'), { fee: '100', networkPassphrase: NETWORK_PASSPHRASE })
+    .addOperation(Operation.manageData({ name: SIGNED_APP, value: await messageDigest(message) }))
+    .setTimeout(300)
+    .build()
+  const signer = await getWalletSigner()
+  const { signedTxXdr } = await signer.signTransaction(tx.toXDR(), { networkPassphrase: NETWORK_PASSPHRASE, address: owner })
   const res = await fetch('/api/alerts', {
     method,
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ message, signature }),
+    body: JSON.stringify({ message, signed_tx: signedTxXdr }),
   })
   const body = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(body.error ?? `Request failed (${res.status})`)
@@ -79,7 +90,14 @@ export default function AlertsPanel({ owner, pool }: { owner: string; pool: stri
       await fn()
       await load()
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      const raw = (err as { message?: unknown } | null)?.message
+      setError(
+        isStaleWalletSession(err)
+          ? 'Your wallet session expired, so nothing was sent. Connect your wallet again and retry.'
+          : /reject|declin|denied|cancel/i.test(String(raw ?? err))
+            ? 'Request declined in your wallet. Nothing was saved.'
+            : String(raw ?? err),
+      )
     } finally {
       setBusy(false)
     }
@@ -174,7 +192,7 @@ export default function AlertsPanel({ owner, pool }: { owner: string; pool: stri
         )}
         {error && <p role="alert" className="text-[12px]" style={{ color: 'var(--c-warn)' }}>{error}</p>}
         <p className="text-[11px] leading-relaxed" style={{ color: 'var(--c-text-faint)' }}>
-          Checked every minute. You hear once when the gap opens and once when it closes. Needs $1 of liquidity in a Spreadless pool; your wallet signs, no transaction.
+          Checked every minute. You hear once when the gap opens and once when it closes. Needs $1 of liquidity in a Spreadless pool; your wallet signs a transaction that is never sent, so nothing moves and nothing is paid.
         </p>
       </div>
     </div>
