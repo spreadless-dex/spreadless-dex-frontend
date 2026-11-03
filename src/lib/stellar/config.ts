@@ -53,7 +53,7 @@ export const NETWORK_PASSPHRASE = IS_MAINNET
 function defaultRpcUrl(): string {
   if (!IS_MAINNET) return "https://soroban-testnet.stellar.org";
   if (typeof window !== "undefined") return new URL("/rpc", window.location.origin).href;
-  return "https://spreadless.xyz/rpc";
+  return "https://dex.spreadless.xyz/rpc";
 }
 export const RPC_URL: string = import.meta.env.PUBLIC_RPC_URL || defaultRpcUrl();
 // The SDK refuses plain-http RPC unless told otherwise, and `astro dev` serves

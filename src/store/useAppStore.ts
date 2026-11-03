@@ -318,11 +318,11 @@ async function bootWalletKit() {
         metadata: {
           name: "Spreadless",
           description: "StableSwap AMM on Stellar — swap and earn on stablecoins.",
-          url: typeof window !== "undefined" ? window.location.origin : "https://spreadless.xyz",
+          url: typeof window !== "undefined" ? window.location.origin : "https://dex.spreadless.xyz",
           icons: [
             typeof window !== "undefined"
               ? `${window.location.origin}/favicon.svg`
-              : "https://spreadless.xyz/favicon.svg",
+              : "https://dex.spreadless.xyz/favicon.svg",
           ],
         },
         // Without this the module's getAddress() defaults the WalletConnect

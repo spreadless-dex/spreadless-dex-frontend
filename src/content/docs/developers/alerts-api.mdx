@@ -62,9 +62,9 @@ way (wallet kits call this `signMessage`). You send the message and the
 signature together:
 
 ```
-POST   https://spreadless.xyz/api/alerts    { "message": "<json>", "signature": "<base64>" }
-DELETE https://spreadless.xyz/api/alerts    { "message": "<json>", "signature": "<base64>" }
-GET    https://spreadless.xyz/api/alerts?owner=G…
+POST   https://dex.spreadless.xyz/api/alerts    { "message": "<json>", "signature": "<base64>" }
+DELETE https://dex.spreadless.xyz/api/alerts    { "message": "<json>", "signature": "<base64>" }
+GET    https://dex.spreadless.xyz/api/alerts?owner=G…
 ```
 
 To create an alert, sign a message like this one:
@@ -105,7 +105,7 @@ npx wrangler secret put TELEGRAM_BOT_TOKEN       # from @BotFather
 npx wrangler secret put TELEGRAM_WEBHOOK_SECRET  # any random string
 # set TELEGRAM_BOT_USERNAME in wrangler.jsonc "vars", deploy, then once:
 curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
-  -d url=https://spreadless.xyz/api/telegram -d secret_token=$TELEGRAM_WEBHOOK_SECRET
+  -d url=https://dex.spreadless.xyz/api/telegram -d secret_token=$TELEGRAM_WEBHOOK_SECRET
 ```
 
 If the Telegram values are missing, webhooks still work and Telegram requests
