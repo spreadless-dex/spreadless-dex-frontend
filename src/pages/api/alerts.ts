@@ -14,7 +14,7 @@ import { MAX_ALERTS_PER_OWNER, MIN_POSITION_USD, parseCreate, PENDING } from "..
 import { verifySigned, type SignedRequest } from "../../lib/server/auth";
 import { positionUsd, readPools } from "../../lib/server/market";
 import { rpcUrl } from "../../lib/server/marketRoute";
-import type { AlertEnv } from "../../lib/server/notify";
+import { deliver, type AlertEnv } from "../../lib/server/notify";
 
 export const prerender = false;
 
@@ -43,7 +43,7 @@ export const GET: APIRoute = async ({ url }) => {
   const owner = url.searchParams.get("owner") ?? "";
   if (!StrKey.isValidEd25519PublicKey(owner)) return json(400, { error: "owner must be a G… address" });
   const { results } = await alertEnv.ALERTS.prepare(
-    `SELECT id, pool, token_a, token_b, bps, channel, firing, target LIKE ? AS pending, created_at
+    `SELECT id, pool, bps, channel, firing, target LIKE ? AS pending, created_at
      FROM alerts WHERE owner = ? ORDER BY created_at`,
   )
     .bind(`${PENDING}%`, owner)
@@ -77,29 +77,58 @@ export const POST: APIRoute = async ({ request }) => {
     return json(403, { error: `alerts need at least $${MIN_POSITION_USD} of liquidity in a Spreadless pool` });
   }
 
+  // A wallet that already has a working Telegram chat gets the new alert sent
+  // there directly. Only the first one needs the Start link.
   let target = alert.webhook_url ?? "";
-  let telegramLink: string | undefined;
   if (alert.channel === "telegram") {
-    const bot = alertEnv.TELEGRAM_BOT_USERNAME;
-    if (!bot || !alertEnv.TELEGRAM_BOT_TOKEN) return json(501, { error: "Telegram alerts are not set up yet" });
-    const code = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, "0")).join("");
-    target = PENDING + code;
-    telegramLink = `https://t.me/${bot}?start=${code}`;
+    if (!alertEnv.TELEGRAM_BOT_USERNAME || !alertEnv.TELEGRAM_BOT_TOKEN) {
+      return json(501, { error: "Telegram alerts are not set up yet" });
+    }
+    const linked = await db
+      .prepare("SELECT target FROM alerts WHERE owner = ? AND channel = 'telegram' AND target NOT LIKE ? LIMIT 1")
+      .bind(req.owner, `${PENDING}%`)
+      .first<string>("target");
+    target = linked ?? PENDING + [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, "0")).join("");
   }
 
+  // Inserted before anything is sent: a replayed signature hits the primary
+  // key here and never gets to ping the target.
   try {
     await db
       .prepare(
-        `INSERT INTO alerts (id, owner, pool, token_a, token_b, bps, channel, target, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO alerts (id, owner, pool, bps, channel, target, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(alert.id, req.owner, alert.pool, alert.token_a, alert.token_b, alert.bps, alert.channel, target, Date.now())
+      .bind(alert.id, req.owner, alert.pool, alert.bps, alert.channel, target, Date.now())
       .run();
   } catch {
-    // The id is in the signed message, so this is a replay or a double submit.
     return json(409, { error: "this alert already exists" });
   }
-  return json(201, { id: alert.id, telegram_link: telegramLink });
+
+  if (target.startsWith(PENDING)) {
+    const code = target.slice(PENDING.length);
+    return json(201, { id: alert.id, telegram_link: `https://t.me/${alertEnv.TELEGRAM_BOT_USERNAME}?start=${code}` });
+  }
+
+  // A webhook, or an already linked chat, must take a test message now.
+  // Otherwise the alert would only find out it can't deliver when it fires.
+  const name = pools.find((p) => p.address === alert.pool)!.tokens.map((t) => t.symbol).join("/");
+  const sent = await deliver(alertEnv, alert.channel, target, `🔔 Alert added: the ${name} pool on Spreadless, over ${alert.bps} bps.`, {
+    alert_id: alert.id,
+    state: "test",
+    pool: alert.pool,
+    threshold_bps: alert.bps,
+  });
+  if (sent !== "ok") {
+    await db.prepare("DELETE FROM alerts WHERE id = ?").bind(alert.id).run();
+    return json(400, {
+      error:
+        alert.channel === "webhook"
+          ? "your webhook did not answer the test message with a 2xx status"
+          : "couldn't reach your Telegram chat. Was the bot blocked? Remove your Telegram alerts and add one again.",
+    });
+  }
+  return json(201, { id: alert.id });
 };
 
 export const DELETE: APIRoute = async ({ request }) => {

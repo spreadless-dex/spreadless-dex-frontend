@@ -1,12 +1,13 @@
 ---
 title: Price Alerts
-description: Get a webhook call or a Telegram message when two tokens in a pool drift apart.
+description: Get a webhook call or a Telegram message when a pool's tokens drift apart.
 ---
 
 import Callout from "../../../components/docs/Callout.astro";
 
-An alert watches two tokens in one pool. When their [mid price](/docs/developers/price-api)
-moves more than your threshold away from 1:1, you get one message. When the gap
+An alert watches a whole pool. It compares the [mid prices](/docs/developers/price-api)
+of the pool's dearest and cheapest token, whichever pair that is at the moment.
+When they are more than your threshold apart, you get one message. When the gap
 closes again, you get a second one. Alerts are checked once a minute.
 
 You can add one on any pool's page, under **Price alerts**, or through the API
@@ -24,7 +25,8 @@ below.
 - **Telegram.** You get a link to our bot. Open it and press **Start**. A bot
   can only write to people who have written to it first, so the alert stays
   inactive until you do. If you don't press Start within 24 hours, the alert is
-  dropped. Send `/stop` to the bot to end every alert it sends you.
+  dropped. You only do this once per wallet: later Telegram alerts go to the
+  same chat right away. Send `/stop` to the bot to end every alert it sends you.
 - **Webhook.** We `POST` JSON to your `https` URL:
 
 ```json
@@ -32,17 +34,20 @@ below.
   "alert_id": "6f1c…",
   "state": "firing",
   "pool": "CAZE5GVM…ZN7L",
-  "token_a": { "symbol": "USDT0", "address": "CBSJZEIO…R26YF" },
-  "token_b": { "symbol": "USDC", "address": "CCW67TSZ…MI75" },
-  "deviation_bps": 31.4,
+  "spread_bps": 31.4,
   "threshold_bps": 25,
-  "price": 0.99686,
+  "high": { "symbol": "PYUSD", "address": "CCCRWH6Q…HGU2", "price": 1.0012 },
+  "low": { "symbol": "USDT0", "address": "CBSJZEIO…R26YF", "price": 0.99806 },
   "at": "2026-11-02T12:00:00.000Z",
-  "text": "⚠️ USDT0/USDC is 31 bps apart on Spreadless (your alert: 25). …"
+  "text": "⚠️ The USDT0/PYUSD/USDC pool on Spreadless is 31 bps apart (your alert: 25). …"
 }
 ```
 
-`state` is `firing`, `resolved` or `removed`. Answer with any `2xx`. Any other
+When you add a webhook alert, we send it a message with `state` `test` right
+away. If your URL doesn't answer it with a `2xx`, the alert is not created.
+
+`state` is `test`, `firing`, `resolved` or `removed`. `high` and `low` are the pool's
+dearest and cheapest token, priced in its quote token. Answer with any `2xx`. Any other
 status counts as a failure, and after 3 failures in a row the alert is removed.
 Answer `410` to remove it right away.
 
@@ -73,8 +78,6 @@ To create an alert, sign a message like this one:
   "ts": 1793620800000,
   "id": "a fresh UUID",
   "pool": "C…",
-  "token_a": "C…",
-  "token_b": "C…",
   "bps": 25,
   "channel": "webhook",
   "webhook_url": "https://example.com/hook"
@@ -84,8 +87,8 @@ To create an alert, sign a message like this one:
 - **`ts`** is the time in milliseconds. A signature is accepted for 5 minutes.
 - **`id`** comes from you. A request whose `id` already exists is refused with
   `409`, so a captured signature cannot be replayed.
-- With `"channel": "telegram"`, leave out `webhook_url`. The answer then carries
-  a `telegram_link` to open.
+- With `"channel": "telegram"`, leave out `webhook_url`. If the wallet has no
+  linked chat yet, the answer carries a `telegram_link` to open.
 
 To delete an alert, sign `{ "app", "network", "action": "delete", "owner", "ts", "id" }`.
 

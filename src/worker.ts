@@ -42,7 +42,7 @@ async function checkAlerts(env: AlertEnv): Promise<void> {
       const position = await positions.get(alert.owner)!.catch(() => null);
       if (position === null) continue; // RPC trouble: try again next minute.
       if (position < MIN_POSITION_USD) {
-        const text = `Your ${t.symbols.join("/")} alert was removed: alerts need at least $${MIN_POSITION_USD} in a Spreadless pool.`;
+        const text = `Your ${t.name} alert was removed: alerts need at least $${MIN_POSITION_USD} in a Spreadless pool.`;
         await deliver(env, alert.channel, alert.target, text, { alert_id: alert.id, state: "removed" });
         await drop();
         continue;
@@ -53,11 +53,10 @@ async function checkAlerts(env: AlertEnv): Promise<void> {
       alert_id: alert.id,
       state: t.firing ? "firing" : "resolved",
       pool: alert.pool,
-      token_a: { symbol: t.symbols[0], address: alert.token_a },
-      token_b: { symbol: t.symbols[1], address: alert.token_b },
-      deviation_bps: Number(t.bps.toFixed(2)),
+      spread_bps: Number(t.bps.toFixed(2)),
       threshold_bps: alert.bps,
-      price: Number(t.price.toFixed(7)),
+      high: { symbol: t.high.symbol, address: t.high.address, price: Number(t.high.price.toFixed(7)) },
+      low: { symbol: t.low.symbol, address: t.low.address, price: Number(t.low.price.toFixed(7)) },
       at: new Date().toISOString(),
     });
     if (result === "ok") {

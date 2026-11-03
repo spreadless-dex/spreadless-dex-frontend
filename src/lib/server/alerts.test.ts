@@ -3,23 +3,31 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Keypair } from "@stellar/stellar-sdk";
-import { parseCreate, transitions, type AlertRow } from "./alerts.ts";
+import { parseCreate, spread, transitions, type AlertRow } from "./alerts.ts";
 import { sep53Hash, verifySigned } from "./auth.ts";
 
 const pool = {
   address: "POOL",
   tokens: [
-    { symbol: "USDT0", address: "A", price: 0.9970, reserve: 1 },
+    { symbol: "USDT0", address: "A", price: 0.9985, reserve: 1 },
     { symbol: "USDC", address: "B", price: 1, reserve: 1 },
+    { symbol: "PYUSD", address: "C", price: 1.0015, reserve: 1 },
   ],
 };
 const alert = (over: Partial<AlertRow>): AlertRow => ({
-  id: "x", owner: "G", pool: "POOL", token_a: "A", token_b: "B", bps: 25,
+  id: "x", owner: "G", pool: "POOL", bps: 25,
   channel: "webhook", target: "https://example.com", firing: 0, failures: 0, created_at: 0, ...over,
 });
 
+test("the spread is the widest pair, whichever way round", () => {
+  const s = spread(pool);
+  assert.equal(s.high.symbol, "PYUSD");
+  assert.equal(s.low.symbol, "USDT0");
+  assert.ok(Math.abs(s.bps - 30.045) < 0.01);
+});
+
 test("fires past the threshold, re-arms only well below it", () => {
-  // 30 bps apart.
+  // PYUSD and USDT0 are 30 bps apart; neither is 30 bps from USDC.
   assert.equal(transitions([alert({})], [pool]).length, 1);
   assert.equal(transitions([alert({ bps: 40 })], [pool]).length, 0);
   // Already firing at 25: 30 bps keeps it firing, nothing to send.
@@ -35,11 +43,11 @@ test("fires past the threshold, re-arms only well below it", () => {
 });
 
 test("create input is checked against the pools", () => {
-  const ok = { id: crypto.randomUUID(), pool: "POOL", token_a: "A", token_b: "B", bps: 25, channel: "webhook", webhook_url: "https://example.com/hook" };
+  const ok = { id: crypto.randomUUID(), pool: "POOL", bps: 25, channel: "webhook", webhook_url: "https://example.com/hook" };
   assert.equal(typeof parseCreate(ok, [pool]), "object");
   assert.equal(typeof parseCreate({ ...ok, channel: "telegram", webhook_url: undefined }, [pool]), "object");
   for (const bad of [
-    { id: "nope" }, { pool: "OTHER" }, { token_b: "A" }, { token_b: "C" }, { bps: 0 }, { bps: 2.5 },
+    { id: "nope" }, { pool: "OTHER" }, { bps: 0 }, { bps: 2.5 },
     { channel: "mail" }, { webhook_url: "http://example.com" }, { webhook_url: "not a url" },
   ]) {
     assert.equal(typeof parseCreate({ ...ok, ...bad }, [pool]), "string", JSON.stringify(bad));

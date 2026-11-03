@@ -38,7 +38,7 @@
 	"triggers": { "crons": ["* * * * *"] },
 	"vars": {
 		// The bot users open to receive alerts in Telegram (t.me/<name>).
-		"TELEGRAM_BOT_USERNAME": ""
+		"TELEGRAM_BOT_USERNAME": "spreadless_dex_bot"
 	},
 	"observability": {
 		"enabled": true

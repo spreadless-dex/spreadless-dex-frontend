@@ -339,8 +339,8 @@ export default function VaultDetailPage({ address }: VaultDetailPageProps) {
       )}
 
       {walletAddress && !isDemo && state && (
-        <Section title="Price alerts" subtitle="Hear from us when two of this pool's tokens drift apart">
-          <AlertsPanel owner={walletAddress} pool={address} tokens={tokens} />
+        <Section title="Price alerts" subtitle="Hear from us when this pool's tokens drift apart">
+          <AlertsPanel owner={walletAddress} pool={address} />
         </Section>
       )}
 

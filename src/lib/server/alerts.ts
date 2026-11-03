@@ -1,5 +1,6 @@
-// Price alerts: a wallet with at least $1 in a pool asks to hear when two of
-// that pool's tokens drift more than `bps` apart. The cron in src/worker.ts
+// Price alerts: a wallet with at least $1 in a pool asks to hear when any two
+// of that pool's tokens drift more than `bps` apart, whichever way. That is the
+// spread between its dearest and its cheapest token. The cron in src/worker.ts
 // runs transitions() every minute and delivers what changed.
 //
 // Pure on purpose (no bindings, no config), so alerts.test.ts can run it in
@@ -14,8 +15,6 @@ export interface AlertRow {
   id: string;
   owner: string;
   pool: string;
-  token_a: string;
-  token_b: string;
   bps: number;
   channel: Channel;
   /** Webhook URL, Telegram chat id, or PENDING + code until the user pressed Start. */
@@ -39,21 +38,24 @@ const REARM = 0.8;
 
 type PricedPool = Pick<PoolRead, "address" | "tokens">;
 
-/** How far apart a and b trade in this pool, in bps. Null if either isn't in it. */
-export function deviationBps(pool: PricedPool, a: string, b: string): number | null {
-  const ta = pool.tokens.find((t) => t.address === a);
-  const tb = pool.tokens.find((t) => t.address === b);
-  if (!ta || !tb) return null;
-  return Math.abs(ta.price / tb.price - 1) * 10_000;
+type PricedToken = PricedPool["tokens"][number];
+
+/** The pool's widest pair: its dearest and its cheapest token, and how far apart in bps. */
+export function spread(pool: PricedPool): { bps: number; high: PricedToken; low: PricedToken } {
+  const byPrice = [...pool.tokens].sort((a, b) => b.price - a.price);
+  const high = byPrice[0];
+  const low = byPrice[byPrice.length - 1];
+  return { bps: (high.price / low.price - 1) * 10_000, high, low };
 }
 
 export interface Transition {
   alert: AlertRow;
   firing: boolean;
   bps: number;
-  /** One token_a in token_b. */
-  price: number;
-  symbols: [string, string];
+  high: PricedToken;
+  low: PricedToken;
+  /** The pool's tokens, for naming it: "USDT0/PYUSD/USDC". */
+  name: string;
 }
 
 /** The alerts whose state changes with these prices. Everything else stays quiet. */
@@ -63,31 +65,26 @@ export function transitions(alerts: AlertRow[], pools: PricedPool[]): Transition
   for (const alert of alerts) {
     if (alert.target.startsWith(PENDING)) continue;
     const pool = byAddress.get(alert.pool);
-    if (!pool) continue;
-    const bps = deviationBps(pool, alert.token_a, alert.token_b);
-    if (bps === null) continue;
+    if (!pool || pool.tokens.length < 2) continue;
+    const { bps, high, low } = spread(pool);
     const firing = alert.firing ? bps >= alert.bps * REARM : bps >= alert.bps;
     if (firing === Boolean(alert.firing)) continue;
-    const a = pool.tokens.find((t) => t.address === alert.token_a)!;
-    const b = pool.tokens.find((t) => t.address === alert.token_b)!;
-    out.push({ alert, firing, bps, price: a.price / b.price, symbols: [a.symbol, b.symbol] });
+    out.push({ alert, firing, bps, high, low, name: pool.tokens.map((t) => t.symbol).join("/") });
   }
   return out;
 }
 
 export function describe(t: Transition): string {
-  const [a, b] = t.symbols;
   const now = Math.round(t.bps);
   return t.firing
-    ? `⚠️ ${a}/${b} is ${now} bps apart on Spreadless (your alert: ${t.alert.bps}). 1 ${a} = ${t.price.toFixed(5)} ${b}.`
-    : `✅ ${a}/${b} is back within ${t.alert.bps} bps on Spreadless (now ${now}).`;
+    ? `⚠️ The ${t.name} pool on Spreadless is ${now} bps apart (your alert: ${t.alert.bps}). ` +
+        `1 ${t.high.symbol} = ${(t.high.price / t.low.price).toFixed(5)} ${t.low.symbol}.`
+    : `✅ The ${t.name} pool on Spreadless is back within ${t.alert.bps} bps (now ${now}).`;
 }
 
 export interface NewAlert {
   id: string;
   pool: string;
-  token_a: string;
-  token_b: string;
   bps: number;
   channel: Channel;
   webhook_url?: string;
@@ -97,17 +94,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The create request's fields, checked against the pools that exist. A string is the error. */
 export function parseCreate(raw: Record<string, unknown>, pools: PricedPool[]): NewAlert | string {
-  const { id, pool, token_a, token_b, bps, channel, webhook_url } = raw;
+  const { id, pool, bps, channel, webhook_url } = raw;
   if (typeof id !== "string" || !UUID.test(id)) return "id must be a UUID";
   const found = pools.find((p) => p.address === pool);
   if (!found) return "unknown pool";
-  const tokens = found.tokens.map((t) => t.address);
-  if (typeof token_a !== "string" || typeof token_b !== "string" || !tokens.includes(token_a) || !tokens.includes(token_b)) {
-    return "tokens must both be in the pool";
-  }
-  if (token_a === token_b) return "pick two different tokens";
   if (!Number.isInteger(bps) || (bps as number) < 1 || (bps as number) > 10_000) return "bps must be a whole number from 1 to 10000";
-  if (channel === "telegram") return { id, pool: found.address, token_a, token_b, bps: bps as number, channel };
+  if (channel === "telegram") return { id, pool: found.address, bps: bps as number, channel };
   if (channel !== "webhook") return "channel must be webhook or telegram";
   if (typeof webhook_url !== "string" || webhook_url.length > 2048) return "webhook_url is required";
   let url: URL;
@@ -117,5 +109,5 @@ export function parseCreate(raw: Record<string, unknown>, pools: PricedPool[]): 
     return "webhook_url is not a URL";
   }
   if (url.protocol !== "https:") return "webhook_url must be https";
-  return { id, pool: found.address, token_a, token_b, bps: bps as number, channel, webhook_url: url.href };
+  return { id, pool: found.address, bps: bps as number, channel, webhook_url: url.href };
 }
