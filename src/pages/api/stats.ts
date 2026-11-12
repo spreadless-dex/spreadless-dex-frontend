@@ -6,4 +6,4 @@ import { marketResponse } from "../../lib/server/marketRoute";
 
 export const prerender = false;
 
-export const GET: APIRoute = () => marketResponse(marketStats);
+export const GET: APIRoute = ({ url }) => marketResponse(marketStats, url.origin);
