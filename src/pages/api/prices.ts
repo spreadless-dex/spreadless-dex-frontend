@@ -8,7 +8,7 @@ export const prerender = false;
 
 const round = (value: number) => Number(value.toFixed(7));
 
-export const GET: APIRoute = () =>
+export const GET: APIRoute = ({ url }) =>
   marketResponse((market) => ({
     network: market.network,
     updated_at: market.updatedAt,
@@ -22,4 +22,4 @@ export const GET: APIRoute = () =>
         reserve: round(reserve),
       })),
     })),
-  }));
+  }), url.origin);

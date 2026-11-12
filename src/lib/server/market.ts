@@ -12,9 +12,16 @@ import { FACTORY_CONTRACT_ID, NETWORK, NETWORK_PASSPHRASE, POOL_CONTRACT_ID, TOK
 import { listPoolIds, routerClient } from "../stellar/routerClient";
 import { spotPrices } from "../stellar/spotPrice";
 import { fromRawUnits } from "../stellar/units";
+import { isRateLimited, mapLimited, MAX_IN_FLIGHT, rpcCall } from "./throttle";
 
 /** How long one snapshot serves. Also the responses' max-age. */
 export const MARKET_TTL_SECONDS = 60;
+
+/**
+ * How long a snapshot may stand in when a refresh fails. Better a figure that
+ * is minutes old, with its updatedAt, than no figure at all.
+ */
+export const MARKET_STALE_SECONDS = 6 * 60 * 60;
 
 // The RPC keeps events for about seven days, so this is the longest window that
 // can be answered without an indexer.
@@ -64,8 +71,8 @@ async function poolAddresses(rpcUrl: string): Promise<string[]> {
   const addresses = new Set([POOL_CONTRACT_ID]);
   if (FACTORY_CONTRACT_ID) {
     const router = await routerClient(undefined, undefined, rpcUrl);
-    const ids = await listPoolIds(router);
-    const found = await Promise.all(ids.map((id) => router.pool_at({ id }).then((t) => t.result)));
+    const ids = await rpcCall(() => listPoolIds(router));
+    const found = await mapLimited(ids, MAX_IN_FLIGHT, (id) => rpcCall(() => router.pool_at({ id })).then((t) => t.result));
     for (const address of found) if (address) addresses.add(address);
   }
   return [...addresses];
@@ -76,19 +83,25 @@ export type PoolRead = Omit<MarketPool, "volume" | "apy"> & { lpShare: number; l
 
 async function readPool(address: string, rpcUrl: string): Promise<PoolRead | null> {
   const pool = new Client({ contractId: address, rpcUrl, networkPassphrase: NETWORK_PASSPHRASE });
-  const addresses = (await pool.get_tokens()).result;
+  const addresses = (await rpcCall(() => pool.get_tokens())).result;
   const metas = addresses.map(known);
   if (metas.some((m) => !m)) return null;
 
   // Testnet pools from before the fee views simply lack them, and answer with a
   // failed simulation. Only the APY depends on them, so that one reads as zero.
-  // Everything else stays strict: an outage must not pass for an empty pool.
+  // Everything else stays strict: an outage must not pass for an empty pool,
+  // and neither may a rate limit pass for a pool without fees.
+  const orZero = (err: unknown) => {
+    if (isRateLimited(err)) throw err;
+    return 0n;
+  };
+  // Five calls in flight, one pool at a time: see readPools.
   const [reserves, amp, swapFee, protocolFee, lpSupply] = await Promise.all([
-    pool.get_reserves().then((t) => t.result),
-    pool.get_amp().then((t) => t.result),
-    pool.get_swap_fee().then((t) => t.result).catch(() => 0n),
-    pool.get_protocol_fee().then((t) => t.result).catch(() => 0n),
-    pool.total_supply().then((t) => t.result),
+    rpcCall(() => pool.get_reserves()).then((t) => t.result),
+    rpcCall(() => pool.get_amp()).then((t) => t.result),
+    rpcCall(() => pool.get_swap_fee()).then((t) => t.result).catch(orZero),
+    rpcCall(() => pool.get_protocol_fee()).then((t) => t.result).catch(orZero),
+    rpcCall(() => pool.total_supply()).then((t) => t.result),
   ]);
   const balances = addresses.map((_, i) => Number(fromRawUnits(reserves[i] ?? 0n, metas[i]!.decimals)));
   // An unfunded pool has no price yet.
@@ -120,7 +133,7 @@ async function readVolumes(addresses: string[], rpcUrl: string): Promise<Map<str
   const server = new rpc.Server(rpcUrl);
   // The RPC's own retention sets the floor, and it moves as ledgers close, so
   // start a little above it.
-  const { latestLedger, oldestLedger } = await server.getHealth();
+  const { latestLedger, oldestLedger } = await rpcCall(() => server.getHealth());
   const firstLedger = Math.max(latestLedger - VOLUME_WINDOW_DAYS * LEDGERS_PER_DAY, oldestLedger + 10);
 
   const filters: rpc.Api.EventFilter[] = [];
@@ -135,11 +148,10 @@ async function readVolumes(addresses: string[], rpcUrl: string): Promise<Map<str
     // An empty page with a cursor only means this stretch had no events, so
     // stopping at the first one would report a quiet week for a busy pool.
     for (let page = 0; page < MAX_EVENT_PAGES; page++) {
-      const res: rpc.Api.GetEventsResponse = await server.getEvents(
-        cursor
-          ? { cursor, filters: batch, limit: 200 }
-          : { startLedger: startLedger as number, filters: batch, limit: 200 },
-      );
+      const request: rpc.Api.GetEventsRequest = cursor
+        ? { cursor, filters: batch, limit: 200 }
+        : { startLedger: startLedger as number, filters: batch, limit: 200 };
+      const res = await rpcCall(() => server.getEvents(request));
       startLedger = undefined;
       for (const event of res.events) {
         if (scValToNative(event.topic[0]) !== "swap") continue;
@@ -165,20 +177,22 @@ async function readVolumes(addresses: string[], rpcUrl: string): Promise<Map<str
  */
 export async function readPools(rpcUrl: string): Promise<PoolRead[]> {
   const addresses = await poolAddresses(rpcUrl);
-  const reads = await Promise.all(addresses.map((a) => readPool(a, rpcUrl)));
+  // Pools one after another: each already keeps five calls in flight, and all of
+  // them at once is what tripped the provider's burst limit.
+  const reads = await mapLimited(addresses, 1, (a) => readPool(a, rpcUrl));
   return reads.filter((p): p is PoolRead => p !== null);
 }
 
 /** What `owner`'s LP tokens are worth across the USD pools, in dollars. */
 export async function positionUsd(owner: string, pools: PoolRead[], rpcUrl: string): Promise<number> {
-  const values = await Promise.all(
-    pools
-      .filter((p) => p.usd && p.lpSupply > 0n)
-      .map(async (p) => {
-        const pool = new Client({ contractId: p.address, rpcUrl, networkPassphrase: NETWORK_PASSPHRASE });
-        const balance = (await pool.balance({ account: owner })).result;
-        return (Number(balance) / Number(p.lpSupply)) * p.tvl;
-      }),
+  const values = await mapLimited(
+    pools.filter((p) => p.usd && p.lpSupply > 0n),
+    MAX_IN_FLIGHT,
+    async (p) => {
+      const pool = new Client({ contractId: p.address, rpcUrl, networkPassphrase: NETWORK_PASSPHRASE });
+      const balance = (await rpcCall(() => pool.balance({ account: owner }))).result;
+      return (Number(balance) / Number(p.lpSupply)) * p.tvl;
+    },
   );
   return values.reduce((a, b) => a + b, 0);
 }
@@ -204,9 +218,17 @@ let cached: { at: number; market: Market } | null = null;
 
 export async function readMarket(rpcUrl: string): Promise<Market> {
   if (cached && Date.now() - cached.at < MARKET_TTL_SECONDS * 1000) return cached.market;
-  const market = await loadMarket(rpcUrl);
-  cached = { at: Date.now(), market };
-  return market;
+  try {
+    const market = await loadMarket(rpcUrl);
+    cached = { at: Date.now(), market };
+    return market;
+  } catch (err) {
+    if (cached && Date.now() - cached.at < MARKET_STALE_SECONDS * 1000) {
+      console.warn("Market refresh failed, serving the last snapshot:", err);
+      return cached.market;
+    }
+    throw err;
+  }
 }
 
 /** The landing page's figures. USD-pegged pools only: the rest don't add up in dollars. */
