@@ -70,6 +70,13 @@ signature that makes the pool.
 | `amp_control` | who may ramp `A` | the creator, at creation | never |
 | owner | fee, caps, LP cap, pause | the creator, then whoever accepts a transfer | by transfer only |
 
+<Callout kind="warning" title="The router can replace your pool's code">
+  Owning a pool does not make you the only party with power over it. On mainnet
+  the router owner can upgrade the code of every pool created through the
+  router, yours included, and can pause it on the protocol side. You cannot opt
+  out. Details in [Deployments & Network](/docs/protocol/deployments#governance).
+</Callout>
+
 Every offer, withdrawal and accept appears in your
 [Activity](/docs/guides/portfolio) history under the **Ownership** filter.
 

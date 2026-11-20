@@ -159,9 +159,10 @@ export default function CreatePoolPage() {
             className="text-xs mt-4 max-w-2xl rounded-xl px-4 py-3 leading-relaxed"
             style={{ color: 'var(--c-text)', border: '1px solid var(--c-border-2)', backgroundColor: 'var(--c-surface)' }}
           >
-            <strong>This deploys a real pool on Stellar mainnet</strong> on contracts that are not audited
-            yet. You become its owner and are responsible for its caps and fee. Spreadless does not
-            operate or vet pools created here; keep the caps low.
+            <strong>This deploys a real pool on Stellar mainnet</strong> on contracts that are not
+            audited. You become its owner and are responsible for its caps and fee. Spreadless does not
+            operate or vet pools created here; keep the caps low. The router owner can pause the pool and
+            replace its code.
           </p>
         )}
       </div>
