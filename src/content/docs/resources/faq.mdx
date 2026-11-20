@@ -64,7 +64,10 @@ with volume and liquidity. See [Fees & Yield](/docs/concepts/fees-yield).
 
 A **de-peg**. The invariant keeps quoting near 1:1 into a failing peg, so the pool
 accumulates the weak asset, the stablecoin form of impermanent loss. The
-execution floor protects your trade price, not the assets' pegs.
+execution floor protects your trade price, not the assets' pegs. On mainnet the
+USD 3pool has a [depeg guard](/docs/protocol/slippage-and-safety#depeg-guard-mainnet)
+that pauses swaps and deposits when a token trades more than 2% off its peg; it
+limits the damage but does not remove the risk.
 
 ## Is it custodial?
 
