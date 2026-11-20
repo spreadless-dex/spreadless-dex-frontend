@@ -39,10 +39,12 @@ repo's `deployments/mainnet.json` is the source of truth for every address.
 
 | Role | Held by |
 | --- | --- |
-| Router owner | `GBAXG35EYDV6N6ET2LPE7OFGKWMGTZ3EY6NLJPHVKPLPQ3V5YUXMMTBF` |
+| Router owner | `GDDES6R4Q5UZNILXXUK77ELHL53GP5TXHW6CYAKDVTUFMKHWDOCN6CFC` |
 
-The router owner is currently a single hardware-wallet key. It is the only
-account that can upgrade the router, upgrade a registered pool, unpause a pool
+The router owner is a 2-of-3 multisig account since 2026-11-20: it has three
+signers, any two must sign, and the account's own key is disabled. There is no
+timelock, so a change takes effect in the transaction that submits it. It is the
+only account that can upgrade the router, upgrade a registered pool, unpause a pool
 on the protocol side, configure the depeg guard, ramp `A` on protocol-managed
 pools, and change protocol fees. It can also pause any pool directly; the
 [depeg guard](/docs/protocol/slippage-and-safety#depeg-guard-mainnet) can pause
