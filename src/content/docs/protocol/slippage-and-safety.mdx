@@ -47,8 +47,9 @@ enforces precisely the number you agreed to.
 
 ## Other safety surfaces
 
-- **`paused()`**: a pool can be paused by its owner; the app reads this and the
-  contract enforces it, so no trades settle against a paused pool.
+- **`paused()`**: a pool can be paused by its owner, by router governance, or by
+  the depeg guard below; the app reads this and the contract enforces it, so no
+  trades settle against a paused pool. Withdrawals stay open.
 - **Simulation errors surface as errors**: a failed simulation returns a
   `Result::Err`, which the app unwraps into a real, human-readable failure (e.g.
   *"Not enough USDx in your wallet for this amount."*) rather than submitting a
@@ -56,13 +57,38 @@ enforces precisely the number you agreed to.
 - **Non-custodial throughout**: the contract only ever moves funds you authorise
   in the signed transaction; there is no approval that grants standing access.
 
+## Depeg guard (mainnet)
+
+Swaps never read an oracle. Instead, a pool can be opted in to a guard on the
+router: anyone may call `check_depeg(pool_id)`, which reads
+[Reflector](https://reflector.network) prices for each of the pool's tokens and
+pauses the pool's swaps and deposits when a token has traded away from its peg.
+
+For the USD 3pool the guard pauses when a token is more than **2%** from 1 USD
+on **three consecutive** Reflector readings (about 15 minutes), and it refuses
+to act on a price older than 15 minutes. Only router governance can lift the
+pause.
+
+What it does and does not do:
+
+- It stops the pool from continuing to trade at near 1:1 into a failing peg. It
+  does not undo a de-peg: liquidity already in the pool still holds the weak
+  asset, and withdrawals during a pause pay out the pool's current mix.
+- It only fires when somebody calls it. Spreadless runs a keeper that checks
+  after every Reflector update, and anyone else may call it too.
+- If a price feed is stale or missing, the guard does nothing until the feed
+  recovers.
+- It is opt-in per pool and set by router governance. Pools created by third
+  parties are **not** protected unless governance configures a guard for them.
+
 ## Risks the floor does *not* remove
 
 The minimum-out floor protects your *execution*. It does not protect against:
 
 - **A de-peg** of one of the pool's assets. The invariant will keep quoting near
   1:1 into a failing peg, accumulating the weak asset (see
-  [Fees & Yield](/docs/concepts/fees-yield)).
+  [Fees & Yield](/docs/concepts/fees-yield)). On a guarded pool the depeg guard
+  above limits how long that goes on; it does not remove the risk.
 - **Smart-contract risk**, as with any on-chain protocol.
 - **A pool being paused** when you want to act.
 

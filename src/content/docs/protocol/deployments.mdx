@@ -42,9 +42,11 @@ repo's `deployments/mainnet.json` is the source of truth for every address.
 | Router owner | `GBAXG35EYDV6N6ET2LPE7OFGKWMGTZ3EY6NLJPHVKPLPQ3V5YUXMMTBF` |
 
 The router owner is currently a single hardware-wallet key. It is the only
-account that can upgrade the router, upgrade a registered pool, pause or unpause
-a pool on the protocol side, ramp `A` on protocol-managed pools, and change
-protocol fees. Pool creation through the router is permissionless, and every
+account that can upgrade the router, upgrade a registered pool, unpause a pool
+on the protocol side, configure the depeg guard, ramp `A` on protocol-managed
+pools, and change protocol fees. It can also pause any pool directly; the
+[depeg guard](/docs/protocol/slippage-and-safety#depeg-guard-mainnet) can pause
+a guarded pool without it. Pool creation through the router is permissionless, and every
 pool created that way, by anyone, is under this same control.
 
 ### USD 3pool tokens
