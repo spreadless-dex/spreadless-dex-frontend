@@ -114,6 +114,11 @@ them.
 | `set_protocol_fee(fee)` | Sets the protocol's cut of the swap fee. |
 | `set_beneficiary(address)` | Sets where that cut is paid. |
 | `protocol_pause()` / `protocol_unpause()` | The protocol-side halt, separate from the owner's. |
+| `upgrade(new_wasm_hash, operator)` | Replaces the pool's code in place, keeping its storage and balances. Mainnet pools only; the router owner triggers it through the router's `upgrade_pool`. |
+
+Because of `upgrade`, the router owner can change the behaviour of any pool
+registered with the router, including pools created by third parties. See
+[Deployments & Network](/docs/protocol/deployments#governance).
 
 ## Quoting
 

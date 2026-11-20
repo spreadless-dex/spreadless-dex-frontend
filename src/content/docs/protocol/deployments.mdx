@@ -7,10 +7,20 @@ import Callout from "../../../components/docs/Callout.astro";
 
 ## Mainnet
 
-<Callout kind="warning" title="Unaudited">
-  Spreadless runs on Stellar mainnet while its smart-contract audit is underway.
-  The contracts have been tested and reviewed but not audited. Use them at your
-  own risk, and only with amounts you can afford to lose.
+<Callout kind="warning" title="Not audited">
+  The Spreadless contracts on Stellar mainnet have not been audited. They have
+  been tested and reviewed internally, which is not a substitute. Use them at
+  your own risk, and only with amounts you can afford to lose.
+</Callout>
+
+<Callout kind="warning" title="Router governance can replace pool code">
+  The router owner can replace the code of the router and of **every pool
+  registered with it, including pools created by third parties**, through
+  `upgrade` and `upgrade_pool`. A pool's own owner cannot prevent this. The
+  router owner can also pause any pool's swaps and deposits and set its protocol
+  fee; withdrawals stay open while a pool is paused. Upgrades take effect
+  immediately: there is no timelock. See [Governance](#governance) for who holds
+  that key.
 </Callout>
 
 | Parameter | Value |
@@ -24,6 +34,18 @@ import Callout from "../../../components/docs/Callout.astro";
 
 The app reaches Soroban RPC through its own `/rpc` endpoint. The contracts
 repo's `deployments/mainnet.json` is the source of truth for every address.
+
+### Governance
+
+| Role | Held by |
+| --- | --- |
+| Router owner | `GBAXG35EYDV6N6ET2LPE7OFGKWMGTZ3EY6NLJPHVKPLPQ3V5YUXMMTBF` |
+
+The router owner is currently a single hardware-wallet key. It is the only
+account that can upgrade the router, upgrade a registered pool, pause or unpause
+a pool on the protocol side, ramp `A` on protocol-managed pools, and change
+protocol fees. Pool creation through the router is permissionless, and every
+pool created that way, by anyone, is under this same control.
 
 ### USD 3pool tokens
 
